@@ -1,0 +1,19 @@
+## Xcode / build
+build/
+DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserstate
+
+## XcodeGen generates these from project.yml — do not commit
+PriceTracker.xcodeproj/
+PriceTracker-Info.plist
+PriceTracker.entitlements
+
+## SPM
+.swiftpm/
+.build/
+
+## macOS
+.DS_Store

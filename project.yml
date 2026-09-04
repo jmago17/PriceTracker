@@ -1,0 +1,80 @@
+name: PriceTracker
+options:
+  bundleIdPrefix: com.maromeapps
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "6.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: "YES"
+
+targets:
+  PriceTracker:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.maromeapps.PriceTracker
+        PRODUCT_NAME: PriceTracker
+        DEVELOPMENT_TEAM: ES2766ARHJ
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: "NO"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_EMIT_LOC_STRINGS: "YES"
+    entitlements:
+      path: PriceTracker.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.maromeapps.PriceTracker
+    info:
+      path: PriceTracker-Info.plist
+      properties:
+        CFBundleDisplayName: PriceTracker
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: false
+        ITSAppUsesNonExemptEncryption: false
+
+  PriceTrackerTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Tests/PriceTrackerTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.maromeapps.PriceTrackerTests
+        GENERATE_INFOPLIST_FILE: "YES"
+    dependencies:
+      - target: PriceTracker
+
+schemes:
+  PriceTracker:
+    build:
+      targets:
+        PriceTracker: all
+        PriceTrackerTests: [test]
+    test:
+      targets:
+        - PriceTrackerTests
+    run:
+      config: Debug
