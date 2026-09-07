@@ -20,9 +20,12 @@ targets:
     deploymentTarget: "26.0"
     sources:
       - path: Sources
+      - path: Resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.maromeapps.PriceTracker
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: "YES"
         PRODUCT_NAME: PriceTracker
         DEVELOPMENT_TEAM: ES2766ARHJ
         CODE_SIGN_STYLE: Automatic
@@ -38,6 +41,7 @@ targets:
       path: PriceTracker-Info.plist
       properties:
         CFBundleDisplayName: PriceTracker
+        CFBundleIconName: AppIcon
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
