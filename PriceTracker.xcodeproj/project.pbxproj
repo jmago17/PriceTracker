@@ -1,0 +1,648 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		002C4B56F7326CBFB58023F4 /* PriceDropDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60266D4F355A9E5836E6A2D7 /* PriceDropDetector.swift */; };
+		0229B36A783CEDB7D08E914F /* NotifyPriceDropsIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12446C7AB1B16B07338E8E14 /* NotifyPriceDropsIntent.swift */; };
+		0CB7D8EF389FEC04CF156BB2 /* ItemStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27899BDA6EB78D6B26F7CBA6 /* ItemStatus.swift */; };
+		10AEE8F98D02132F2CD194E5 /* ItemImportExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46D46BE799AE62AD353CC772 /* ItemImportExportTests.swift */; };
+		16276FCCFE3E07C7274A4308 /* ItemEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C96D14D727CE29B7813C3FA /* ItemEntity.swift */; };
+		17E93D0745E1A8F1AAA811BF /* iTunesConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39AAFB2DDF7598A77CC2EA8 /* iTunesConnector.swift */; };
+		25A7146F84FB6661E463F877 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B7FD4A4C320A92F785C5DCE4 /* Assets.xcassets */; };
+		2C558B449BED7A34811DD9E1 /* LegacyImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 565EF4D389D3224614FB0DF0 /* LegacyImport.swift */; };
+		2EA9BBAF38921B756A5F8FCB /* ItemFilterEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A349F6E555863F56E30DC47 /* ItemFilterEngineTests.swift */; };
+		304EC3F7F32CFB1100B2C146 /* RefreshItemIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C26240AF37519032AB7B7B /* RefreshItemIntent.swift */; };
+		518F32C7CED5BD6B6833DA11 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A870D5B3A3CB2311D185B47 /* AppGroup.swift */; };
+		525E39DAA5E9DC72415B9A55 /* AlertNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 696936ECA115522DFB3832DA /* AlertNotifier.swift */; };
+		526CC1A093FA750C4C45C8D5 /* ItemFilterEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8414352C60EB71983C543EC1 /* ItemFilterEngine.swift */; };
+		5DE458A88C46D52C40CDAE5A /* PriceObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D58418AFC8B2E82EA09B2234 /* PriceObservation.swift */; };
+		5E6E70407AB813AF3377B19B /* AddItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E5EA2A5AFB4029A6F1C260 /* AddItemView.swift */; };
+		6680A6C654D78A23F9E60AD7 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = E122E3902D45AC03172310A0 /* Store.swift */; };
+		6EAE70B6A308177E77F6B716 /* Item.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960A1EE602900E5C8DCBCF5F /* Item.swift */; };
+		87FA1B0E4DDA59C7478C2A85 /* ItemImportExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C155442F07864CACBBBA57D6 /* ItemImportExport.swift */; };
+		8BB3A1914CC580EA745D8347 /* PriceDropDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3EF9F6831373A85EDA3D1CA /* PriceDropDetectorTests.swift */; };
+		90E8D7D5C436711227E8D0E3 /* JSONFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9226E8FEDE85627854E203F9 /* JSONFileStore.swift */; };
+		98E858833B14E5E625C5E12F /* ItemListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEC123AC651FEA9420141DB6 /* ItemListViewModel.swift */; };
+		A7B8AEB7C341A8B0F1582988 /* ItemDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA22398C4968495785E9127 /* ItemDetailView.swift */; };
+		AD27B56D793C4BEA23AC2E89 /* ItemQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB4404890FAF52027ECE191 /* ItemQuery.swift */; };
+		B80516C492BB51475FD89602 /* JSONFileItemStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C58F737A508B6F23EA669FE1 /* JSONFileItemStoreTests.swift */; };
+		BD1C922399AEE5AC6707E545 /* StoreConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1CC6BBAA4BD56387E5F47AB /* StoreConnector.swift */; };
+		C5A0392313D9AA9DD639FCCA /* ItemStoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = E397C87C42B69BC2C07208FB /* ItemStoring.swift */; };
+		C73BD661347ADAD622D75688 /* AmazonConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92FA789D1AA2C7B84939AADF /* AmazonConnector.swift */; };
+		CD66C1AB0AFC1AB84915AC05 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C8F5EF03AED462A62C25F4F /* AppEnvironment.swift */; };
+		D7D0E4DC7F60C1BD15D1A9E4 /* RefreshCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F41F166AFD7754B4E097DFC0 /* RefreshCoordinator.swift */; };
+		D92D3845ABA2F0158BE413F8 /* PriceTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46426E104289A29B24DDAD88 /* PriceTrackerApp.swift */; };
+		DE77F7D9DDE47A654713A774 /* ImportExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7DF267B444BA7390FFF69E /* ImportExportView.swift */; };
+		EC13B4B80DEC55DE6607BEA6 /* ConnectorRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 208A25D3C0FF43BB570687B4 /* ConnectorRegistry.swift */; };
+		F71A966258B34801B62A3F4D /* AddItemViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEB71ADDAC752EA1E447466E /* AddItemViewModel.swift */; };
+		F948E6E97F27D4485EEE09DC /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B889A31A68F6E4AD56591CD1 /* RootView.swift */; };
+		F9ABEF7EAC560DBC89FB56DF /* ItemRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C0908BD5E7076146315000 /* ItemRowView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		99EDCF186B9708DC0823EEEB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 98012A32567C7BB86E1D1EA1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 173B7F91213A04015483F754;
+			remoteInfo = PriceTracker;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		12446C7AB1B16B07338E8E14 /* NotifyPriceDropsIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifyPriceDropsIntent.swift; sourceTree = "<group>"; };
+		1A349F6E555863F56E30DC47 /* ItemFilterEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemFilterEngineTests.swift; sourceTree = "<group>"; };
+		208A25D3C0FF43BB570687B4 /* ConnectorRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectorRegistry.swift; sourceTree = "<group>"; };
+		27899BDA6EB78D6B26F7CBA6 /* ItemStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemStatus.swift; sourceTree = "<group>"; };
+		31C26240AF37519032AB7B7B /* RefreshItemIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshItemIntent.swift; sourceTree = "<group>"; };
+		3A870D5B3A3CB2311D185B47 /* AppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroup.swift; sourceTree = "<group>"; };
+		3C8F5EF03AED462A62C25F4F /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		3C96D14D727CE29B7813C3FA /* ItemEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemEntity.swift; sourceTree = "<group>"; };
+		46426E104289A29B24DDAD88 /* PriceTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceTrackerApp.swift; sourceTree = "<group>"; };
+		46D46BE799AE62AD353CC772 /* ItemImportExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemImportExportTests.swift; sourceTree = "<group>"; };
+		4C7DF267B444BA7390FFF69E /* ImportExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportExportView.swift; sourceTree = "<group>"; };
+		565EF4D389D3224614FB0DF0 /* LegacyImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyImport.swift; sourceTree = "<group>"; };
+		5DA22398C4968495785E9127 /* ItemDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemDetailView.swift; sourceTree = "<group>"; };
+		60266D4F355A9E5836E6A2D7 /* PriceDropDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceDropDetector.swift; sourceTree = "<group>"; };
+		696936ECA115522DFB3832DA /* AlertNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertNotifier.swift; sourceTree = "<group>"; };
+		79C0908BD5E7076146315000 /* ItemRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemRowView.swift; sourceTree = "<group>"; };
+		7BB4404890FAF52027ECE191 /* ItemQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemQuery.swift; sourceTree = "<group>"; };
+		8414352C60EB71983C543EC1 /* ItemFilterEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemFilterEngine.swift; sourceTree = "<group>"; };
+		8E75140F7D5E204EE342ACB8 /* PriceTrackerTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = PriceTrackerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9226E8FEDE85627854E203F9 /* JSONFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONFileStore.swift; sourceTree = "<group>"; };
+		92FA789D1AA2C7B84939AADF /* AmazonConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmazonConnector.swift; sourceTree = "<group>"; };
+		960A1EE602900E5C8DCBCF5F /* Item.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Item.swift; sourceTree = "<group>"; };
+		B3EF9F6831373A85EDA3D1CA /* PriceDropDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceDropDetectorTests.swift; sourceTree = "<group>"; };
+		B7FD4A4C320A92F785C5DCE4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B889A31A68F6E4AD56591CD1 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		B9E5EA2A5AFB4029A6F1C260 /* AddItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddItemView.swift; sourceTree = "<group>"; };
+		C155442F07864CACBBBA57D6 /* ItemImportExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemImportExport.swift; sourceTree = "<group>"; };
+		C58F737A508B6F23EA669FE1 /* JSONFileItemStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONFileItemStoreTests.swift; sourceTree = "<group>"; };
+		CEB71ADDAC752EA1E447466E /* AddItemViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddItemViewModel.swift; sourceTree = "<group>"; };
+		CEC123AC651FEA9420141DB6 /* ItemListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemListViewModel.swift; sourceTree = "<group>"; };
+		D39AAFB2DDF7598A77CC2EA8 /* iTunesConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iTunesConnector.swift; sourceTree = "<group>"; };
+		D58418AFC8B2E82EA09B2234 /* PriceObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceObservation.swift; sourceTree = "<group>"; };
+		DC663077C24AC25291022742 /* PriceTracker.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PriceTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E122E3902D45AC03172310A0 /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
+		E397C87C42B69BC2C07208FB /* ItemStoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemStoring.swift; sourceTree = "<group>"; };
+		F1CC6BBAA4BD56387E5F47AB /* StoreConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreConnector.swift; sourceTree = "<group>"; };
+		F41F166AFD7754B4E097DFC0 /* RefreshCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshCoordinator.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		1082A73CAF0212E92DBE612C /* Connectors */ = {
+			isa = PBXGroup;
+			children = (
+				92FA789D1AA2C7B84939AADF /* AmazonConnector.swift */,
+				208A25D3C0FF43BB570687B4 /* ConnectorRegistry.swift */,
+				D39AAFB2DDF7598A77CC2EA8 /* iTunesConnector.swift */,
+				F1CC6BBAA4BD56387E5F47AB /* StoreConnector.swift */,
+			);
+			path = Connectors;
+			sourceTree = "<group>";
+		};
+		15EEBB4C32DF5CF71EA089D3 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				B7FD4A4C320A92F785C5DCE4 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		5F59930D5A52A6D93EFCCB00 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				D7BE223F19359A177F29A5BD /* PriceTrackerTests */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		5FFA437F91CEF36CC5383AAE /* Alerts */ = {
+			isa = PBXGroup;
+			children = (
+				696936ECA115522DFB3832DA /* AlertNotifier.swift */,
+				60266D4F355A9E5836E6A2D7 /* PriceDropDetector.swift */,
+			);
+			path = Alerts;
+			sourceTree = "<group>";
+		};
+		6C85C791076831DF87969A68 = {
+			isa = PBXGroup;
+			children = (
+				15EEBB4C32DF5CF71EA089D3 /* Resources */,
+				BCEBA3C4B3FDDBEF5EEB50B3 /* Sources */,
+				5F59930D5A52A6D93EFCCB00 /* Tests */,
+				CD5100BF2FF28F69600A9C91 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		8006D5603386ACCC3F9D13A4 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				E397C87C42B69BC2C07208FB /* ItemStoring.swift */,
+				9226E8FEDE85627854E203F9 /* JSONFileStore.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		9111E2D1B3105C28B240C033 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				CEB71ADDAC752EA1E447466E /* AddItemViewModel.swift */,
+				CEC123AC651FEA9420141DB6 /* ItemListViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		9D2BDB9CEF191AC05A56C518 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				B9E5EA2A5AFB4029A6F1C260 /* AddItemView.swift */,
+				4C7DF267B444BA7390FFF69E /* ImportExportView.swift */,
+				5DA22398C4968495785E9127 /* ItemDetailView.swift */,
+				79C0908BD5E7076146315000 /* ItemRowView.swift */,
+				B889A31A68F6E4AD56591CD1 /* RootView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		ADB37DBCCF35161DA6516587 /* ImportExport */ = {
+			isa = PBXGroup;
+			children = (
+				C155442F07864CACBBBA57D6 /* ItemImportExport.swift */,
+				565EF4D389D3224614FB0DF0 /* LegacyImport.swift */,
+			);
+			path = ImportExport;
+			sourceTree = "<group>";
+		};
+		BCEBA3C4B3FDDBEF5EEB50B3 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				5FFA437F91CEF36CC5383AAE /* Alerts */,
+				BD83208DE658027E4FD0D8C8 /* App */,
+				C2D57D556A229C8257495E6B /* AppIntents */,
+				1082A73CAF0212E92DBE612C /* Connectors */,
+				ADB37DBCCF35161DA6516587 /* ImportExport */,
+				D88ADF8EF5678D108937F3E1 /* Models */,
+				8006D5603386ACCC3F9D13A4 /* Persistence */,
+				C1ABE267D0A0B5F5B871A9A3 /* Refresh */,
+				9111E2D1B3105C28B240C033 /* ViewModels */,
+				9D2BDB9CEF191AC05A56C518 /* Views */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		BD83208DE658027E4FD0D8C8 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				3C8F5EF03AED462A62C25F4F /* AppEnvironment.swift */,
+				3A870D5B3A3CB2311D185B47 /* AppGroup.swift */,
+				46426E104289A29B24DDAD88 /* PriceTrackerApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		C1ABE267D0A0B5F5B871A9A3 /* Refresh */ = {
+			isa = PBXGroup;
+			children = (
+				F41F166AFD7754B4E097DFC0 /* RefreshCoordinator.swift */,
+			);
+			path = Refresh;
+			sourceTree = "<group>";
+		};
+		C2D57D556A229C8257495E6B /* AppIntents */ = {
+			isa = PBXGroup;
+			children = (
+				3C96D14D727CE29B7813C3FA /* ItemEntity.swift */,
+				8414352C60EB71983C543EC1 /* ItemFilterEngine.swift */,
+				7BB4404890FAF52027ECE191 /* ItemQuery.swift */,
+				12446C7AB1B16B07338E8E14 /* NotifyPriceDropsIntent.swift */,
+				31C26240AF37519032AB7B7B /* RefreshItemIntent.swift */,
+			);
+			path = AppIntents;
+			sourceTree = "<group>";
+		};
+		CD5100BF2FF28F69600A9C91 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				DC663077C24AC25291022742 /* PriceTracker.app */,
+				8E75140F7D5E204EE342ACB8 /* PriceTrackerTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D7BE223F19359A177F29A5BD /* PriceTrackerTests */ = {
+			isa = PBXGroup;
+			children = (
+				1A349F6E555863F56E30DC47 /* ItemFilterEngineTests.swift */,
+				46D46BE799AE62AD353CC772 /* ItemImportExportTests.swift */,
+				C58F737A508B6F23EA669FE1 /* JSONFileItemStoreTests.swift */,
+				B3EF9F6831373A85EDA3D1CA /* PriceDropDetectorTests.swift */,
+			);
+			path = PriceTrackerTests;
+			sourceTree = "<group>";
+		};
+		D88ADF8EF5678D108937F3E1 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				960A1EE602900E5C8DCBCF5F /* Item.swift */,
+				27899BDA6EB78D6B26F7CBA6 /* ItemStatus.swift */,
+				D58418AFC8B2E82EA09B2234 /* PriceObservation.swift */,
+				E122E3902D45AC03172310A0 /* Store.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		173B7F91213A04015483F754 /* PriceTracker */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BBA3A64EA7D888406A98E0F6 /* Build configuration list for PBXNativeTarget "PriceTracker" */;
+			buildPhases = (
+				0E9868431320623C02FC61BA /* Sources */,
+				3145CC7894117C372462D93A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PriceTracker;
+			packageProductDependencies = (
+			);
+			productName = PriceTracker;
+			productReference = DC663077C24AC25291022742 /* PriceTracker.app */;
+			productType = "com.apple.product-type.application";
+		};
+		66FBDD9044DA548A8E82723E /* PriceTrackerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D691A981D9C334FABC19CB24 /* Build configuration list for PBXNativeTarget "PriceTrackerTests" */;
+			buildPhases = (
+				6DA8954B8487F224703E82FF /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				183D638C24D9E200BF7E0BC1 /* PBXTargetDependency */,
+			);
+			name = PriceTrackerTests;
+			packageProductDependencies = (
+			);
+			productName = PriceTrackerTests;
+			productReference = 8E75140F7D5E204EE342ACB8 /* PriceTrackerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		98012A32567C7BB86E1D1EA1 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					173B7F91213A04015483F754 = {
+						DevelopmentTeam = ES2766ARHJ;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = C2E5723335A11DF209E576F5 /* Build configuration list for PBXProject "PriceTracker" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 6C85C791076831DF87969A68;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = CD5100BF2FF28F69600A9C91 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				173B7F91213A04015483F754 /* PriceTracker */,
+				66FBDD9044DA548A8E82723E /* PriceTrackerTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		3145CC7894117C372462D93A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				25A7146F84FB6661E463F877 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0E9868431320623C02FC61BA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5E6E70407AB813AF3377B19B /* AddItemView.swift in Sources */,
+				F71A966258B34801B62A3F4D /* AddItemViewModel.swift in Sources */,
+				525E39DAA5E9DC72415B9A55 /* AlertNotifier.swift in Sources */,
+				C73BD661347ADAD622D75688 /* AmazonConnector.swift in Sources */,
+				CD66C1AB0AFC1AB84915AC05 /* AppEnvironment.swift in Sources */,
+				518F32C7CED5BD6B6833DA11 /* AppGroup.swift in Sources */,
+				EC13B4B80DEC55DE6607BEA6 /* ConnectorRegistry.swift in Sources */,
+				DE77F7D9DDE47A654713A774 /* ImportExportView.swift in Sources */,
+				6EAE70B6A308177E77F6B716 /* Item.swift in Sources */,
+				A7B8AEB7C341A8B0F1582988 /* ItemDetailView.swift in Sources */,
+				16276FCCFE3E07C7274A4308 /* ItemEntity.swift in Sources */,
+				526CC1A093FA750C4C45C8D5 /* ItemFilterEngine.swift in Sources */,
+				87FA1B0E4DDA59C7478C2A85 /* ItemImportExport.swift in Sources */,
+				98E858833B14E5E625C5E12F /* ItemListViewModel.swift in Sources */,
+				AD27B56D793C4BEA23AC2E89 /* ItemQuery.swift in Sources */,
+				F9ABEF7EAC560DBC89FB56DF /* ItemRowView.swift in Sources */,
+				0CB7D8EF389FEC04CF156BB2 /* ItemStatus.swift in Sources */,
+				C5A0392313D9AA9DD639FCCA /* ItemStoring.swift in Sources */,
+				90E8D7D5C436711227E8D0E3 /* JSONFileStore.swift in Sources */,
+				2C558B449BED7A34811DD9E1 /* LegacyImport.swift in Sources */,
+				0229B36A783CEDB7D08E914F /* NotifyPriceDropsIntent.swift in Sources */,
+				002C4B56F7326CBFB58023F4 /* PriceDropDetector.swift in Sources */,
+				5DE458A88C46D52C40CDAE5A /* PriceObservation.swift in Sources */,
+				D92D3845ABA2F0158BE413F8 /* PriceTrackerApp.swift in Sources */,
+				D7D0E4DC7F60C1BD15D1A9E4 /* RefreshCoordinator.swift in Sources */,
+				304EC3F7F32CFB1100B2C146 /* RefreshItemIntent.swift in Sources */,
+				F948E6E97F27D4485EEE09DC /* RootView.swift in Sources */,
+				6680A6C654D78A23F9E60AD7 /* Store.swift in Sources */,
+				BD1C922399AEE5AC6707E545 /* StoreConnector.swift in Sources */,
+				17E93D0745E1A8F1AAA811BF /* iTunesConnector.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6DA8954B8487F224703E82FF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2EA9BBAF38921B756A5F8FCB /* ItemFilterEngineTests.swift in Sources */,
+				10AEE8F98D02132F2CD194E5 /* ItemImportExportTests.swift in Sources */,
+				B80516C492BB51475FD89602 /* JSONFileItemStoreTests.swift in Sources */,
+				8BB3A1914CC580EA745D8347 /* PriceDropDetectorTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		183D638C24D9E200BF7E0BC1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 173B7F91213A04015483F754 /* PriceTracker */;
+			targetProxy = 99EDCF186B9708DC0823EEEB /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		768E368E27DD17E30CA1A245 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		7DC465ACC5BBBEC94C480F12 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.maromeapps.PriceTrackerTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PriceTracker.app/PriceTracker";
+			};
+			name = Debug;
+		};
+		8D9D56862C36A47015C68B94 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = YES;
+				CODE_SIGN_ENTITLEMENTS = PriceTracker.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = ES2766ARHJ;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "PriceTracker-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.maromeapps.PriceTracker;
+				PRODUCT_NAME = PriceTracker;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		C6D94E0E314B26BD58B07144 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.maromeapps.PriceTrackerTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PriceTracker.app/PriceTracker";
+			};
+			name = Release;
+		};
+		EFFC2404AF16ECEBDCB5B85D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = YES;
+				CODE_SIGN_ENTITLEMENTS = PriceTracker.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = ES2766ARHJ;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "PriceTracker-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.maromeapps.PriceTracker;
+				PRODUCT_NAME = PriceTracker;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F02BC8EEF6315DF788CF76D1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		BBA3A64EA7D888406A98E0F6 /* Build configuration list for PBXNativeTarget "PriceTracker" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EFFC2404AF16ECEBDCB5B85D /* Debug */,
+				8D9D56862C36A47015C68B94 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C2E5723335A11DF209E576F5 /* Build configuration list for PBXProject "PriceTracker" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F02BC8EEF6315DF788CF76D1 /* Debug */,
+				768E368E27DD17E30CA1A245 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D691A981D9C334FABC19CB24 /* Build configuration list for PBXNativeTarget "PriceTrackerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7DC465ACC5BBBEC94C480F12 /* Debug */,
+				C6D94E0E314B26BD58B07144 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 98012A32567C7BB86E1D1EA1 /* Project object */;
+}

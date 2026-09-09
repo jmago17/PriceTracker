@@ -1,0 +1,9 @@
+{
+  "id" : "8d724f7d-b9ef-4dd7-a4da-0cad6f1cb91c",
+  "targets" : [
+    {
+      "id" : "b3463136-b1de-4d88-8424-8de880b7a47c",
+      "name" : "PriceTracker"
+    }
+  ]
+}
