@@ -4,6 +4,8 @@ struct RootView: View {
     @State private var viewModel = ItemListViewModel()
     @State private var showingAddItem = false
     @State private var showingImportExport = false
+    @State private var showingSharedInbox = false
+    @State private var sharedInbox = SharedInboxViewModel()
 
     var body: some View {
         NavigationStack {
@@ -71,6 +73,10 @@ struct RootView: View {
                         Button("Importar / exportar", systemImage: "square.and.arrow.up.on.square") {
                             showingImportExport = true
                         }
+                        Button("Enlaces compartidos", systemImage: "square.and.arrow.down") {
+                            sharedInbox.reload()
+                            showingSharedInbox = true
+                        }
                         if viewModel.isRefreshingCatalog {
                             Button("Cancelar actualización", systemImage: "xmark", role: .destructive) {
                                 viewModel.cancelRefreshCatalog()
@@ -91,6 +97,9 @@ struct RootView: View {
             .sheet(isPresented: $showingImportExport) {
                 ImportExportView(viewModel: viewModel)
             }
+            .sheet(isPresented: $showingSharedInbox) {
+                SharedInboxView(viewModel: sharedInbox) { await viewModel.load() }
+            }
             .alert(
                 "Error",
                 isPresented: Binding(
@@ -102,7 +111,10 @@ struct RootView: View {
             } message: {
                 Text(viewModel.lastErrorMessage ?? "")
             }
-            .task { await viewModel.load() }
+            .task {
+                await sharedInbox.processAll()
+                await viewModel.load()
+            }
             .refreshable { await viewModel.load() }
         }
     }

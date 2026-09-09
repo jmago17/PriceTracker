@@ -54,10 +54,13 @@ struct ITunesConnector: StoreConnector {
     private static func parseIdentity(from url: URL) throws -> Identity {
         guard let host = url.host, host.hasSuffix("apple.com") else { throw ConnectorError.unrecognizedURL }
         let segments = url.pathComponents.filter { $0 != "/" }
-        guard let idSegment = segments.first(where: { $0.hasPrefix("id") && $0.dropFirst().allSatisfy(\.isNumber) }) else {
+        // App Store URLs use a final `id<digits>` component. Extracting from
+        // the percent-decoded path also tolerates locale/slugs and URL variants.
+        let path = url.path(percentEncoded: false)
+        guard let match = path.firstMatch(of: /(?:^|\/)id(\d+)(?:$|\/)/) else {
             throw ConnectorError.unrecognizedURL
         }
-        let storeItemID = String(idSegment.dropFirst())
+        let storeItemID = String(match.1)
 
         let region = segments.first(where: { $0.count == 2 && $0.lowercased() == $0 && $0.allSatisfy(\.isLetter) })?.uppercased() ?? "ES"
 
@@ -145,7 +148,12 @@ struct ITunesConnector: StoreConnector {
     }
 
     private static func priceCents(from result: LookupResult) -> Int? {
-        guard let price = result.trackPrice ?? result.collectionPrice else { return nil }
+        // The iTunes Lookup API intentionally omits trackPrice for free apps
+        // (for example Clash Royale, id1053012308). A resolved store result
+        // without a paid price is therefore a valid zero-price item, not an
+        // unsupported URL.
+        guard result.trackId != nil || result.collectionId != nil else { return nil }
+        let price = result.trackPrice ?? result.collectionPrice ?? 0
         return Int((price * 100).rounded())
     }
 
