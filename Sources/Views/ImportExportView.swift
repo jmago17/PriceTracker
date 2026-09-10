@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 private struct CatalogDocument: FileDocument {
     static var readableContentTypes: [UTType] { [.json] }
@@ -48,6 +49,10 @@ struct ImportExportView: View {
 
                     Button("Elegir fichero JSON…") {
                         isImporting = true
+                    }
+
+                    Button("Importar JSON del portapapeles", systemImage: "doc.on.clipboard") {
+                        importClipboard()
                     }
                 }
 
@@ -102,13 +107,40 @@ struct ImportExportView: View {
                 let url = try result.get()
                 let accessed = url.startAccessingSecurityScopedResource()
                 defer { if accessed { url.stopAccessingSecurityScopedResource() } }
-                let data = try Data(contentsOf: url)
-                let summary = try await ItemImporter.importData(data, mode: importMode, into: AppEnvironment.shared.itemStore)
-                statusMessage = "Importados \(summary.imported), omitidos \(summary.skipped)."
-                await viewModel.load()
+                try await importData(Data(contentsOf: url))
             } catch {
                 statusMessage = error.localizedDescription
             }
         }
+    }
+
+    private func importClipboard() {
+        // Reading only after an explicit tap keeps pasteboard access user-driven.
+        guard let text = UIPasteboard.general.string,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            statusMessage = "El portapapeles no contiene texto JSON."
+            return
+        }
+        guard let data = text.data(using: .utf8) else {
+            statusMessage = "No se pudo leer el texto del portapapeles como UTF-8."
+            return
+        }
+        Task {
+            do {
+                try await importData(data)
+            } catch {
+                statusMessage = "JSON no válido: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func importData(_ data: Data) async throws {
+        let summary = try await ItemImporter.importData(
+            data,
+            mode: importMode,
+            into: AppEnvironment.shared.itemStore
+        )
+        statusMessage = "Importados \(summary.imported), omitidos \(summary.skipped)."
+        await viewModel.load()
     }
 }
