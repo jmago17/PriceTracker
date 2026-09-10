@@ -1,10 +1,13 @@
 import SwiftUI
 
 struct RootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel = ItemListViewModel()
+    @State private var syncViewModel = SyncViewModel()
     @State private var showingAddItem = false
     @State private var showingImportExport = false
     @State private var showingSharedInbox = false
+    @State private var showingSync = false
     @State private var sharedInbox = SharedInboxViewModel()
 
     var body: some View {
@@ -61,6 +64,18 @@ struct RootView: View {
                 }
             }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showingSync = true
+                    } label: {
+                        if syncViewModel.snapshot.isSyncing {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: syncViewModel.snapshot.pendingLocalChanges > 0 ? "icloud.and.arrow.up" : "icloud")
+                        }
+                    }
+                    .accessibilityLabel("Estado de sincronización")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showingAddItem = true
@@ -76,6 +91,9 @@ struct RootView: View {
                         Button("Enlaces compartidos", systemImage: "square.and.arrow.down") {
                             sharedInbox.reload()
                             showingSharedInbox = true
+                        }
+                        Button("Sincronización", systemImage: "icloud") {
+                            showingSync = true
                         }
                         if viewModel.isRefreshingCatalog {
                             Button("Cancelar actualización", systemImage: "xmark", role: .destructive) {
@@ -100,6 +118,9 @@ struct RootView: View {
             .sheet(isPresented: $showingSharedInbox) {
                 SharedInboxView(viewModel: sharedInbox) { await viewModel.load() }
             }
+            .sheet(isPresented: $showingSync) {
+                SyncView(viewModel: syncViewModel)
+            }
             .alert(
                 "Error",
                 isPresented: Binding(
@@ -112,10 +133,24 @@ struct RootView: View {
                 Text(viewModel.lastErrorMessage ?? "")
             }
             .task {
+                await syncViewModel.start()
                 await sharedInbox.processAll()
                 await viewModel.load()
+                await syncViewModel.syncNow()
+                await viewModel.load()
+                await syncViewModel.monitorStatus()
             }
             .refreshable { await viewModel.load() }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                Task {
+                    await syncViewModel.syncNow()
+                    await viewModel.load()
+                }
+            }
+            .onChange(of: syncViewModel.snapshot.catalogRevision) { _, _ in
+                Task { await viewModel.load() }
+            }
         }
     }
 }

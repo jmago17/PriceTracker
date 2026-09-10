@@ -7,15 +7,30 @@ final class AppEnvironment: Sendable {
     static let shared = AppEnvironment()
 
     let itemStore: any ItemStoring
+    let localItemStore: SQLiteItemStore
+    let syncManager: CloudSyncManager
+    let syncStatusStore: CloudSyncStatusStore
     let alertStore: any AlertStoring
     let connectors: ConnectorRegistry
     let refreshCoordinator: RefreshCoordinator
     let alertNotifier: AlertNotifier
 
-    init(
-        itemStore: any ItemStoring = JSONFileItemStore(fileURL: AppGroup.itemsFileURL),
-        alertStore: any AlertStoring = JSONFileAlertStore(fileURL: AppGroup.alertsFileURL)
-    ) {
+    init(alertStore: any AlertStoring = JSONFileAlertStore(fileURL: AppGroup.alertsFileURL)) {
+        let localItemStore = SQLiteItemStore(databaseURL: AppGroup.databaseURL)
+        let syncStatusStore = CloudSyncStatusStore()
+        let syncManager = CloudSyncManager(
+            localStore: localItemStore,
+            legacyJSONURL: AppGroup.itemsFileURL,
+            statusStore: syncStatusStore
+        )
+        let itemStore = CloudBackedItemStore(
+            localStore: localItemStore,
+            syncManager: syncManager,
+            legacyJSONURL: AppGroup.itemsFileURL
+        )
+        self.localItemStore = localItemStore
+        self.syncStatusStore = syncStatusStore
+        self.syncManager = syncManager
         self.itemStore = itemStore
         self.alertStore = alertStore
         self.connectors = ConnectorRegistry()

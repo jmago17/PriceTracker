@@ -35,6 +35,7 @@ struct Item: Identifiable, Codable, Hashable, Sendable {
     var lastError: String?
 
     var externalIDs: [String: String]
+    var tags: [String]?
     var notes: String?
 
     var createdAt: Date
@@ -68,6 +69,7 @@ struct Item: Identifiable, Codable, Hashable, Sendable {
         consecutiveFailures: Int = 0,
         lastError: String? = nil,
         externalIDs: [String: String] = [:],
+        tags: [String]? = nil,
         notes: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
@@ -99,6 +101,7 @@ struct Item: Identifiable, Codable, Hashable, Sendable {
         self.consecutiveFailures = consecutiveFailures
         self.lastError = lastError
         self.externalIDs = externalIDs
+        self.tags = tags
         self.notes = notes
         self.createdAt = createdAt
         self.updatedAt = updatedAt

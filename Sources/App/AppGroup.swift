@@ -16,6 +16,10 @@ enum AppGroup {
         containerURL.appendingPathComponent("items.json")
     }
 
+    static var databaseURL: URL {
+        containerURL.appendingPathComponent("catalog.sqlite")
+    }
+
     static var alertsFileURL: URL {
         containerURL.appendingPathComponent("alerts.json")
     }

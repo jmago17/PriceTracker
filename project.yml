@@ -35,11 +35,19 @@ targets:
     dependencies:
       - target: PriceTrackerShare
         embed: true
+      - sdk: CloudKit.framework
+      - sdk: AppIntents.framework
+      - sdk: libsqlite3.tbd
     entitlements:
       path: PriceTracker.entitlements
       properties:
         com.apple.security.application-groups:
           - group.com.maromeapps.PriceTracker
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.com.maromeapps.PriceTracker
+        com.apple.developer.icloud-services:
+          - CloudKit
+        aps-environment: development
     info:
       path: PriceTracker-Info.plist
       properties:
@@ -59,6 +67,8 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
+        UIBackgroundModes:
+          - remote-notification
         ITSAppUsesNonExemptEncryption: false
 
   PriceTrackerShare:

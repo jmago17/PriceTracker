@@ -106,8 +106,8 @@ final class ItemListViewModel {
         lastErrorMessage = nil
         refreshTask = Task {
             do {
-                _ = try await environment.refreshCoordinator.refreshCatalog { [weak self] progress in
-                    self?.refreshProgress = progress
+                _ = try await environment.refreshCoordinator.refreshCatalog { progress in
+                    self.refreshProgress = progress
                 }
             } catch is CancellationError {
                 // user-initiated cancel — not an error worth surfacing

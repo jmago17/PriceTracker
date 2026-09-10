@@ -67,15 +67,16 @@ enum ItemImporter {
                 var merged = incoming
                 merged.id = existing[index].id
                 existing[index] = merged
+                try await store.upsert(merged)
                 imported += 1
             } else if existing.contains(where: { $0.id == incoming.id }) {
                 skipped += 1
             } else {
                 existing.append(incoming)
+                try await store.upsert(incoming)
                 imported += 1
             }
         }
-        try await store.save(existing)
         return ImportSummary(imported: imported, skipped: skipped)
     }
 }

@@ -7,6 +7,7 @@ struct ItemDetailView: View {
     @State private var category: String
     @State private var targetPriceText: String
     @State private var notes: String
+    @State private var tagsText: String
     @State private var isRefreshing = false
 
     init(item: Item, viewModel: ItemListViewModel) {
@@ -15,6 +16,7 @@ struct ItemDetailView: View {
         _category = State(initialValue: item.category ?? "")
         _targetPriceText = State(initialValue: item.targetPriceCents.map { String(format: "%.2f", Double($0) / 100) } ?? "")
         _notes = State(initialValue: item.notes ?? "")
+        _tagsText = State(initialValue: (item.tags ?? []).joined(separator: ", "))
     }
 
     var body: some View {
@@ -72,6 +74,7 @@ struct ItemDetailView: View {
             }
 
             Section("Notas") {
+                TextField("Etiquetas separadas por comas", text: $tagsText)
                 TextField("Notas", text: $notes, axis: .vertical)
             }
 
@@ -101,6 +104,7 @@ struct ItemDetailView: View {
         .onChange(of: category) { _, _ in saveEdits() }
         .onChange(of: targetPriceText) { _, _ in saveEdits() }
         .onChange(of: notes) { _, _ in saveEdits() }
+        .onChange(of: tagsText) { _, _ in saveEdits() }
     }
 
     private func refresh() {
@@ -131,6 +135,12 @@ struct ItemDetailView: View {
             updated.targetPriceCents = nil
         }
         updated.notes = notes.isEmpty ? nil : notes
+        let tags = tagsText
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        updated.tags = tags.isEmpty ? nil : Array(Set(tags)).sorted()
+        updated.updatedAt = Date()
         guard updated != item else { return }
         viewModel.save(updated)
     }

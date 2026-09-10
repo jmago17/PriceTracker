@@ -1,11 +1,14 @@
 import Foundation
 
-/// Minimal, testable persistence contract. Kept to load/save-the-whole-array on
-/// purpose: hundreds of items fit trivially in memory, and a tiny protocol is
-/// easy to fake in tests without a real file system.
+/// Minimal, testable persistence contract. Row-level mutations are requirements
+/// so the production SQLite store can update atomically across app/App Intent
+/// processes; the defaults retain the simple whole-array behavior for fakes and
+/// the legacy JSON store used by migration tests.
 protocol ItemStoring: Sendable {
     func loadAll() async throws -> [Item]
     func save(_ items: [Item]) async throws
+    @discardableResult func upsert(_ item: Item) async throws -> Item
+    func delete(id: UUID) async throws
 }
 
 extension ItemStoring {
@@ -19,18 +22,22 @@ extension ItemStoring {
     @discardableResult
     func upsert(_ item: Item) async throws -> Item {
         var items = try await loadAll()
+        let stored: Item
         if let index = items.firstIndex(where: { $0.id == item.id }) {
             items[index] = item
+            stored = item
         } else if let index = items.firstIndex(where: { $0.identityKey == item.identityKey }) {
             var merged = item
             merged.id = items[index].id
             merged.createdAt = items[index].createdAt
             items[index] = merged
+            stored = merged
         } else {
             items.append(item)
+            stored = item
         }
         try await save(items)
-        return item
+        return stored
     }
 
     func delete(id: UUID) async throws {
