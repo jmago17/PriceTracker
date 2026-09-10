@@ -32,6 +32,13 @@ targets:
         GENERATE_INFOPLIST_FILE: "NO"
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_EMIT_LOC_STRINGS: "YES"
+      configs:
+        Debug:
+          APS_ENVIRONMENT: development
+          ICLOUD_CONTAINER_ENVIRONMENT: Development
+        Release:
+          APS_ENVIRONMENT: production
+          ICLOUD_CONTAINER_ENVIRONMENT: Production
     dependencies:
       - target: PriceTrackerShare
         embed: true
@@ -47,7 +54,8 @@ targets:
           - iCloud.com.maromeapps.PriceTracker
         com.apple.developer.icloud-services:
           - CloudKit
-        aps-environment: development
+        com.apple.developer.icloud-container-environment: $(ICLOUD_CONTAINER_ENVIRONMENT)
+        aps-environment: $(APS_ENVIRONMENT)
     info:
       path: PriceTracker-Info.plist
       properties:

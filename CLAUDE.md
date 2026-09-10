@@ -58,6 +58,12 @@ Solo el target principal tiene:
 - `aps-environment`.
 - background mode `remote-notification`.
 
+El entorno se selecciona explícitamente por configuración: `Debug` firma con
+CloudKit `Development` y APNs `development`; `Release` con CloudKit
+`Production` y APNs `production`. No dejar estos valores implícitos: el perfil
+Development autoriza ambos entornos de CloudKit y una firma sin selección
+explícita puede apuntar al servidor equivocado.
+
 La Share Extension conserva solo el App Group.
 
 ## Verificación de la sesión iCloud
@@ -71,6 +77,8 @@ La Share Extension conserva solo el App Group.
 - El primer intento de instalación en el iPhone 17 Pro no llegó a copiar la app porque el dispositivo estaba bloqueado y CoreDevice no pudo montar la Developer Disk Image. No es un fallo de código, firma ni provisioning.
 - Tras desbloquear el iPhone 17 Pro, el mismo build se instaló y arrancó correctamente. La app mostró el catálogo, dejó cero cambios pendientes en el indicador y creó/actualizó su caché privada de CloudKit, lo que confirma acceso al framework y a la cuenta iCloud desde el dispositivo.
 - `cktool export-schema` no pudo usarse para inspeccionar el servidor porque no hay un CloudKit Management Token guardado. No se creó uno solo para esta comprobación.
+- Después de fijar los entornos, el build Debug firmado contiene literalmente `com.apple.developer.icloud-container-environment=Development`; los 40 tests continúan pasando.
+- En el iPad, una build dirigida a Production devolvió `Failed to send changes` porque Production todavía no contiene el tipo `CatalogItem`. El nombre del tipo en código es correcto; CloudKit prohíbe crear tipos o campos nuevos directamente en Production.
 
 No verificado todavía:
 
@@ -94,3 +102,4 @@ No verificado todavía:
 - Los primeros errores de macros/CoreSimulator eran del sandbox. Fuera del sandbox compilaron; el primer crash de tests era la ausencia deliberada de firma/App Group al usar `CODE_SIGNING_ALLOWED=NO`.
 - El perfil antiguo sin iCloud/push no indicaba un defecto en el proyecto: al renovar el perfil, la firma incluyó todas las capacidades esperadas.
 - El primer fallo al renovar tampoco era el llavero: Xcode no tenía una sesión de cuenta válida (`missing Xcode-Username`). Tras iniciar sesión, renovación y CodeSign funcionaron.
+- El error del iPad no era un fallo del ID determinista ni un typo `Catalogltem`: el servidor identificó correctamente `CatalogItem` y rechazó crearlo porque la build estaba usando el esquema Production aún sin desplegar.
