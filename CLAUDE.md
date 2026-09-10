@@ -4,7 +4,7 @@
 
 - Repo: `~/Developer/PriceTracker`
 - Scheme: `PriceTracker`
-- Xcode usado en esta sesión: `~/Downloads/Xcode-beta.app` 27.0 (`27A5252f`), más nuevo que `/Applications/Xcode-beta.app` (`27A5194q`).
+- Xcode usado para la validación firmada: `/Applications/Xcode-beta.app` 27.0 (`27A5194q`).
 - Deployment target: iOS 26.0.
 - `project.yml` es la fuente de verdad y `PriceTracker.xcodeproj` debe quedar versionado para Xcode Cloud.
 - App Group: `group.com.maromeapps.PriceTracker`.
@@ -66,12 +66,14 @@ La Share Extension conserva solo el App Group.
 - Tests en iPhone 17 Pro / iOS 27.0: 40 tests, 9 suites, correctos.
 - Cubierto por tests: migración idempotente, JSON intacto, fallo reintentable, identidad/deduplicación, operaciones SQLite por fila, tombstones, merge concurrente por campos, victoria de tombstone y round-trip del ancestro CloudKit.
 - Los `.xcent` simulados contienen CloudKit/App Group/push en la app y solo App Group en la Share Extension.
-- El build firmado para dispositivo genérico se detiene antes de CodeSign: el perfil actual no incluye Push Notifications, iCloud, `iCloud.com.maromeapps.PriceTracker` ni los tres entitlements correspondientes. No es un fallo de llavero.
-- La compilación firmada para dispositivo genérico llega hasta provisioning y falla porque el perfil actual no incluye Push Notifications, iCloud, `iCloud.com.maromeapps.PriceTracker` ni los entitlements asociados. No llegó a CodeSign; no es `errSecInternalComponent` ni un problema de llavero.
+- Tras habilitar iCloud/CloudKit en el App ID, Xcode regeneró el perfil Development automático (`8c753b65-dda2-4b69-bd41-7c8926f21c94`) y el build genérico de dispositivo quedó firmado correctamente.
+- Los entitlements efectivos de la app firmada contienen `aps-environment=development`, CloudKit, `iCloud.com.maromeapps.PriceTracker` y el App Group. La Share Extension firmada contiene únicamente el App Group, además de los identificadores normales de firma.
+- El primer intento de instalación en el iPhone 17 Pro no llegó a copiar la app porque el dispositivo estaba bloqueado y CoreDevice no pudo montar la Developer Disk Image. No es un fallo de código, firma ni provisioning.
+- Tras desbloquear el iPhone 17 Pro, el mismo build se instaló y arrancó correctamente. La app mostró el catálogo, dejó cero cambios pendientes en el indicador y creó/actualizó su caché privada de CloudKit, lo que confirma acceso al framework y a la cuenta iCloud desde el dispositivo.
+- `cktool export-schema` no pudo usarse para inspeccionar el servidor porque no hay un CloudKit Management Token guardado. No se creó uno solo para esta comprobación.
 
 No verificado todavía:
 
-- Regeneración y validación del provisioning de dispositivo físico para el nuevo container.
 - Creación real de zona/registros en CloudKit Development.
 - Push silencioso real.
 - Sincronización entre dos dispositivos físicos.
@@ -79,12 +81,9 @@ No verificado todavía:
 
 ## Pasos externos pendientes
 
-1. En Certificates, Identifiers & Profiles, habilitar iCloud/CloudKit y Push Notifications para `com.maromeapps.PriceTracker`, y asociar exactamente `iCloud.com.maromeapps.PriceTracker`.
-2. Regenerar los perfiles automáticos si Apple no lo hace al primer build. Si CodeSign devuelve `errSecInternalComponent`, desbloquear con un Run manual en Xcode; no pedir la contraseña del llavero.
-3. Ejecutar un build Development firmado para que CloudKit cree `PriceTrackerCatalog` y el tipo `CatalogItem` con sus campos.
-4. Revisar el esquema en CloudKit Console y desplegarlo de Development a Production antes de TestFlight/App Store.
-5. Confirmar que Xcode Cloud tiene acceso al container y genera un perfil con iCloud, push y App Group.
-6. Probar alta, edición independiente, refresh y borrado con dos dispositivos físicos en la misma cuenta.
+1. Revisar en CloudKit Console que Development contiene `PriceTrackerCatalog` y `CatalogItem`, y desplegar el esquema a Production antes de TestFlight/App Store.
+2. Confirmar que Xcode Cloud tiene acceso al container y genera un perfil con iCloud, push y App Group.
+3. Probar alta, edición independiente, refresh y borrado con dos dispositivos físicos en la misma cuenta.
 
 ## Hipótesis descartadas en esta sesión
 
@@ -93,3 +92,5 @@ No verificado todavía:
 - `/var/minis/shared/pricetracker/ARQUITECTURA.md` y `ESTADO.md` no estaban montados.
 - `CKSyncEngine` sí es compatible con el deployment target iOS 26. Sus firmas se comprobaron contra la `.swiftinterface` y headers del SDK 27.0, no por memoria.
 - Los primeros errores de macros/CoreSimulator eran del sandbox. Fuera del sandbox compilaron; el primer crash de tests era la ausencia deliberada de firma/App Group al usar `CODE_SIGNING_ALLOWED=NO`.
+- El perfil antiguo sin iCloud/push no indicaba un defecto en el proyecto: al renovar el perfil, la firma incluyó todas las capacidades esperadas.
+- El primer fallo al renovar tampoco era el llavero: Xcode no tenía una sesión de cuenta válida (`missing Xcode-Username`). Tras iniciar sesión, renovación y CodeSign funcionaron.
