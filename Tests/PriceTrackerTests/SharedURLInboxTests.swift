@@ -48,4 +48,24 @@ struct SharedURLInboxTests {
         #expect(entries.count == 1)
         #expect(entries[0].pageCapture == capture)
     }
+
+    @Test func queueAndCaptchaPagesAreRejectedAsProductCaptures() throws {
+        let requestedURL = try #require(URL(string: "https://store.nintendo.com/es-es/producto"))
+        let queueCapture = SharedPageCapture(
+            pageURLString: "https://nintendostoreuk.queue-it.net/?c=nintendostoreuk",
+            title: "You are now in line"
+        )
+        let productCapture = SharedPageCapture(
+            pageURLString: requestedURL.absoluteString,
+            title: "The Legend of Zelda"
+        )
+        let captchaCapture = SharedPageCapture(
+            pageURLString: requestedURL.absoluteString,
+            title: "Verify you are human - CAPTCHA"
+        )
+
+        #expect(queueCapture.isLikelyAccessInterruption)
+        #expect(captchaCapture.isLikelyAccessInterruption)
+        #expect(!productCapture.isLikelyAccessInterruption)
+    }
 }

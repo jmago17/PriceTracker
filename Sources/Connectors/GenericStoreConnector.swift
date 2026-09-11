@@ -31,7 +31,7 @@ struct GenericStoreConnector: StoreConnector {
     func resolve(url: URL, pageCapture: SharedPageCapture?) async throws -> ResolvedItem {
         let metadata = try? await loader.load(url)
         let renderedCapture: SharedPageCapture?
-        if let pageCapture {
+        if let pageCapture, !pageCapture.isLikelyAccessInterruption {
             renderedCapture = pageCapture
         } else if rendersDynamicPages, Self.needsRenderedFallback(metadata) {
             renderedCapture = try? await RenderedPageCaptureLoader().load(url)

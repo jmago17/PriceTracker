@@ -7,9 +7,11 @@ struct AmazonConnector: StoreConnector {
     let store: Store = .amazon
 
     private let loader: StorePageLoader
+    private let rendersDynamicPages: Bool
 
-    init(session: URLSession = .shared) {
+    init(session: URLSession = .shared, rendersDynamicPages: Bool = true) {
         loader = StorePageLoader(session: session)
+        self.rendersDynamicPages = rendersDynamicPages
     }
 
     func canResolve(url: URL) -> Bool {
@@ -18,23 +20,39 @@ struct AmazonConnector: StoreConnector {
     }
 
     func resolve(url: URL) async throws -> ResolvedItem {
+        try await resolve(url: url, pageCapture: nil)
+    }
+
+    func resolve(url: URL, pageCapture: SharedPageCapture?) async throws -> ResolvedItem {
         guard let asin = Self.extractASIN(from: url) else { throw ConnectorError.unrecognizedURL }
         let metadata = try? await loader.load(url)
+        let renderedCapture: SharedPageCapture?
+        if let pageCapture, !pageCapture.isLikelyAccessInterruption {
+            renderedCapture = pageCapture
+        } else if rendersDynamicPages {
+            renderedCapture = try? await RenderedPageCaptureLoader().load(url)
+        } else {
+            renderedCapture = nil
+        }
+
         let marketplace = Self.marketplace(for: url.host)
-        let titleDetails = Self.titleDetails(metadata?.title)
-        let subtitle = metadata?.description == metadata?.title ? nil : metadata?.description
+        let metadataTitle = Self.titleDetails(metadata?.title)
+        let renderedTitle = Self.titleDetails(renderedCapture?.title)
+        let title = renderedTitle.title ?? metadataTitle.title ?? "Amazon \(asin)"
+        let description = renderedCapture?.description ?? metadata?.description
+        let subtitle = description == title ? nil : description
         return ResolvedItem(
             store: .amazon,
             storeItemID: asin,
             region: marketplace.region,
-            currency: metadata?.currency ?? marketplace.currency,
+            currency: renderedCapture?.currency ?? metadata?.currency ?? marketplace.currency,
             canonicalURL: Self.canonicalURL(asin: asin, host: url.host ?? "www.amazon.es"),
-            title: titleDetails.title ?? "Amazon \(asin)",
+            title: title,
             subtitle: subtitle,
-            imageURL: metadata?.imageURL,
-            priceCents: metadata?.priceCents,
+            imageURL: renderedCapture?.imageURL ?? metadata?.imageURL,
+            priceCents: renderedCapture?.priceCents ?? metadata?.priceCents,
             priceReferenceCents: nil,
-            storeGenre: metadata?.category ?? titleDetails.category
+            storeGenre: renderedCapture?.category ?? metadata?.category ?? metadataTitle.category
         )
     }
 

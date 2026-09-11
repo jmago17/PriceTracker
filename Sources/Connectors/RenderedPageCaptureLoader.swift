@@ -3,16 +3,16 @@ import WebKit
 
 enum RenderedPageCaptureError: Error, LocalizedError {
     case navigation(String)
-    case timeout
     case missingCaptureScript
     case invalidResult
+    case accessInterruption
 
     var errorDescription: String? {
         switch self {
         case .navigation(let message): return "No se pudo cargar la página dinámica: \(message)"
-        case .timeout: return "La página dinámica tardó demasiado en cargar."
         case .missingCaptureScript: return "Falta el extractor genérico de páginas."
         case .invalidResult: return "La página dinámica no devolvió datos utilizables."
+        case .accessInterruption: return "La tienda ha mostrado una cola o comprobación de acceso."
         }
     }
 }
@@ -42,6 +42,9 @@ struct RenderedPageCaptureLoader {
               let capture = SharedPageCapture(propertyList: dictionary) else {
             throw RenderedPageCaptureError.invalidResult
         }
+        guard !capture.isLikelyAccessInterruption else {
+            throw RenderedPageCaptureError.accessInterruption
+        }
         return capture
     }
 
@@ -70,7 +73,10 @@ private final class RenderedPageNavigation: NSObject, WKNavigationDelegate {
             timeoutTask = Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .seconds(8))
                 guard !Task.isCancelled else { return }
-                self?.finish(.failure(RenderedPageCaptureError.timeout), stopLoading: true)
+                // Some storefronts keep analytics or streaming resources open and
+                // never report a clean `didFinish`, even though the product DOM is
+                // already usable. Stop further loading and inspect what rendered.
+                self?.finish(.success(()), stopLoading: true)
             }
         }
     }

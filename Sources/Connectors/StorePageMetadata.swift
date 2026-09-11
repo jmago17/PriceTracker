@@ -42,8 +42,18 @@ struct StorePageLoader: Sendable {
         }
 
         let finalURL = response.url ?? url
+        if WebPageInterruptionDetector.isLikely(pageURL: finalURL, title: nil) {
+            throw ConnectorError.network("La tienda ha mostrado una cola o comprobación de acceso")
+        }
         guard let metadata = StorePageParser.parse(data: data, fallbackURL: finalURL) else {
             throw ConnectorError.decoding("La página no contiene metadatos utilizables")
+        }
+        if WebPageInterruptionDetector.isLikely(
+            pageURL: finalURL,
+            title: metadata.title,
+            description: metadata.description
+        ) {
+            throw ConnectorError.network("La tienda ha mostrado una cola o comprobación de acceso")
         }
         return metadata
     }
@@ -61,9 +71,8 @@ enum StorePageParser {
     static func parse(data: Data, fallbackURL: URL) -> StorePageMetadata? {
         guard let html = String(data: data, encoding: .utf8) else { return nil }
 
-        let product = jsonLDProducts(in: html)
-            .sorted { ($0.priceCents != nil ? 0 : 1) < ($1.priceCents != nil ? 0 : 1) }
-            .first
+        let products = jsonLDProducts(in: html) + hydratedProducts(in: html)
+        let product = products.first(where: { $0.priceCents != nil }) ?? products.first
         let meta = metaContents(in: html)
         let isAmazonPage = fallbackURL.host?.lowercased().contains("amazon.") == true
         let pageTitle = isAmazonPage
@@ -123,6 +132,83 @@ enum StorePageParser {
             }
             return productDictionaries(in: json).compactMap(parseJSONLDProduct)
         }
+    }
+
+    /// Next.js and similar storefronts often serialize the product into a JSON
+    /// hydration script instead of publishing JSON-LD. This stays schema-based:
+    /// it looks for product-shaped objects rather than host names or CSS classes.
+    private static func hydratedProducts(in html: String) -> [StorePageMetadata] {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"<script\b[^>]*id\s*=\s*[\"']__NEXT_DATA__[\"'][^>]*>(.*?)</script>"#,
+            options: [.caseInsensitive, .dotMatchesLineSeparators]
+        ) else { return [] }
+
+        let fullRange = NSRange(html.startIndex..<html.endIndex, in: html)
+        return regex.matches(in: html, range: fullRange).flatMap { match -> [StorePageMetadata] in
+            guard let contentRange = Range(match.range(at: 1), in: html),
+                  let jsonData = String(html[contentRange]).data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: jsonData) else {
+                return []
+            }
+            return hydratedProductDictionaries(in: json).compactMap(parseHydratedProduct)
+        }
+    }
+
+    private static func hydratedProductDictionaries(in value: Any) -> [[String: Any]] {
+        if let values = value as? [Any] {
+            return values.flatMap(hydratedProductDictionaries)
+        }
+        guard let dictionary = value as? [String: Any] else { return [] }
+
+        var products: [[String: Any]] = []
+        if firstString(dictionary["name"] ?? dictionary["title"]) != nil,
+           hydratedPrice(in: dictionary) != nil {
+            products.append(dictionary)
+        }
+        for nested in dictionary.values where nested is [Any] || nested is [String: Any] {
+            products.append(contentsOf: hydratedProductDictionaries(in: nested))
+        }
+        return products
+    }
+
+    private static func parseHydratedProduct(_ dictionary: [String: Any]) -> StorePageMetadata? {
+        guard let title = firstString(dictionary["name"] ?? dictionary["title"]),
+              let price = hydratedPrice(in: dictionary) else { return nil }
+
+        let priceObject = dictionary["price"] as? [String: Any]
+        let currency = firstString(
+            dictionary["currency"]
+                ?? dictionary["currencyCode"]
+                ?? priceObject?["currencyCode"]
+                ?? priceObject?["priceCurrency"]
+        )
+        let canonicalURL = firstString(dictionary["url"] ?? dictionary["path"])
+            .flatMap(URL.init(string:))
+            ?? URL(string: "about:blank")!
+
+        return StorePageMetadata(
+            title: decodeHTMLEntities(title),
+            description: firstString(
+                dictionary["description"]
+                    ?? dictionary["shortDescription"]
+                    ?? dictionary["longDescription"]
+            ),
+            sku: firstString(dictionary["sku"] ?? dictionary["id"]),
+            category: firstString(dictionary["category"] ?? dictionary["primaryCategoryId"]),
+            currency: currency,
+            priceCents: currency == nil ? nil : cents(price),
+            priceKind: .exact,
+            canonicalURL: canonicalURL,
+            imageURL: imageURL(dictionary["imageGroups"])
+                ?? imageURL(dictionary["image"])
+                ?? imageURL(dictionary["images"])
+        )
+    }
+
+    private static func hydratedPrice(in dictionary: [String: Any]) -> Double? {
+        if let price = number(dictionary["price"]) { return price }
+        guard let price = dictionary["price"] as? [String: Any] else { return nil }
+        return number(price["value"] ?? price["price"] ?? price["lowPrice"])
     }
 
     private static func productDictionaries(in value: Any) -> [[String: Any]] {
@@ -258,12 +344,17 @@ enum StorePageParser {
     }
 
     private static func imageURL(_ value: Any?) -> URL? {
-        if let string = value as? String { return URL(string: decodeHTMLEntities(string)) }
+        if let string = value as? String {
+            let decoded = decodeHTMLEntities(string).trimmingCharacters(in: .whitespacesAndNewlines)
+            return decoded.isEmpty ? nil : URL(string: decoded)
+        }
         if let values = value as? [Any] {
             return values.lazy.compactMap(imageURL).first
         }
         if let dictionary = value as? [String: Any] {
-            return imageURL(dictionary["contentUrl"] ?? dictionary["url"])
+            return imageURL(dictionary["contentUrl"] ?? dictionary["url"] ?? dictionary["link"])
+                ?? imageURL(dictionary["images"])
+                ?? imageURL(dictionary["imageGroups"])
         }
         return nil
     }

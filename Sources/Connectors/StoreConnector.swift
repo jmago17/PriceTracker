@@ -57,7 +57,7 @@ protocol StoreConnector: Sendable {
 extension StoreConnector {
     func resolve(url: URL, pageCapture: SharedPageCapture?) async throws -> ResolvedItem {
         var resolved = try await resolve(url: url)
-        guard let pageCapture else { return resolved }
+        guard let pageCapture, !pageCapture.isLikelyAccessInterruption else { return resolved }
 
         if resolved.title.hasPrefix("Amazon "), let title = pageCapture.title {
             resolved.title = title

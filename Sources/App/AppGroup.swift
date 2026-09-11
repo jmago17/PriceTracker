@@ -88,6 +88,42 @@ struct SharedPageCapture: Codable, Hashable, Sendable {
     var imageURL: URL? {
         imageURLString.flatMap(URL.init(string:))
     }
+
+    var isLikelyAccessInterruption: Bool {
+        WebPageInterruptionDetector.isLikely(
+            pageURL: pageURL ?? canonicalURL,
+            title: title,
+            description: description
+        )
+    }
+}
+
+enum WebPageInterruptionDetector {
+    static func isLikely(
+        pageURL: URL?,
+        title: String?,
+        description: String? = nil
+    ) -> Bool {
+        let host = pageURL?.host?.lowercased() ?? ""
+        if host == "queue-it.net" || host.hasSuffix(".queue-it.net") {
+            return true
+        }
+
+        let text = [pageURL?.absoluteString, title, description]
+            .compactMap { $0 }
+            .joined(separator: " ")
+            .lowercased()
+        let markers = [
+            "queue-it", "waiting room", "sala de espera", "robot check",
+            "captcha", "verify you are human", "verifica que eres humano",
+            "access denied", "acceso denegado",
+        ]
+        if markers.contains(where: text.contains) {
+            return true
+        }
+
+        return false
+    }
 }
 
 /// Lightweight App Group inbox used by the Share extension. The extension only

@@ -34,7 +34,10 @@ struct AmazonConnectorTests {
         """.utf8)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockAmazonURLProtocol.self]
-        let connector = AmazonConnector(session: URLSession(configuration: configuration))
+        let connector = AmazonConnector(
+            session: URLSession(configuration: configuration),
+            rendersDynamicPages: false
+        )
         let url = try #require(URL(string: "https://www.amazon.es/dp/B012345678"))
 
         let item = try await connector.resolve(url: url)
@@ -47,6 +50,34 @@ struct AmazonConnectorTests {
         #expect(item.priceCents == 2_550)
         #expect(item.storeGenre == "Electrónica")
         #expect(!Store.refreshableStores.contains(.amazon))
+    }
+
+    @Test func renderedVisiblePriceOverridesAmbiguousStructuredPrice() async throws {
+        MockAmazonURLProtocol.responseData = Data("""
+        <html><head>
+        <meta name="title" content="Producto Amazon real : Amazon.es: Electrónica">
+        <meta property="product:price:amount" content="5.49">
+        <meta property="product:price:currency" content="EUR">
+        </head></html>
+        """.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockAmazonURLProtocol.self]
+        let connector = AmazonConnector(
+            session: URLSession(configuration: configuration),
+            rendersDynamicPages: false
+        )
+        let url = try #require(URL(string: "https://www.amazon.es/dp/B012345678"))
+        let capture = SharedPageCapture(
+            pageURLString: url.absoluteString,
+            title: "Producto Amazon real",
+            priceCents: 699,
+            currency: "EUR"
+        )
+
+        let item = try await connector.resolve(url: url, pageCapture: capture)
+
+        #expect(item.priceCents == 699)
+        #expect(item.currency == "EUR")
     }
 
     @Test func keepaUsesSpanishMarketplaceDomain() {

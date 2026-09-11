@@ -113,6 +113,39 @@ struct GenericStoreConnectorTests {
         #expect(item.storeGenre == "Sensores inteligentes")
     }
 
+    @Test func nextJSHydrationExtractsNintendoProductWithoutStoreRules() async throws {
+        MockGenericStoreURLProtocol.responseData = Data("""
+        <html><head>
+        <script id="__NEXT_DATA__" type="application/json">
+        {
+          "props": {"pageProps": {"product": {
+            "_type": "product",
+            "id": "70010000130793",
+            "name": "The Legend of Zelda: Ocarina of Time",
+            "shortDescription": "La leyenda renace",
+            "price": {"value": 59.99, "currencyCode": "EUR"},
+            "primaryCategoryId": "Games",
+            "path": "/es-es/the-legend-of-zelda-ocarina-of-time-70010000130793",
+            "imageGroups": [{"images": [{"link": "https://assets.nintendo.eu/ocarina.jpg"}]}]
+          }}}
+        }
+        </script>
+        </head></html>
+        """.utf8)
+        let connector = makeConnector()
+        let url = try #require(URL(string: "https://store.nintendo.com/es-es/the-legend-of-zelda-ocarina-of-time-70010000130793"))
+
+        let item = try await connector.resolve(url: url)
+
+        #expect(item.title == "The Legend of Zelda: Ocarina of Time")
+        #expect(item.subtitle == "La leyenda renace")
+        #expect(item.priceCents == 5_999)
+        #expect(item.currency == "EUR")
+        #expect(item.imageURL?.absoluteString == "https://assets.nintendo.eu/ocarina.jpg")
+        #expect(item.storeGenre == "Games")
+        #expect(item.canonicalURL.absoluteString == url.absoluteString)
+    }
+
     @Test func renderedCaptureCompletesDynamicStoreMetadata() async throws {
         MockGenericStoreURLProtocol.responseData = Data("""
         <html><head><title>AliExpress</title></head></html>
