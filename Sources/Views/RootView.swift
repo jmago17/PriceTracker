@@ -48,11 +48,15 @@ struct RootView: View {
                     }
                 }
 
-                if viewModel.items.isEmpty {
+                if viewModel.filteredItems.isEmpty {
                     ContentUnavailableView(
-                        "Sin artículos",
-                        systemImage: "cart",
-                        description: Text("Añade uno con el botón +")
+                        viewModel.items.isEmpty ? "Sin artículos" : "Sin resultados",
+                        systemImage: viewModel.items.isEmpty ? "cart" : "line.3.horizontal.decrease.circle",
+                        description: Text(
+                            viewModel.items.isEmpty
+                                ? "Añade uno con el botón +"
+                                : "Cambia la búsqueda o el filtro de categoría"
+                        )
                     )
                 }
             }
@@ -75,6 +79,30 @@ struct RootView: View {
                         }
                     }
                     .accessibilityLabel("Estado de sincronización")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("Categoría", selection: $viewModel.categoryFilter) {
+                            Label("Todas", systemImage: "square.grid.2x2")
+                                .tag(ItemCategoryFilter.all)
+                            ForEach(viewModel.categories, id: \.self) { category in
+                                Text(category)
+                                    .tag(ItemCategoryFilter.category(category))
+                            }
+                            if viewModel.hasUncategorizedItems {
+                                Label("Sin categoría", systemImage: "tag.slash")
+                                    .tag(ItemCategoryFilter.uncategorized)
+                            }
+                        }
+                    } label: {
+                        Image(
+                            systemName: viewModel.isCategoryFilterActive
+                                ? "line.3.horizontal.decrease.circle.fill"
+                                : "line.3.horizontal.decrease.circle"
+                        )
+                    }
+                    .accessibilityLabel("Filtrar por categoría")
+                    .accessibilityValue(viewModel.categoryFilter.displayName)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {

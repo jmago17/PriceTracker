@@ -6,6 +6,7 @@ import Observation
 final class ItemListViewModel {
     private(set) var items: [Item] = []
     var searchText: String = ""
+    var categoryFilter: ItemCategoryFilter = .all
     private(set) var isRefreshingCatalog = false
     private(set) var refreshProgress: RefreshProgress?
     var lastErrorMessage: String?
@@ -18,11 +19,19 @@ final class ItemListViewModel {
     }
 
     var categories: [String] {
-        Set(items.compactMap(\.category)).sorted()
+        ItemFilterEngine.categoryNames(in: items)
+    }
+
+    var hasUncategorizedItems: Bool {
+        items.contains { $0.category == nil }
+    }
+
+    var isCategoryFilterActive: Bool {
+        categoryFilter != .all
     }
 
     var filteredItems: [Item] {
-        var result = items
+        var result = ItemFilterEngine.filter(items, by: categoryFilter)
         if !searchText.isEmpty {
             result = result.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
         }
@@ -48,6 +57,7 @@ final class ItemListViewModel {
     func load() async {
         do {
             items = try await environment.itemStore.loadAll()
+            reconcileCategoryFilter()
         } catch {
             lastErrorMessage = error.localizedDescription
         }
@@ -122,5 +132,18 @@ final class ItemListViewModel {
 
     func cancelRefreshCatalog() {
         refreshTask?.cancel()
+    }
+
+    private func reconcileCategoryFilter() {
+        switch categoryFilter {
+        case .all:
+            break
+        case .category(let category) where !categories.contains(category):
+            categoryFilter = .all
+        case .uncategorized where !hasUncategorizedItems:
+            categoryFilter = .all
+        default:
+            break
+        }
     }
 }

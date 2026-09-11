@@ -16,6 +16,20 @@ enum ItemSortKey: Sendable {
     case priceCurrent
 }
 
+enum ItemCategoryFilter: Hashable, Sendable {
+    case all
+    case category(String)
+    case uncategorized
+
+    var displayName: String {
+        switch self {
+        case .all: return "Todas"
+        case .category(let name): return name
+        case .uncategorized: return "Sin categoría"
+        }
+    }
+}
+
 enum ItemFilterEngine {
     static func filter(_ items: [Item], predicates: [@Sendable (Item) -> Bool], mode: FilterMode) -> [Item] {
         guard !predicates.isEmpty else { return items }
@@ -43,5 +57,22 @@ enum ItemFilterEngine {
     static func limit(_ items: [Item], to limit: Int?) -> [Item] {
         guard let limit else { return items }
         return Array(items.prefix(limit))
+    }
+
+    static func filter(_ items: [Item], by categoryFilter: ItemCategoryFilter) -> [Item] {
+        switch categoryFilter {
+        case .all:
+            return items
+        case .category(let category):
+            return items.filter { $0.category == category }
+        case .uncategorized:
+            return items.filter { $0.category == nil }
+        }
+    }
+
+    static func categoryNames(in items: [Item]) -> [String] {
+        Set(items.compactMap(\.category)).sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
     }
 }

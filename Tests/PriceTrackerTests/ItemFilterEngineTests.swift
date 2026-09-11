@@ -51,6 +51,29 @@ struct ItemFilterEngineTests {
         #expect(Set(result.map(\.title)) == Set(["A", "B"]))
     }
 
+    @Test func categoryFilterSupportsNamedAndUncategorizedItems() {
+        let items = [
+            makeItem(title: "Game", category: "Juegos"),
+            makeItem(title: "Tool", category: "Utilidades"),
+            makeItem(title: "Loose"),
+        ]
+
+        #expect(ItemFilterEngine.filter(items, by: .all).count == 3)
+        #expect(ItemFilterEngine.filter(items, by: .category("Juegos")).map(\.title) == ["Game"])
+        #expect(ItemFilterEngine.filter(items, by: .uncategorized).map(\.title) == ["Loose"])
+    }
+
+    @Test func categoryNamesAreUniqueAndLocalizedCaseInsensitiveSorted() {
+        let items = [
+            makeItem(title: "1", category: "Utilidades"),
+            makeItem(title: "2", category: "Juegos"),
+            makeItem(title: "3", category: "Utilidades"),
+            makeItem(title: "4"),
+        ]
+
+        #expect(ItemFilterEngine.categoryNames(in: items) == ["Juegos", "Utilidades"])
+    }
+
     @Test func sortByTitleAscendingIsCaseInsensitive() {
         let items = [makeItem(title: "banana"), makeItem(title: "Apple"), makeItem(title: "cherry")]
         let sorted = ItemFilterEngine.sort(items, by: .title, ascending: true)
