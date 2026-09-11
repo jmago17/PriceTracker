@@ -370,13 +370,39 @@ actor CloudSyncManager: CKSyncEngineDelegate {
         syncEngine: CKSyncEngine
     ) async throws {
         let error = failure.error
-        guard error.code == .serverRecordChanged,
-              let server = error.serverRecord else {
+
+        switch error.code {
+        case .unknownItem:
+            // The cached server record carries a changeTag, but that record no
+            // longer exists in this database. Recreate it from the intact local
+            // row on the next attempt, as recommended by Apple's CKSyncEngine
+            // sample.
+            try await localStore.clearSystemFields(named: failure.record.recordID.recordName)
+            syncEngine.state.add(pendingRecordZoneChanges: [.saveRecord(failure.record.recordID)])
+            return
+
+        case .zoneNotFound:
+            // A recreated zone invalidates every cached recordChangeTag used by
+            // this attempted save. Clear this row, recreate the zone, and retry.
+            try await localStore.clearSystemFields(named: failure.record.recordID.recordName)
+            let zone = CKRecordZone(zoneID: failure.record.recordID.zoneID)
+            syncEngine.state.add(pendingDatabaseChanges: [.saveZone(zone)])
+            syncEngine.state.add(pendingRecordZoneChanges: [.saveRecord(failure.record.recordID)])
+            return
+
+        case .serverRecordChanged:
+            break
+
+        default:
             syncEngine.state.add(pendingRecordZoneChanges: [.saveRecord(failure.record.recordID)])
             await report(error)
             return
         }
 
+        guard let server = error.serverRecord else {
+            await report(error)
+            return
+        }
         guard let local = try await localStore.localRecord(named: server.recordID.recordName) else { return }
         let client = try CloudRecordCodec.makeRecord(from: local, zoneID: zoneID)
         let storedAncestor = try local.systemFields.map(CloudRecordCodec.record(fromSystemFields:))

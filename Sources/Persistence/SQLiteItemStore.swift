@@ -243,6 +243,18 @@ actor SQLiteItemStore {
         return try localRecord(named: recordName)?.isDirty ?? false
     }
 
+    /// Discards a server version that no longer exists while preserving the
+    /// local payload, tombstone and pending state. The next encoded CKRecord is
+    /// therefore a creation without a stale recordChangeTag.
+    func clearSystemFields(named recordName: String) throws {
+        let statement = try prepare(
+            "UPDATE item_records SET system_fields = NULL WHERE record_name = ?"
+        )
+        defer { sqlite3_finalize(statement) }
+        bind(recordName, to: 1, in: statement)
+        try stepDone(statement)
+    }
+
     /// A physical server deletion is unexpected because this app uploads
     /// tombstones. If the row is known, recreate it as a tombstone so an old
     /// device cannot later resurrect it.

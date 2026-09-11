@@ -1,3 +1,4 @@
+import CloudKit
 import Foundation
 import Testing
 @testable import PriceTracker
@@ -63,6 +64,40 @@ struct SQLiteItemStoreTests {
         let record = try #require(try await store.localRecord(named: name))
         #expect(record.isTombstone)
         #expect(record.isDirty)
+    }
+
+    @Test func clearingStaleSystemFieldsPreservesPendingLocalItem() async throws {
+        let (store, _) = makeSQLiteStore()
+        let item = sqliteItem(storeItemID: "stale", title: "Pending edit")
+        let recordName = CloudRecordIdentity.recordName(for: item.identityKey)
+        let staleSystemFields = Data("development-change-tag".utf8)
+        try await store.applyRemote(
+            recordName: recordName,
+            identityKey: item.identityKey,
+            item: item,
+            isTombstone: false,
+            systemFields: staleSystemFields,
+            dirty: true
+        )
+
+        try await store.clearSystemFields(named: recordName)
+
+        let recovered = try #require(try await store.localRecord(named: recordName))
+        #expect(recovered.item?.id == item.id)
+        #expect(recovered.item?.identityKey == item.identityKey)
+        #expect(recovered.item?.title == item.title)
+        #expect(recovered.isDirty)
+        #expect(!recovered.isTombstone)
+        #expect(recovered.systemFields == nil)
+
+        let recreated = try CloudRecordCodec.makeRecord(
+            from: recovered,
+            zoneID: CKRecordZone.ID(
+                zoneName: CloudRecordIdentity.zoneName,
+                ownerName: CKCurrentUserDefaultName
+            )
+        )
+        #expect(recreated.recordChangeTag == nil)
     }
 
     @Test func migrationIsVerifiedIdempotentAndKeepsJSON() async throws {

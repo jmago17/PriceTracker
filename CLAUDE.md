@@ -69,7 +69,7 @@ La Share Extension conserva solo el App Group.
 ## Verificación de la sesión iCloud
 
 - Build genérico iOS sin firma: correcto con Xcode `27A5252f`.
-- Tests en iPhone 17 Pro / iOS 27.0: 51 tests, 13 suites, correctos tras añadir precios de software, Apple Store y captura genérica de tiendas web.
+- Tests en iPhone 17 Pro / iOS 27.0: 52 tests, 13 suites, correctos tras añadir precios de software, tiendas web y recuperación de `recordChangeTag` obsoleto.
 - Build Release para iPhone 17 Pro Simulator / iOS 27.0: correcto con Xcode `27A5194q` después de esos cambios.
 - Cubierto por tests: migración idempotente, JSON intacto, fallo reintentable, identidad/deduplicación, operaciones SQLite por fila, tombstones, merge concurrente por campos, victoria de tombstone y round-trip del ancestro CloudKit.
 - Los `.xcent` simulados contienen CloudKit/App Group/push en la app y solo App Group en la Share Extension.
@@ -88,6 +88,7 @@ La Share Extension conserva solo el App Group.
 - La resolución prueba conectores específicos por orden y, si uno falla, continúa hasta el genérico. Una caída de la API o un HTML no reconocido reduce los metadatos disponibles, pero no impide guardar una URL web válida.
 - Amazon también intenta la captura de metadatos una vez al añadir, con fallback al ASIN. Continúa sin scraping periódico y mantiene el enlace a Keepa.
 - La pantalla de sincronización permite seleccionar el error de iCloud y copiarlo completo al portapapeles.
+- El iPhone descargó correctamente el catálogo de Production creado desde el iPad, pero un alta/edición local falló con `recordChangeTag specified, but record not found`. El manejador de `unknownItem` ahora elimina solo los `systemFields` obsoletos y reencola el registro como creación; conserva el payload, el tombstone y `dirty`. `zoneNotFound` aplica la misma limpieza y además vuelve a poner la zona en cola.
 
 No verificado todavía:
 
@@ -117,3 +118,4 @@ No verificado todavía:
 - El despliegue inicial de `CatalogItem` no garantizaba que estuvieran todos sus campos: la creación just-in-time solo añadió los campos con valor presentes en el registro usado para inicializar Development; `category` y potencialmente otros opcionales quedaron fuera.
 - Los precios erróneos de App Store no procedían del país ni del redondeo: respuestas reales para España devolvieron `EUR` y un `price` numérico correcto. El código no decodificaba ese campo y aplicaba un cero por defecto cuando faltaban los campos de precio de medios.
 - Una página real configurada de Apple Watch publicó nombre, imagen, SKU, moneda y precio exacto mediante JSON-LD. La página de familia publicó solo un rango; por eso se diferencia «Precio desde» de una configuración exacta.
+- El fallo de subida del iPhone no era de esquema ni de descarga: el servidor recibió un `recordChangeTag` para un registro inexistente. Coincide con `CKError.unknownItem`; el ejemplo oficial de `CKSyncEngine` prescribe borrar la copia de servidor cacheada y reintentar el alta.
