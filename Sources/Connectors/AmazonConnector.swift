@@ -20,18 +20,21 @@ struct AmazonConnector: StoreConnector {
     func resolve(url: URL) async throws -> ResolvedItem {
         guard let asin = Self.extractASIN(from: url) else { throw ConnectorError.unrecognizedURL }
         let metadata = try? await loader.load(url)
+        let marketplace = Self.marketplace(for: url.host)
+        let titleDetails = Self.titleDetails(metadata?.title)
+        let subtitle = metadata?.description == metadata?.title ? nil : metadata?.description
         return ResolvedItem(
             store: .amazon,
             storeItemID: asin,
-            region: "ES",
-            currency: metadata?.currency ?? "EUR",
+            region: marketplace.region,
+            currency: metadata?.currency ?? marketplace.currency,
             canonicalURL: Self.canonicalURL(asin: asin, host: url.host ?? "www.amazon.es"),
-            title: metadata?.title ?? "Amazon \(asin)",
-            subtitle: metadata?.description,
+            title: titleDetails.title ?? "Amazon \(asin)",
+            subtitle: subtitle,
             imageURL: metadata?.imageURL,
             priceCents: metadata?.priceCents,
             priceReferenceCents: nil,
-            storeGenre: nil
+            storeGenre: metadata?.category ?? titleDetails.category
         )
     }
 
@@ -55,7 +58,49 @@ struct AmazonConnector: StoreConnector {
         URL(string: "https://\(host)/dp/\(asin)") ?? URL(string: "https://www.amazon.es/dp/\(asin)")!
     }
 
-    static func keepaURL(asin: String, domain: String = "com") -> URL {
-        URL(string: "https://keepa.com/#!product/\(domain)-\(asin)")!
+    static func keepaURL(asin: String, region: String) -> URL {
+        let domainID = switch region.uppercased() {
+        case "GB": 2
+        case "DE": 3
+        case "FR": 4
+        case "JP": 5
+        case "CA": 6
+        case "IT": 8
+        case "ES": 9
+        case "IN": 10
+        case "MX": 11
+        default: 1
+        }
+        return URL(string: "https://keepa.com/#!product/\(domainID)-\(asin)")!
+    }
+
+    private static func marketplace(for host: String?) -> (region: String, currency: String) {
+        guard let host = host?.lowercased() else { return ("US", "USD") }
+        if host.hasSuffix("amazon.co.uk") { return ("GB", "GBP") }
+        if host.hasSuffix("amazon.de") { return ("DE", "EUR") }
+        if host.hasSuffix("amazon.fr") { return ("FR", "EUR") }
+        if host.hasSuffix("amazon.co.jp") { return ("JP", "JPY") }
+        if host.hasSuffix("amazon.ca") { return ("CA", "CAD") }
+        if host.hasSuffix("amazon.it") { return ("IT", "EUR") }
+        if host.hasSuffix("amazon.es") { return ("ES", "EUR") }
+        if host.hasSuffix("amazon.in") { return ("IN", "INR") }
+        if host.hasSuffix("amazon.com.mx") { return ("MX", "MXN") }
+        return ("US", "USD")
+    }
+
+    private static func titleDetails(_ title: String?) -> (title: String?, category: String?) {
+        guard let title else { return (nil, nil) }
+        guard let marker = title.range(of: " : Amazon.", options: [.caseInsensitive, .backwards]) else {
+            return (title, nil)
+        }
+
+        let cleanTitle = title[..<marker.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+        let marketplaceAndCategory = title[marker.upperBound...]
+        let separator = marketplaceAndCategory.firstIndex(of: ":")
+        let category = separator.map {
+            marketplaceAndCategory[marketplaceAndCategory.index(after: $0)...]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return (cleanTitle.isEmpty ? title : cleanTitle, category?.isEmpty == false ? category : nil)
     }
 }

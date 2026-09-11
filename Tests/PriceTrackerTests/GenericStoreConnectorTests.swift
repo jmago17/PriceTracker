@@ -58,6 +58,61 @@ struct GenericStoreConnectorTests {
         #expect(!Store.refreshableStores.contains(item.store))
     }
 
+    @Test func playStationJSONLDExtractsCompleteProduct() async throws {
+        MockGenericStoreURLProtocol.responseData = Data("""
+        <html><head>
+        <script id="mfe-jsonld-tags" type="application/ld+json">
+        {
+          "@context": "http://schema.org",
+          "@type": "Product",
+          "name": "DEATH STRANDING 2: ON THE BEACH",
+          "category": "Juego completo",
+          "description": "SHOULD WE HAVE CONNECTED",
+          "sku": "JP9000-PPSA02015_00-DS2OTB0000000001",
+          "image": "https://image.api.playstation.com/death-stranding-2.png",
+          "offers": {"@type": "Offer", "price": 49.59, "priceCurrency": "EUR"}
+        }
+        </script>
+        </head></html>
+        """.utf8)
+        let connector = makeConnector()
+        let url = try #require(URL(string: "https://store.playstation.com/es-es/product/JP9000-PPSA02015_00-DS2OTB0000000001"))
+
+        let item = try await connector.resolve(url: url)
+
+        #expect(item.title == "DEATH STRANDING 2: ON THE BEACH")
+        #expect(item.subtitle == "SHOULD WE HAVE CONNECTED")
+        #expect(item.priceCents == 4_959)
+        #expect(item.currency == "EUR")
+        #expect(item.imageURL?.absoluteString == "https://image.api.playstation.com/death-stranding-2.png")
+        #expect(item.storeGenre == "Juego completo")
+    }
+
+    @Test func imageObjectArrayUsesItsContentURL() async throws {
+        MockGenericStoreURLProtocol.responseData = Data("""
+        <html><head>
+        <script type="application/ld+json">
+        {
+          "@type": "Product",
+          "name": "TIMMERFLOTTE Sensor temperatura/humedad",
+          "category": "Sensores inteligentes",
+          "description": "Sensor compatible con Matter",
+          "image": [{"@type": "ImageObject", "contentUrl": "https://www.ikea.com/timmerflotte.jpg"}],
+          "offers": {"@type": "Offer", "price": "7.99", "priceCurrency": "EUR"}
+        }
+        </script>
+        </head></html>
+        """.utf8)
+        let connector = makeConnector()
+        let url = try #require(URL(string: "https://www.ikea.com/es/es/p/timmerflotte-30597606/"))
+
+        let item = try await connector.resolve(url: url)
+
+        #expect(item.imageURL?.absoluteString == "https://www.ikea.com/timmerflotte.jpg")
+        #expect(item.priceCents == 799)
+        #expect(item.storeGenre == "Sensores inteligentes")
+    }
+
     @Test func nonWebURLIsRejected() throws {
         let connector = makeConnector()
         let url = try #require(URL(string: "file:///tmp/product.html"))

@@ -69,7 +69,7 @@ La Share Extension conserva solo el App Group.
 ## Verificación de la sesión iCloud
 
 - Build genérico iOS sin firma: correcto con Xcode `27A5252f`.
-- Tests en iPhone 17 Pro / iOS 27.0: 54 tests, 13 suites, correctos tras añadir precios, tiendas web, recuperación de `recordChangeTag` y filtro por categoría.
+- Tests en iPhone 17 Pro / iOS 27.0: 57 tests, 13 suites, correctos tras añadir precios, tiendas web, recuperación de `recordChangeTag`, filtro por categoría y regresiones de Amazon/PlayStation/IKEA.
 - Build Release para iPhone 17 Pro Simulator / iOS 27.0: correcto con Xcode `27A5194q` después de esos cambios.
 - Cubierto por tests: migración idempotente, JSON intacto, fallo reintentable, identidad/deduplicación, operaciones SQLite por fila, tombstones, merge concurrente por campos, victoria de tombstone y round-trip del ancestro CloudKit.
 - Los `.xcent` simulados contienen CloudKit/App Group/push en la app y solo App Group en la Share Extension.
@@ -87,6 +87,8 @@ La Share Extension conserva solo el App Group.
 - Cualquier otra URL web se puede guardar mediante el conector `generic`. En el alta intenta capturar nombre, descripción, imagen, URL canónica y precio desde JSON-LD/Open Graph/HTML; si la tienda bloquea la petición, conserva al menos el enlace y un título derivado de la URL. No refresca ni compara después los precios genéricos.
 - La resolución prueba conectores específicos por orden y, si uno falla, continúa hasta el genérico. Una caída de la API o un HTML no reconocido reduce los metadatos disponibles, pero no impide guardar una URL web válida.
 - Amazon también intenta la captura de metadatos una vez al añadir, con fallback al ASIN. Continúa sin scraping periódico y mantiene el enlace a Keepa.
+- Amazon no puede confiar en Open Graph: para algunos productos publica literalmente `Amazon` y el logo de la tienda. El parser prioriza sus metadatos HTML reales, usa `landingImage`, limpia el sufijo del título y deriva la categoría; Keepa recibe el ID de mercado (`9` para España), no el texto `com`.
+- El JSON-LD de PlayStation conserva nombre, descripción, imagen, precio y categoría. Las imágenes JSON-LD declaradas como `ImageObject` o arrays —caso IKEA— también se resuelven. La categoría sugerida se guarda desde el alta normal y desde Compartir.
 - La pantalla de sincronización permite seleccionar el error de iCloud y copiarlo completo al portapapeles.
 - El iPhone descargó correctamente el catálogo de Production creado desde el iPad, pero un alta/edición local falló con `recordChangeTag specified, but record not found`. El manejador de `unknownItem` ahora elimina solo los `systemFields` obsoletos y reencola el registro como creación; conserva el payload, el tombstone y `dirty`. `zoneNotFound` aplica la misma limpieza y además vuelve a poner la zona en cola.
 - La lista principal permite filtrar por una categoría concreta, por artículos sin categoría o mostrar todas. El filtro se combina con la búsqueda, muestra un estado vacío específico y vuelve a «Todas» si la selección deja de existir tras una edición o sincronización.
@@ -98,6 +100,7 @@ No verificado todavía:
 - Sincronización entre dos dispositivos físicos.
 - Sincronización bidireccional real de CloudKit Production y Xcode Cloud.
 - Alta desde la Share Extension del Apple Watch ya pendiente y de una tienda genérica en un dispositivo físico.
+- Repetición en dispositivo físico de las URLs concretas de Amazon, PlayStation e IKEA usadas para las regresiones del parser.
 
 ## Pasos externos pendientes
 

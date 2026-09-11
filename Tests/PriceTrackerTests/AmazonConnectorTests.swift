@@ -22,11 +22,15 @@ struct AmazonConnectorTests {
     @Test func extractsMetadataOnceButRemainsNonRefreshable() async throws {
         MockAmazonURLProtocol.responseData = Data("""
         <html><head>
-        <meta property="og:title" content="Producto Amazon">
-        <meta property="og:image" content="https://example.com/amazon.jpg">
+        <meta name="title" content="Producto Amazon real : Amazon.es: Electrónica">
+        <meta name="description" content="Descripción Amazon real">
+        <meta property="og:title" content="Amazon">
+        <meta property="og:image" content="https://example.com/amazon-placeholder.jpg">
         <meta property="product:price:amount" content="25.50">
         <meta property="product:price:currency" content="EUR">
-        </head></html>
+        </head><body>
+        <img id="landingImage" data-old-hires="https://example.com/amazon-real.jpg">
+        </body></html>
         """.utf8)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockAmazonURLProtocol.self]
@@ -37,8 +41,17 @@ struct AmazonConnectorTests {
 
         #expect(item.store == .amazon)
         #expect(item.storeItemID == "B012345678")
-        #expect(item.title == "Producto Amazon")
+        #expect(item.title == "Producto Amazon real")
+        #expect(item.subtitle == "Descripción Amazon real")
+        #expect(item.imageURL?.absoluteString == "https://example.com/amazon-real.jpg")
         #expect(item.priceCents == 2_550)
+        #expect(item.storeGenre == "Electrónica")
         #expect(!Store.refreshableStores.contains(.amazon))
+    }
+
+    @Test func keepaUsesSpanishMarketplaceDomain() {
+        let url = AmazonConnector.keepaURL(asin: "B07RXN1HGG", region: "ES")
+
+        #expect(url.absoluteString == "https://keepa.com/#!product/9-B07RXN1HGG")
     }
 }

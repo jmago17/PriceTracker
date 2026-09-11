@@ -9,6 +9,7 @@ struct StorePageMetadata: Sendable {
     var title: String
     var description: String?
     var sku: String?
+    var category: String?
     var currency: String?
     var priceCents: Int?
     var priceKind: PriceKind?
@@ -26,6 +27,7 @@ struct StorePageLoader: Sendable {
     func load(_ url: URL) async throws -> StorePageMetadata {
         var request = URLRequest(url: url, timeoutInterval: 20)
         request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+        request.setValue(Self.acceptLanguage(for: url), forHTTPHeaderField: "Accept-Language")
         let data: Data
         let response: URLResponse
         do {
@@ -45,6 +47,14 @@ struct StorePageLoader: Sendable {
         }
         return metadata
     }
+
+    private static func acceptLanguage(for url: URL) -> String {
+        let path = url.path.lowercased()
+        if path.hasPrefix("/es-es/") || path.hasPrefix("/es/es/") || url.host?.hasSuffix(".es") == true {
+            return "es-ES,es;q=0.9"
+        }
+        return Locale.preferredLanguages.first ?? "en"
+    }
 }
 
 enum StorePageParser {
@@ -55,12 +65,14 @@ enum StorePageParser {
             .sorted { ($0.priceCents != nil ? 0 : 1) < ($1.priceCents != nil ? 0 : 1) }
             .first
         let meta = metaContents(in: html)
+        let isAmazonPage = fallbackURL.host?.lowercased().contains("amazon.") == true
+        let pageTitle = isAmazonPage
+            ? firstNonEmpty(meta["title"], meta["og:title"], meta["twitter:title"], htmlTitle(in: html))
+            : firstNonEmpty(meta["og:title"], meta["twitter:title"], meta["title"], htmlTitle(in: html))
 
         guard let title = firstNonEmpty(
             product?.title,
-            meta["og:title"],
-            meta["twitter:title"],
-            htmlTitle(in: html)
+            pageTitle
         ) else {
             return nil
         }
@@ -78,13 +90,19 @@ enum StorePageParser {
 
         return StorePageMetadata(
             title: title,
-            description: firstNonEmpty(product?.description, meta["og:description"], meta["description"]),
+            description: firstNonEmpty(
+                product?.description,
+                isAmazonPage ? meta["description"] : meta["og:description"],
+                isAmazonPage ? meta["og:description"] : meta["description"]
+            ),
             sku: product?.sku,
+            category: product?.category,
             currency: currency,
             priceCents: priceCents,
             priceKind: product?.priceKind ?? (metaPrice == nil ? nil : .exact),
             canonicalURL: canonicalURL,
             imageURL: resolved(product?.imageURL, relativeTo: canonicalURL)
+                ?? resolved(imageURLFromElement(withID: "landingImage", in: html), relativeTo: canonicalURL)
                 ?? resolved(meta["og:image"].flatMap(URL.init(string:)), relativeTo: canonicalURL)
                 ?? resolved(meta["twitter:image"].flatMap(URL.init(string:)), relativeTo: canonicalURL)
         )
@@ -149,6 +167,7 @@ enum StorePageParser {
             title: decodeHTMLEntities(title),
             description: (dictionary["description"] as? String).map(decodeHTMLEntities),
             sku: selectedOffer?["sku"] as? String ?? dictionary["sku"] as? String,
+            category: firstString(dictionary["category"]),
             currency: selectedOffer?["priceCurrency"] as? String,
             priceCents: rawPrice.map(cents),
             priceKind: exactOffer != nil ? .exact : (aggregateOffer != nil ? .from : nil),
@@ -240,12 +259,37 @@ enum StorePageParser {
 
     private static func imageURL(_ value: Any?) -> URL? {
         if let string = value as? String { return URL(string: decodeHTMLEntities(string)) }
-        if let strings = value as? [String] {
-            return strings.first.flatMap { URL(string: decodeHTMLEntities($0)) }
+        if let values = value as? [Any] {
+            return values.lazy.compactMap(imageURL).first
         }
-        if let dictionary = value as? [String: Any],
-           let string = dictionary["url"] as? String {
-            return URL(string: decodeHTMLEntities(string))
+        if let dictionary = value as? [String: Any] {
+            return imageURL(dictionary["contentUrl"] ?? dictionary["url"])
+        }
+        return nil
+    }
+
+    private static func imageURLFromElement(withID id: String, in html: String) -> URL? {
+        guard let tagRegex = try? NSRegularExpression(
+            pattern: #"<img\b[^>]*>"#,
+            options: [.caseInsensitive]
+        ) else { return nil }
+
+        let fullRange = NSRange(html.startIndex..<html.endIndex, in: html)
+        for match in tagRegex.matches(in: html, range: fullRange) {
+            guard let range = Range(match.range, in: html) else { continue }
+            let attributes = attributes(in: String(html[range]))
+            guard attributes["id"]?.caseInsensitiveCompare(id) == .orderedSame else { continue }
+            return imageURL(attributes["data-old-hires"] ?? attributes["src"])
+        }
+        return nil
+    }
+
+    private static func firstString(_ value: Any?) -> String? {
+        if let string = value as? String {
+            return firstNonEmpty(string).map(decodeHTMLEntities)
+        }
+        if let values = value as? [Any] {
+            return values.lazy.compactMap(firstString).first
         }
         return nil
     }

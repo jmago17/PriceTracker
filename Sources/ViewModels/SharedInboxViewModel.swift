@@ -54,6 +54,8 @@ final class SharedInboxViewModel {
                 title: resolved.title,
                 subtitle: resolved.subtitle,
                 imageURL: resolved.imageURL,
+                category: resolved.storeGenre,
+                categorySource: resolved.storeGenre == nil ? .none : .mapped,
                 storeGenre: resolved.storeGenre,
                 priceCurrentCents: resolved.priceCents,
                 priceAtAddCents: resolved.priceCents,

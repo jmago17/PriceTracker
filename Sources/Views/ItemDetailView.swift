@@ -69,7 +69,10 @@ struct ItemDetailView: View {
                     Text(error).font(.caption).foregroundStyle(.red)
                 }
                 if item.store == .amazon {
-                    Link("Ver en Keepa", destination: AmazonConnector.keepaURL(asin: item.storeItemID))
+                    Link(
+                        "Ver en Keepa",
+                        destination: AmazonConnector.keepaURL(asin: item.storeItemID, region: item.region)
+                    )
                 }
             }
 
