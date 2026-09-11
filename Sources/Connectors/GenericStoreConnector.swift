@@ -7,10 +7,16 @@ struct GenericStoreConnector: StoreConnector {
 
     private let loader: StorePageLoader
     private let defaultRegion: String
+    private let rendersDynamicPages: Bool
 
-    init(session: URLSession = .shared, defaultRegion: String = "ES") {
+    init(
+        session: URLSession = .shared,
+        defaultRegion: String = "ES",
+        rendersDynamicPages: Bool = true
+    ) {
         loader = StorePageLoader(session: session)
         self.defaultRegion = defaultRegion
+        self.rendersDynamicPages = rendersDynamicPages
     }
 
     func canResolve(url: URL) -> Bool {
@@ -19,24 +25,45 @@ struct GenericStoreConnector: StoreConnector {
     }
 
     func resolve(url: URL) async throws -> ResolvedItem {
+        try await resolve(url: url, pageCapture: nil)
+    }
+
+    func resolve(url: URL, pageCapture: SharedPageCapture?) async throws -> ResolvedItem {
         let metadata = try? await loader.load(url)
-        let canonicalURL = metadata?.canonicalURL ?? Self.normalized(url)
-        let title = metadata?.title ?? Self.fallbackTitle(for: canonicalURL)
+        let renderedCapture: SharedPageCapture?
+        if let pageCapture {
+            renderedCapture = pageCapture
+        } else if rendersDynamicPages, Self.needsRenderedFallback(metadata) {
+            renderedCapture = try? await RenderedPageCaptureLoader().load(url)
+        } else {
+            renderedCapture = nil
+        }
+
+        let canonicalURL = renderedCapture?.canonicalURL
+            ?? metadata?.canonicalURL
+            ?? Self.normalized(url)
+        let title = renderedCapture?.title
+            ?? metadata?.title
+            ?? Self.fallbackTitle(for: canonicalURL)
+        let description = renderedCapture?.description ?? metadata?.description
+        let priceCents = renderedCapture?.priceCents ?? metadata?.priceCents
+        let currency = renderedCapture?.currency ?? metadata?.currency ?? "EUR"
+        let category = renderedCapture?.category ?? metadata?.category
 
         return ResolvedItem(
             store: .generic,
             storeItemID: canonicalURL.absoluteString,
             region: Self.region(from: canonicalURL) ?? defaultRegion,
-            currency: metadata?.currency ?? "EUR",
+            currency: currency,
             canonicalURL: canonicalURL,
             title: title,
             subtitle: metadata?.priceKind == .from
                 ? "Precio desde"
-                : metadata?.description ?? canonicalURL.host,
-            imageURL: metadata?.imageURL,
-            priceCents: metadata?.priceCents,
+                : description ?? canonicalURL.host,
+            imageURL: renderedCapture?.imageURL ?? metadata?.imageURL,
+            priceCents: priceCents,
             priceReferenceCents: nil,
-            storeGenre: metadata?.category
+            storeGenre: category
         )
     }
 
@@ -50,6 +77,11 @@ struct GenericStoreConnector: StoreConnector {
         guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
         components.fragment = nil
         return components.url ?? url
+    }
+
+    private static func needsRenderedFallback(_ metadata: StorePageMetadata?) -> Bool {
+        guard let metadata else { return true }
+        return metadata.priceCents == nil || metadata.imageURL == nil
     }
 
     private static func fallbackTitle(for url: URL) -> String {

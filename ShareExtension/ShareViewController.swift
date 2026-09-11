@@ -2,8 +2,8 @@ import UIKit
 import UniformTypeIdentifiers
 
 /// Native Share sheet endpoint. It deliberately does no network work: it stores
-/// the URL in the App Group inbox and lets the main app resolve it next time it
-/// becomes active.
+/// the URL plus Safari's rendered snapshot in the App Group inbox and lets the
+/// main app resolve it next time it becomes active.
 final class ShareViewController: UIViewController {
     private let inbox = SharedURLInbox()
 
@@ -20,6 +20,15 @@ final class ShareViewController: UIViewController {
         guard let items = extensionContext?.inputItems as? [NSExtensionItem] else { return false }
         for item in items {
             for provider in item.attachments ?? [] {
+                if provider.hasItemConformingToTypeIdentifier(UTType.propertyList.identifier),
+                   let value = try? await provider.loadItem(forTypeIdentifier: UTType.propertyList.identifier),
+                   let dictionary = value as? [String: Any],
+                   let results = dictionary[NSExtensionJavaScriptPreprocessingResultsKey] as? [String: Any],
+                   let capture = SharedPageCapture(propertyList: results),
+                   let url = capture.pageURL ?? capture.canonicalURL {
+                    inbox.enqueue(url, pageCapture: capture)
+                    return true
+                }
                 if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier),
                    let value = try? await provider.loadItem(forTypeIdentifier: UTType.url.identifier),
                    let url = value as? URL {

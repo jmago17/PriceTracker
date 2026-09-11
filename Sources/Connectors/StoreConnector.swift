@@ -50,5 +50,25 @@ protocol StoreConnector: Sendable {
     var store: Store { get }
     func canResolve(url: URL) -> Bool
     func resolve(url: URL) async throws -> ResolvedItem
+    func resolve(url: URL, pageCapture: SharedPageCapture?) async throws -> ResolvedItem
     func fetch(_ item: Item) async throws -> FetchResult
+}
+
+extension StoreConnector {
+    func resolve(url: URL, pageCapture: SharedPageCapture?) async throws -> ResolvedItem {
+        var resolved = try await resolve(url: url)
+        guard let pageCapture else { return resolved }
+
+        if resolved.title.hasPrefix("Amazon "), let title = pageCapture.title {
+            resolved.title = title
+        }
+        if resolved.subtitle == nil { resolved.subtitle = pageCapture.description }
+        if resolved.imageURL == nil { resolved.imageURL = pageCapture.imageURL }
+        if resolved.priceCents == nil { resolved.priceCents = pageCapture.priceCents }
+        if let currency = pageCapture.currency, pageCapture.priceCents != nil {
+            resolved.currency = currency
+        }
+        if resolved.storeGenre == nil { resolved.storeGenre = pageCapture.category }
+        return resolved
+    }
 }

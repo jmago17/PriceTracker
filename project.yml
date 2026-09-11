@@ -44,6 +44,7 @@ targets:
         embed: true
       - sdk: CloudKit.framework
       - sdk: AppIntents.framework
+      - sdk: WebKit.framework
       - sdk: libsqlite3.tbd
     entitlements:
       path: PriceTracker.entitlements
@@ -86,6 +87,7 @@ targets:
     sources:
       - path: ShareExtension
       - path: Sources/App/AppGroup.swift
+      - path: Resources/PageCapture.js
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.maromeapps.PriceTracker.Share
@@ -107,7 +109,9 @@ targets:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
           NSExtensionAttributes:
+            NSExtensionJavaScriptPreprocessingFile: PageCapture
             NSExtensionActivationRule:
+              NSExtensionActivationSupportsWebPageWithMaxCount: 1
               NSExtensionActivationSupportsWebURLWithMaxCount: 1
               NSExtensionActivationSupportsText: true
 

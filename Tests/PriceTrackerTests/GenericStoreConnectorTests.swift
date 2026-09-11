@@ -113,6 +113,32 @@ struct GenericStoreConnectorTests {
         #expect(item.storeGenre == "Sensores inteligentes")
     }
 
+    @Test func renderedCaptureCompletesDynamicStoreMetadata() async throws {
+        MockGenericStoreURLProtocol.responseData = Data("""
+        <html><head><title>AliExpress</title></head></html>
+        """.utf8)
+        let connector = makeConnector()
+        let url = try #require(URL(string: "https://es.aliexpress.com/item/100500000000.html"))
+        let capture = SharedPageCapture(
+            pageURLString: url.absoluteString,
+            title: "Auriculares inalámbricos",
+            description: "Bluetooth con cancelación de ruido",
+            imageURLString: "https://ae01.alicdn.com/product.jpg",
+            priceCents: 2_499,
+            currency: "EUR",
+            category: "Electrónica"
+        )
+
+        let item = try await connector.resolve(url: url, pageCapture: capture)
+
+        #expect(item.title == "Auriculares inalámbricos")
+        #expect(item.subtitle == "Bluetooth con cancelación de ruido")
+        #expect(item.imageURL?.absoluteString == "https://ae01.alicdn.com/product.jpg")
+        #expect(item.priceCents == 2_499)
+        #expect(item.currency == "EUR")
+        #expect(item.storeGenre == "Electrónica")
+    }
+
     @Test func nonWebURLIsRejected() throws {
         let connector = makeConnector()
         let url = try #require(URL(string: "file:///tmp/product.html"))
@@ -138,6 +164,9 @@ struct GenericStoreConnectorTests {
     private func makeConnector() -> GenericStoreConnector {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockGenericStoreURLProtocol.self]
-        return GenericStoreConnector(session: URLSession(configuration: configuration))
+        return GenericStoreConnector(
+            session: URLSession(configuration: configuration),
+            rendersDynamicPages: false
+        )
     }
 }

@@ -44,7 +44,10 @@ final class SharedInboxViewModel {
             return
         }
         do {
-            let resolved = try await environment.connectors.resolve(url: url)
+            let resolved = try await environment.connectors.resolve(
+                url: url,
+                pageCapture: entry.pageCapture
+            )
             let item = Item(
                 store: resolved.store,
                 storeItemID: resolved.storeItemID,

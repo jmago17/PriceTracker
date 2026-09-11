@@ -29,4 +29,23 @@ struct SharedURLInboxTests {
         inbox.remove(id: entry.id)
         #expect(inbox.load().isEmpty)
     }
+
+    @Test func renderedCapturePersistsAndUpgradesDuplicateURL() throws {
+        let (inbox, _) = makeInbox()
+        let url = try #require(URL(string: "https://es.aliexpress.com/item/100500000000.html"))
+        inbox.enqueue(url)
+
+        let capture = SharedPageCapture(
+            pageURLString: url.absoluteString,
+            title: "Producto dinámico",
+            imageURLString: "https://example.com/product.jpg",
+            priceCents: 1_299,
+            currency: "EUR"
+        )
+        inbox.enqueue(url, pageCapture: capture)
+
+        let entries = inbox.load()
+        #expect(entries.count == 1)
+        #expect(entries[0].pageCapture == capture)
+    }
 }

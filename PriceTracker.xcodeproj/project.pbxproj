@@ -10,8 +10,10 @@
 		002C4B56F7326CBFB58023F4 /* PriceDropDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60266D4F355A9E5836E6A2D7 /* PriceDropDetector.swift */; };
 		0229B36A783CEDB7D08E914F /* NotifyPriceDropsIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12446C7AB1B16B07338E8E14 /* NotifyPriceDropsIntent.swift */; };
 		064E02C4949ED2EF3D2B8D14 /* CloudRecordIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E56089249C8AE6D456CD8E57 /* CloudRecordIdentityTests.swift */; };
+		079AA079267604EEF151C7ED /* RenderedPageCaptureLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BD74527296F72E7DC60CDBE /* RenderedPageCaptureLoaderTests.swift */; };
 		0CB7D8EF389FEC04CF156BB2 /* ItemStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27899BDA6EB78D6B26F7CBA6 /* ItemStatus.swift */; };
 		10AEE8F98D02132F2CD194E5 /* ItemImportExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46D46BE799AE62AD353CC772 /* ItemImportExportTests.swift */; };
+		12F3E87400E50C4B5404C86F /* PageCapture.js in Resources */ = {isa = PBXBuildFile; fileRef = EAB4DB9D0AA132E50FAEDEBC /* PageCapture.js */; };
 		15ADBC663EECAEE69EBC61C2 /* SQLiteItemStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70C42D27B5A4F4E9C3DFC5D9 /* SQLiteItemStoreTests.swift */; };
 		16276FCCFE3E07C7274A4308 /* ItemEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C96D14D727CE29B7813C3FA /* ItemEntity.swift */; };
 		17E93D0745E1A8F1AAA811BF /* iTunesConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39AAFB2DDF7598A77CC2EA8 /* iTunesConnector.swift */; };
@@ -19,6 +21,7 @@
 		1E71DEDCF83ED80E937A82F4 /* SyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE45DEDE6A2C09CD0FD9DD5 /* SyncView.swift */; };
 		1F34FC68EEE51E0DB473DAA2 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C011D7F5D054C7534388153 /* ShareViewController.swift */; };
 		25A7146F84FB6661E463F877 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B7FD4A4C320A92F785C5DCE4 /* Assets.xcassets */; };
+		2847729385A35024888BCE77 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2A27B39A0645C00F45A1A325 /* WebKit.framework */; };
 		2C558B449BED7A34811DD9E1 /* LegacyImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 565EF4D389D3224614FB0DF0 /* LegacyImport.swift */; };
 		2EA9BBAF38921B756A5F8FCB /* ItemFilterEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A349F6E555863F56E30DC47 /* ItemFilterEngineTests.swift */; };
 		2F08982851E93414FE7134D8 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10E15ED2FBBD928421B3577 /* CloudKit.framework */; };
@@ -42,6 +45,7 @@
 		8B880B4E47B73633D1BDB7DA /* SQLiteItemStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 594246B2605275899321BDD2 /* SQLiteItemStore.swift */; };
 		8BB3A1914CC580EA745D8347 /* PriceDropDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3EF9F6831373A85EDA3D1CA /* PriceDropDetectorTests.swift */; };
 		90E8D7D5C436711227E8D0E3 /* JSONFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9226E8FEDE85627854E203F9 /* JSONFileStore.swift */; };
+		9184B23386643CB73202F5A4 /* RenderedPageCaptureLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F567E548AD3DB42514AED9B1 /* RenderedPageCaptureLoader.swift */; };
 		98E858833B14E5E625C5E12F /* ItemListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEC123AC651FEA9420141DB6 /* ItemListViewModel.swift */; };
 		9F00541C0DF4BDF536EAB91E /* SyncViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40E83730322301845E897BD6 /* SyncViewModel.swift */; };
 		9FA25EC2D50DBE7EE6E0EFD1 /* AmazonConnectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CCE1B48B43F6D6273C8588 /* AmazonConnectorTests.swift */; };
@@ -56,6 +60,7 @@
 		B80516C492BB51475FD89602 /* JSONFileItemStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C58F737A508B6F23EA669FE1 /* JSONFileItemStoreTests.swift */; };
 		B96FC5A200D65A2806BC29C5 /* ITunesConnectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59DCB6AE0242B429C96A8D1E /* ITunesConnectorTests.swift */; };
 		BA21F713983C3C2B4E8CC413 /* StorePageMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F0F8F037CEDFE7F320AB5D8 /* StorePageMetadata.swift */; };
+		BCE5335590DB28CD78060D4C /* PageCapture.js in Resources */ = {isa = PBXBuildFile; fileRef = EAB4DB9D0AA132E50FAEDEBC /* PageCapture.js */; };
 		BD1C922399AEE5AC6707E545 /* StoreConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1CC6BBAA4BD56387E5F47AB /* StoreConnector.swift */; };
 		C5A0392313D9AA9DD639FCCA /* ItemStoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = E397C87C42B69BC2C07208FB /* ItemStoring.swift */; };
 		C6A9AE00B893F79208BA6175 /* CloudRecordMerger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A08D78BAF12C25DE6B029C /* CloudRecordMerger.swift */; };
@@ -110,6 +115,8 @@
 		1A349F6E555863F56E30DC47 /* ItemFilterEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemFilterEngineTests.swift; sourceTree = "<group>"; };
 		208A25D3C0FF43BB570687B4 /* ConnectorRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectorRegistry.swift; sourceTree = "<group>"; };
 		27899BDA6EB78D6B26F7CBA6 /* ItemStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemStatus.swift; sourceTree = "<group>"; };
+		2A27B39A0645C00F45A1A325 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		2BD74527296F72E7DC60CDBE /* RenderedPageCaptureLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderedPageCaptureLoaderTests.swift; sourceTree = "<group>"; };
 		2E8E3AB5CAE3F93E48829E8D /* CloudSyncStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncStatus.swift; sourceTree = "<group>"; };
 		31C26240AF37519032AB7B7B /* RefreshItemIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshItemIntent.swift; sourceTree = "<group>"; };
 		3A870D5B3A3CB2311D185B47 /* AppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroup.swift; sourceTree = "<group>"; };
@@ -165,10 +172,12 @@
 		E56089249C8AE6D456CD8E57 /* CloudRecordIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudRecordIdentityTests.swift; sourceTree = "<group>"; };
 		E6D200CEBA0ACC608C8DD55B /* AppleStoreConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleStoreConnector.swift; sourceTree = "<group>"; };
 		E9275479EA49A61BF8DEF508 /* CloudRecordCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudRecordCodec.swift; sourceTree = "<group>"; };
+		EAB4DB9D0AA132E50FAEDEBC /* PageCapture.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = PageCapture.js; sourceTree = "<group>"; };
 		F10E15ED2FBBD928421B3577 /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = System/Library/Frameworks/CloudKit.framework; sourceTree = SDKROOT; };
 		F1CC6BBAA4BD56387E5F47AB /* StoreConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreConnector.swift; sourceTree = "<group>"; };
 		F41F166AFD7754B4E097DFC0 /* RefreshCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshCoordinator.swift; sourceTree = "<group>"; };
 		F42AB3605347032A9F3E60A4 /* CloudSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncManager.swift; sourceTree = "<group>"; };
+		F567E548AD3DB42514AED9B1 /* RenderedPageCaptureLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderedPageCaptureLoader.swift; sourceTree = "<group>"; };
 		F9F61B3ECC1457E7A5435904 /* ConnectorRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectorRegistryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -179,6 +188,7 @@
 			files = (
 				2F08982851E93414FE7134D8 /* CloudKit.framework in Frameworks */,
 				AB47E5BBB5F136C0406143EA /* AppIntents.framework in Frameworks */,
+				2847729385A35024888BCE77 /* WebKit.framework in Frameworks */,
 				539D27D576C30FD21B9E6656 /* libsqlite3.tbd in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -194,6 +204,7 @@
 				208A25D3C0FF43BB570687B4 /* ConnectorRegistry.swift */,
 				CF9EED51E4F856ED1E33CBA2 /* GenericStoreConnector.swift */,
 				D39AAFB2DDF7598A77CC2EA8 /* iTunesConnector.swift */,
+				F567E548AD3DB42514AED9B1 /* RenderedPageCaptureLoader.swift */,
 				F1CC6BBAA4BD56387E5F47AB /* StoreConnector.swift */,
 				3F0F8F037CEDFE7F320AB5D8 /* StorePageMetadata.swift */,
 			);
@@ -204,6 +215,7 @@
 			isa = PBXGroup;
 			children = (
 				B7FD4A4C320A92F785C5DCE4 /* Assets.xcassets */,
+				EAB4DB9D0AA132E50FAEDEBC /* PageCapture.js */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -374,6 +386,7 @@
 				59DCB6AE0242B429C96A8D1E /* ITunesConnectorTests.swift */,
 				C58F737A508B6F23EA669FE1 /* JSONFileItemStoreTests.swift */,
 				B3EF9F6831373A85EDA3D1CA /* PriceDropDetectorTests.swift */,
+				2BD74527296F72E7DC60CDBE /* RenderedPageCaptureLoaderTests.swift */,
 				A710F0C9A614146C953B7E8F /* SharedURLInboxTests.swift */,
 				70C42D27B5A4F4E9C3DFC5D9 /* SQLiteItemStoreTests.swift */,
 			);
@@ -397,6 +410,7 @@
 				CABE2A267268011D5DDEF22C /* AppIntents.framework */,
 				F10E15ED2FBBD928421B3577 /* CloudKit.framework */,
 				D777AB52901C2ABB20AE388D /* libsqlite3.tbd */,
+				2A27B39A0645C00F45A1A325 /* WebKit.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -430,6 +444,7 @@
 			buildConfigurationList = 3F149B847DF32930FCB6D844 /* Build configuration list for PBXNativeTarget "PriceTrackerShare" */;
 			buildPhases = (
 				A671A6E347CCA3F249CD5CC8 /* Sources */,
+				C41ECA030EAD79FB2249C65A /* Resources */,
 			);
 			buildRules = (
 			);
@@ -506,6 +521,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				25A7146F84FB6661E463F877 /* Assets.xcassets in Resources */,
+				12F3E87400E50C4B5404C86F /* PageCapture.js in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C41ECA030EAD79FB2249C65A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BCE5335590DB28CD78060D4C /* PageCapture.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -550,6 +574,7 @@
 				D92D3845ABA2F0158BE413F8 /* PriceTrackerApp.swift in Sources */,
 				D7D0E4DC7F60C1BD15D1A9E4 /* RefreshCoordinator.swift in Sources */,
 				304EC3F7F32CFB1100B2C146 /* RefreshItemIntent.swift in Sources */,
+				9184B23386643CB73202F5A4 /* RenderedPageCaptureLoader.swift in Sources */,
 				F948E6E97F27D4485EEE09DC /* RootView.swift in Sources */,
 				8B880B4E47B73633D1BDB7DA /* SQLiteItemStore.swift in Sources */,
 				2F0E44464CD742D8DEF27947 /* SharedInboxView.swift in Sources */,
@@ -578,6 +603,7 @@
 				10AEE8F98D02132F2CD194E5 /* ItemImportExportTests.swift in Sources */,
 				B80516C492BB51475FD89602 /* JSONFileItemStoreTests.swift in Sources */,
 				8BB3A1914CC580EA745D8347 /* PriceDropDetectorTests.swift in Sources */,
+				079AA079267604EEF151C7ED /* RenderedPageCaptureLoaderTests.swift in Sources */,
 				15ADBC663EECAEE69EBC61C2 /* SQLiteItemStoreTests.swift in Sources */,
 				CD15068245467733AF28EDF8 /* SharedURLInboxTests.swift in Sources */,
 			);
