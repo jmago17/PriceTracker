@@ -79,6 +79,7 @@ La Share Extension conserva solo el App Group.
 - `cktool export-schema` no pudo usarse para inspeccionar el servidor porque no hay un CloudKit Management Token guardado. No se creó uno solo para esta comprobación.
 - Después de fijar los entornos, el build Debug firmado contiene literalmente `com.apple.developer.icloud-container-environment=Development`; los 40 tests continúan pasando.
 - En el iPad, una build dirigida a Production devolvió `Failed to send changes` porque Production todavía no contiene el tipo `CatalogItem`. El nombre del tipo en código es correcto; CloudKit prohíbe crear tipos o campos nuevos directamente en Production.
+- Después de desplegar `CatalogItem`, Production rechazó el campo `category`. El esquema se había creado de forma just-in-time desde un registro cuyos opcionales eran `nil`, por lo que el tipo llegó a Production incompleto. No corregir los campos uno a uno: hay que completar todo `CatalogItem` en Development y volver a desplegar los cambios aditivos.
 
 No verificado todavía:
 
@@ -89,9 +90,10 @@ No verificado todavía:
 
 ## Pasos externos pendientes
 
-1. Revisar en CloudKit Console que Development contiene `PriceTrackerCatalog` y `CatalogItem`, y desplegar el esquema a Production antes de TestFlight/App Store.
-2. Confirmar que Xcode Cloud tiene acceso al container y genera un perfil con iCloud, push y App Group.
-3. Probar alta, edición independiente, refresh y borrado con dos dispositivos físicos en la misma cuenta.
+1. Exportar el esquema Development real con `cktool`, versionarlo, completar todos los campos de `CatalogItem`, validarlo e importarlo de nuevo en Development. No reconstruir a mano un esquema existente ni depender de un primer registro con campos opcionales nulos.
+2. Revisar y desplegar los cambios aditivos de Development a Production; después reintentar la sincronización pendiente del iPad.
+3. Confirmar que Xcode Cloud tiene acceso al container y genera un perfil con iCloud, push y App Group.
+4. Probar alta, edición independiente, refresh y borrado con dos dispositivos físicos en la misma cuenta.
 
 ## Hipótesis descartadas en esta sesión
 
@@ -103,3 +105,4 @@ No verificado todavía:
 - El perfil antiguo sin iCloud/push no indicaba un defecto en el proyecto: al renovar el perfil, la firma incluyó todas las capacidades esperadas.
 - El primer fallo al renovar tampoco era el llavero: Xcode no tenía una sesión de cuenta válida (`missing Xcode-Username`). Tras iniciar sesión, renovación y CodeSign funcionaron.
 - El error del iPad no era un fallo del ID determinista ni un typo `Catalogltem`: el servidor identificó correctamente `CatalogItem` y rechazó crearlo porque la build estaba usando el esquema Production aún sin desplegar.
+- El despliegue inicial de `CatalogItem` no garantizaba que estuvieran todos sus campos: la creación just-in-time solo añadió los campos con valor presentes en el registro usado para inicializar Development; `category` y potencialmente otros opcionales quedaron fuera.
