@@ -15,6 +15,7 @@
 		15ADBC663EECAEE69EBC61C2 /* SQLiteItemStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70C42D27B5A4F4E9C3DFC5D9 /* SQLiteItemStoreTests.swift */; };
 		16276FCCFE3E07C7274A4308 /* ItemEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C96D14D727CE29B7813C3FA /* ItemEntity.swift */; };
 		17E93D0745E1A8F1AAA811BF /* iTunesConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39AAFB2DDF7598A77CC2EA8 /* iTunesConnector.swift */; };
+		1D12DE66C8C46C174E2E06FA /* GenericStoreConnectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A48F840352C5ED9F75860198 /* GenericStoreConnectorTests.swift */; };
 		1E71DEDCF83ED80E937A82F4 /* SyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE45DEDE6A2C09CD0FD9DD5 /* SyncView.swift */; };
 		1F34FC68EEE51E0DB473DAA2 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C011D7F5D054C7534388153 /* ShareViewController.swift */; };
 		25A7146F84FB6661E463F877 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B7FD4A4C320A92F785C5DCE4 /* Assets.xcassets */; };
@@ -28,6 +29,7 @@
 		526CC1A093FA750C4C45C8D5 /* ItemFilterEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8414352C60EB71983C543EC1 /* ItemFilterEngine.swift */; };
 		539D27D576C30FD21B9E6656 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = D777AB52901C2ABB20AE388D /* libsqlite3.tbd */; };
 		53E191596371B6895014DFA8 /* PriceTrackerShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = ACB3D1E1BA0570ED8C902A00 /* PriceTrackerShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		5938E2CB1A340767C4ADBD6C /* ConnectorRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9F61B3ECC1457E7A5435904 /* ConnectorRegistryTests.swift */; };
 		59BF15F288675DF6B5DFBC3C /* CloudRecordCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9275479EA49A61BF8DEF508 /* CloudRecordCodec.swift */; };
 		5DE458A88C46D52C40CDAE5A /* PriceObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D58418AFC8B2E82EA09B2234 /* PriceObservation.swift */; };
 		5E6E70407AB813AF3377B19B /* AddItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E5EA2A5AFB4029A6F1C260 /* AddItemView.swift */; };
@@ -36,12 +38,16 @@
 		6EAE70B6A308177E77F6B716 /* Item.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960A1EE602900E5C8DCBCF5F /* Item.swift */; };
 		6FDFB54D9BB7AAD53DF3073D /* CloudBackedItemStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60AE5D3EBA4EABB8D61A15CF /* CloudBackedItemStore.swift */; };
 		87FA1B0E4DDA59C7478C2A85 /* ItemImportExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C155442F07864CACBBBA57D6 /* ItemImportExport.swift */; };
+		8AF5B3272275623613654A7D /* AppleStoreConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6D200CEBA0ACC608C8DD55B /* AppleStoreConnector.swift */; };
 		8B880B4E47B73633D1BDB7DA /* SQLiteItemStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 594246B2605275899321BDD2 /* SQLiteItemStore.swift */; };
 		8BB3A1914CC580EA745D8347 /* PriceDropDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3EF9F6831373A85EDA3D1CA /* PriceDropDetectorTests.swift */; };
 		90E8D7D5C436711227E8D0E3 /* JSONFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9226E8FEDE85627854E203F9 /* JSONFileStore.swift */; };
 		98E858833B14E5E625C5E12F /* ItemListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEC123AC651FEA9420141DB6 /* ItemListViewModel.swift */; };
 		9F00541C0DF4BDF536EAB91E /* SyncViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40E83730322301845E897BD6 /* SyncViewModel.swift */; };
+		9FA25EC2D50DBE7EE6E0EFD1 /* AmazonConnectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CCE1B48B43F6D6273C8588 /* AmazonConnectorTests.swift */; };
+		A37BB4C030DF1FDA5B831C1E /* GenericStoreConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF9EED51E4F856ED1E33CBA2 /* GenericStoreConnector.swift */; };
 		A7B8AEB7C341A8B0F1582988 /* ItemDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA22398C4968495785E9127 /* ItemDetailView.swift */; };
+		A80AE00A744CC373DA37E67C /* AppleStoreConnectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EAAE31837A8756E74696CAA /* AppleStoreConnectorTests.swift */; };
 		A810BF33C3EB9B481D938B34 /* SharedInboxViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B564028C51BCEF7F0954C65E /* SharedInboxViewModel.swift */; };
 		AB47E5BBB5F136C0406143EA /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CABE2A267268011D5DDEF22C /* AppIntents.framework */; };
 		AD27B56D793C4BEA23AC2E89 /* ItemQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB4404890FAF52027ECE191 /* ItemQuery.swift */; };
@@ -49,6 +55,7 @@
 		B23E3D49A8522188CD35B78E /* CloudSyncStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E8E3AB5CAE3F93E48829E8D /* CloudSyncStatus.swift */; };
 		B80516C492BB51475FD89602 /* JSONFileItemStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C58F737A508B6F23EA669FE1 /* JSONFileItemStoreTests.swift */; };
 		B96FC5A200D65A2806BC29C5 /* ITunesConnectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59DCB6AE0242B429C96A8D1E /* ITunesConnectorTests.swift */; };
+		BA21F713983C3C2B4E8CC413 /* StorePageMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F0F8F037CEDFE7F320AB5D8 /* StorePageMetadata.swift */; };
 		BD1C922399AEE5AC6707E545 /* StoreConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1CC6BBAA4BD56387E5F47AB /* StoreConnector.swift */; };
 		C5A0392313D9AA9DD639FCCA /* ItemStoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = E397C87C42B69BC2C07208FB /* ItemStoring.swift */; };
 		C6A9AE00B893F79208BA6175 /* CloudRecordMerger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A08D78BAF12C25DE6B029C /* CloudRecordMerger.swift */; };
@@ -98,6 +105,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0EAAE31837A8756E74696CAA /* AppleStoreConnectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleStoreConnectorTests.swift; sourceTree = "<group>"; };
 		12446C7AB1B16B07338E8E14 /* NotifyPriceDropsIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifyPriceDropsIntent.swift; sourceTree = "<group>"; };
 		1A349F6E555863F56E30DC47 /* ItemFilterEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemFilterEngineTests.swift; sourceTree = "<group>"; };
 		208A25D3C0FF43BB570687B4 /* ConnectorRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectorRegistry.swift; sourceTree = "<group>"; };
@@ -108,6 +116,7 @@
 		3C011D7F5D054C7534388153 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		3C8F5EF03AED462A62C25F4F /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		3C96D14D727CE29B7813C3FA /* ItemEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemEntity.swift; sourceTree = "<group>"; };
+		3F0F8F037CEDFE7F320AB5D8 /* StorePageMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorePageMetadata.swift; sourceTree = "<group>"; };
 		40E83730322301845E897BD6 /* SyncViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncViewModel.swift; sourceTree = "<group>"; };
 		41EE6A199360D70C24723D3F /* CloudRecordMergerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudRecordMergerTests.swift; sourceTree = "<group>"; };
 		46426E104289A29B24DDAD88 /* PriceTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceTrackerApp.swift; sourceTree = "<group>"; };
@@ -132,6 +141,7 @@
 		92FA789D1AA2C7B84939AADF /* AmazonConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmazonConnector.swift; sourceTree = "<group>"; };
 		960A1EE602900E5C8DCBCF5F /* Item.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Item.swift; sourceTree = "<group>"; };
 		A0A08D78BAF12C25DE6B029C /* CloudRecordMerger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudRecordMerger.swift; sourceTree = "<group>"; };
+		A48F840352C5ED9F75860198 /* GenericStoreConnectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenericStoreConnectorTests.swift; sourceTree = "<group>"; };
 		A710F0C9A614146C953B7E8F /* SharedURLInboxTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedURLInboxTests.swift; sourceTree = "<group>"; };
 		ACB3D1E1BA0570ED8C902A00 /* PriceTrackerShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = PriceTrackerShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B3EF9F6831373A85EDA3D1CA /* PriceDropDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceDropDetectorTests.swift; sourceTree = "<group>"; };
@@ -141,9 +151,11 @@
 		B9E5EA2A5AFB4029A6F1C260 /* AddItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddItemView.swift; sourceTree = "<group>"; };
 		C155442F07864CACBBBA57D6 /* ItemImportExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemImportExport.swift; sourceTree = "<group>"; };
 		C58F737A508B6F23EA669FE1 /* JSONFileItemStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONFileItemStoreTests.swift; sourceTree = "<group>"; };
+		C8CCE1B48B43F6D6273C8588 /* AmazonConnectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmazonConnectorTests.swift; sourceTree = "<group>"; };
 		CABE2A267268011D5DDEF22C /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
 		CEB71ADDAC752EA1E447466E /* AddItemViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddItemViewModel.swift; sourceTree = "<group>"; };
 		CEC123AC651FEA9420141DB6 /* ItemListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemListViewModel.swift; sourceTree = "<group>"; };
+		CF9EED51E4F856ED1E33CBA2 /* GenericStoreConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenericStoreConnector.swift; sourceTree = "<group>"; };
 		D39AAFB2DDF7598A77CC2EA8 /* iTunesConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iTunesConnector.swift; sourceTree = "<group>"; };
 		D58418AFC8B2E82EA09B2234 /* PriceObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceObservation.swift; sourceTree = "<group>"; };
 		D777AB52901C2ABB20AE388D /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
@@ -151,11 +163,13 @@
 		E122E3902D45AC03172310A0 /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
 		E397C87C42B69BC2C07208FB /* ItemStoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemStoring.swift; sourceTree = "<group>"; };
 		E56089249C8AE6D456CD8E57 /* CloudRecordIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudRecordIdentityTests.swift; sourceTree = "<group>"; };
+		E6D200CEBA0ACC608C8DD55B /* AppleStoreConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleStoreConnector.swift; sourceTree = "<group>"; };
 		E9275479EA49A61BF8DEF508 /* CloudRecordCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudRecordCodec.swift; sourceTree = "<group>"; };
 		F10E15ED2FBBD928421B3577 /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = System/Library/Frameworks/CloudKit.framework; sourceTree = SDKROOT; };
 		F1CC6BBAA4BD56387E5F47AB /* StoreConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreConnector.swift; sourceTree = "<group>"; };
 		F41F166AFD7754B4E097DFC0 /* RefreshCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshCoordinator.swift; sourceTree = "<group>"; };
 		F42AB3605347032A9F3E60A4 /* CloudSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncManager.swift; sourceTree = "<group>"; };
+		F9F61B3ECC1457E7A5435904 /* ConnectorRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectorRegistryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -176,9 +190,12 @@
 			isa = PBXGroup;
 			children = (
 				92FA789D1AA2C7B84939AADF /* AmazonConnector.swift */,
+				E6D200CEBA0ACC608C8DD55B /* AppleStoreConnector.swift */,
 				208A25D3C0FF43BB570687B4 /* ConnectorRegistry.swift */,
+				CF9EED51E4F856ED1E33CBA2 /* GenericStoreConnector.swift */,
 				D39AAFB2DDF7598A77CC2EA8 /* iTunesConnector.swift */,
 				F1CC6BBAA4BD56387E5F47AB /* StoreConnector.swift */,
+				3F0F8F037CEDFE7F320AB5D8 /* StorePageMetadata.swift */,
 			);
 			path = Connectors;
 			sourceTree = "<group>";
@@ -346,8 +363,12 @@
 		D7BE223F19359A177F29A5BD /* PriceTrackerTests */ = {
 			isa = PBXGroup;
 			children = (
+				C8CCE1B48B43F6D6273C8588 /* AmazonConnectorTests.swift */,
+				0EAAE31837A8756E74696CAA /* AppleStoreConnectorTests.swift */,
 				E56089249C8AE6D456CD8E57 /* CloudRecordIdentityTests.swift */,
 				41EE6A199360D70C24723D3F /* CloudRecordMergerTests.swift */,
+				F9F61B3ECC1457E7A5435904 /* ConnectorRegistryTests.swift */,
+				A48F840352C5ED9F75860198 /* GenericStoreConnectorTests.swift */,
 				1A349F6E555863F56E30DC47 /* ItemFilterEngineTests.swift */,
 				46D46BE799AE62AD353CC772 /* ItemImportExportTests.swift */,
 				59DCB6AE0242B429C96A8D1E /* ITunesConnectorTests.swift */,
@@ -501,6 +522,7 @@
 				C73BD661347ADAD622D75688 /* AmazonConnector.swift in Sources */,
 				CD66C1AB0AFC1AB84915AC05 /* AppEnvironment.swift in Sources */,
 				518F32C7CED5BD6B6833DA11 /* AppGroup.swift in Sources */,
+				8AF5B3272275623613654A7D /* AppleStoreConnector.swift in Sources */,
 				6FDFB54D9BB7AAD53DF3073D /* CloudBackedItemStore.swift in Sources */,
 				59BF15F288675DF6B5DFBC3C /* CloudRecordCodec.swift in Sources */,
 				FF2A252AB62D57E4748A56EA /* CloudRecordIdentity.swift in Sources */,
@@ -508,6 +530,7 @@
 				EDE66425D592825B23342423 /* CloudSyncManager.swift in Sources */,
 				B23E3D49A8522188CD35B78E /* CloudSyncStatus.swift in Sources */,
 				EC13B4B80DEC55DE6607BEA6 /* ConnectorRegistry.swift in Sources */,
+				A37BB4C030DF1FDA5B831C1E /* GenericStoreConnector.swift in Sources */,
 				DE77F7D9DDE47A654713A774 /* ImportExportView.swift in Sources */,
 				6EAE70B6A308177E77F6B716 /* Item.swift in Sources */,
 				A7B8AEB7C341A8B0F1582988 /* ItemDetailView.swift in Sources */,
@@ -533,6 +556,7 @@
 				A810BF33C3EB9B481D938B34 /* SharedInboxViewModel.swift in Sources */,
 				6680A6C654D78A23F9E60AD7 /* Store.swift in Sources */,
 				BD1C922399AEE5AC6707E545 /* StoreConnector.swift in Sources */,
+				BA21F713983C3C2B4E8CC413 /* StorePageMetadata.swift in Sources */,
 				1E71DEDCF83ED80E937A82F4 /* SyncView.swift in Sources */,
 				9F00541C0DF4BDF536EAB91E /* SyncViewModel.swift in Sources */,
 				17E93D0745E1A8F1AAA811BF /* iTunesConnector.swift in Sources */,
@@ -543,8 +567,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9FA25EC2D50DBE7EE6E0EFD1 /* AmazonConnectorTests.swift in Sources */,
+				A80AE00A744CC373DA37E67C /* AppleStoreConnectorTests.swift in Sources */,
 				064E02C4949ED2EF3D2B8D14 /* CloudRecordIdentityTests.swift in Sources */,
 				642CD4D349D7CA3C922FD989 /* CloudRecordMergerTests.swift in Sources */,
+				5938E2CB1A340767C4ADBD6C /* ConnectorRegistryTests.swift in Sources */,
+				1D12DE66C8C46C174E2E06FA /* GenericStoreConnectorTests.swift in Sources */,
 				B96FC5A200D65A2806BC29C5 /* ITunesConnectorTests.swift in Sources */,
 				2EA9BBAF38921B756A5F8FCB /* ItemFilterEngineTests.swift in Sources */,
 				10AEE8F98D02132F2CD194E5 /* ItemImportExportTests.swift in Sources */,

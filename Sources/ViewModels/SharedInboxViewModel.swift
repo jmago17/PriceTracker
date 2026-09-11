@@ -43,12 +43,8 @@ final class SharedInboxViewModel {
             inbox.markFailed(id: entry.id, error: "Invalid URL")
             return
         }
-        guard let connector = environment.connectors.connectorToResolve(url: url) else {
-            inbox.markFailed(id: entry.id, error: "This store is not supported yet")
-            return
-        }
         do {
-            let resolved = try await connector.resolve(url: url)
+            let resolved = try await environment.connectors.resolve(url: url)
             let item = Item(
                 store: resolved.store,
                 storeItemID: resolved.storeItemID,

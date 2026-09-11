@@ -1,12 +1,16 @@
 import Foundation
 
-/// Level-C per the architecture: **deliberately no scraping**. Amazon blocks
-/// datacenter IPs, forbids it in ToS, and Keepa already does this better.
-/// `resolve` only extracts the ASIN so the item can be tracked and deep-linked
-/// to Keepa; `fetch` always fails — Amazon items are excluded from automatic
-/// refresh (see Refresh/RefreshCoordinator.swift and Store.refreshableStores).
+/// Amazon items are never scraped periodically: Keepa already provides that
+/// service. On add, the connector makes one best-effort metadata request so the
+/// saved link can still include the title, image and visible price.
 struct AmazonConnector: StoreConnector {
     let store: Store = .amazon
+
+    private let loader: StorePageLoader
+
+    init(session: URLSession = .shared) {
+        loader = StorePageLoader(session: session)
+    }
 
     func canResolve(url: URL) -> Bool {
         guard let host = url.host?.lowercased() else { return false }
@@ -15,16 +19,17 @@ struct AmazonConnector: StoreConnector {
 
     func resolve(url: URL) async throws -> ResolvedItem {
         guard let asin = Self.extractASIN(from: url) else { throw ConnectorError.unrecognizedURL }
+        let metadata = try? await loader.load(url)
         return ResolvedItem(
             store: .amazon,
             storeItemID: asin,
             region: "ES",
-            currency: "EUR",
+            currency: metadata?.currency ?? "EUR",
             canonicalURL: Self.canonicalURL(asin: asin, host: url.host ?? "www.amazon.es"),
-            title: "Amazon \(asin)",
-            subtitle: nil,
-            imageURL: nil,
-            priceCents: nil,
+            title: metadata?.title ?? "Amazon \(asin)",
+            subtitle: metadata?.description,
+            imageURL: metadata?.imageURL,
+            priceCents: metadata?.priceCents,
             priceReferenceCents: nil,
             storeGenre: nil
         )

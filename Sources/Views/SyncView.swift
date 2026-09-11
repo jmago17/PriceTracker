@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct SyncView: View {
     @Bindable var viewModel: SyncViewModel
@@ -17,7 +18,12 @@ struct SyncView: View {
 
                 if let error = viewModel.snapshot.lastError {
                     Section("Último error") {
-                        Text(error).foregroundStyle(.red)
+                        Text(error)
+                            .foregroundStyle(.red)
+                            .textSelection(.enabled)
+                        Button("Copiar error", systemImage: "doc.on.doc") {
+                            UIPasteboard.general.string = error
+                        }
                     }
                 }
 

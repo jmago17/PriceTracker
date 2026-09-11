@@ -90,6 +90,7 @@ struct ITunesConnector: StoreConnector {
         var artistName: String?
         var sellerName: String?
         var currency: String?
+        var price: Double?
         var trackPrice: Double?
         var collectionPrice: Double?
         var primaryGenreName: String?
@@ -148,12 +149,13 @@ struct ITunesConnector: StoreConnector {
     }
 
     private static func priceCents(from result: LookupResult) -> Int? {
-        // The iTunes Lookup API intentionally omits trackPrice for free apps
-        // (for example Clash Royale, id1053012308). A resolved store result
-        // without a paid price is therefore a valid zero-price item, not an
-        // unsupported URL.
         guard result.trackId != nil || result.collectionId != nil else { return nil }
-        let price = result.trackPrice ?? result.collectionPrice ?? 0
+        // Software results use `price`; media results may still use
+        // `trackPrice` or `collectionPrice`. A missing numeric field is not
+        // proof that an item is free, so do not silently turn it into zero.
+        guard let price = result.price ?? result.trackPrice ?? result.collectionPrice else {
+            return nil
+        }
         return Int((price * 100).rounded())
     }
 

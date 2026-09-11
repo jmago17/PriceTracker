@@ -9,7 +9,7 @@ struct AddItemView: View {
         NavigationStack {
             Form {
                 Section("URL") {
-                    TextField("https://apps.apple.com/… o amazon.es/dp/…", text: $viewModel.urlText)
+                    TextField("URL de cualquier tienda…", text: $viewModel.urlText)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
@@ -38,7 +38,7 @@ struct AddItemView: View {
                             if let cents = preview.priceCents {
                                 Text(String(format: "%.2f %@", Double(cents) / 100, preview.currency))
                             } else {
-                                Text("Sin precio automático (Amazon: se enlaza a Keepa).")
+                                Text("Sin precio disponible; el enlace se guardará igualmente.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }

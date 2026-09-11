@@ -1,10 +1,10 @@
 import AppIntents
 
-/// Which storefront/connector an item belongs to. `eshop`, `psstore` and `generic`
-/// are modeled now (per architecture, item.store) but have no working connector yet —
-/// see Connectors/ConnectorRegistry.swift.
+/// Which storefront/connector an item belongs to. Unknown web stores use
+/// `generic`; eShop and PlayStation Store still have no dedicated connector.
 enum Store: String, Codable, Sendable, CaseIterable, Identifiable {
     case appStore
+    case appleStore
     case appleBooks
     case appleMusic
     case amazon
@@ -17,6 +17,7 @@ enum Store: String, Codable, Sendable, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .appStore: return "App Store"
+        case .appleStore: return "Apple Store"
         case .appleBooks: return "Apple Books"
         case .appleMusic: return "Apple Music"
         case .amazon: return "Amazon"
@@ -32,6 +33,7 @@ extension Store: AppEnum {
 
     static let caseDisplayRepresentations: [Store: DisplayRepresentation] = [
         .appStore: DisplayRepresentation(title: "App Store"),
+        .appleStore: DisplayRepresentation(title: "Apple Store"),
         .appleBooks: DisplayRepresentation(title: "Apple Books"),
         .appleMusic: DisplayRepresentation(title: "Apple Music"),
         .amazon: DisplayRepresentation(title: "Amazon"),

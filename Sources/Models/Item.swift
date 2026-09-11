@@ -116,7 +116,7 @@ struct Item: Identifiable, Codable, Hashable, Sendable {
 
 extension Store {
     /// Stores for which we have a working price-fetch connector today.
-    /// `amazon`, `eshop`, `psstore` and `generic` are modeled but not wired —
-    /// see Connectors/ConnectorRegistry.swift.
-    static var refreshableStores: Set<Store> { [.appStore, .appleBooks, .appleMusic] }
+    /// Generic and Amazon links capture metadata only when added. They are not
+    /// periodically scraped, so they stay outside this set.
+    static var refreshableStores: Set<Store> { [.appStore, .appleStore, .appleBooks, .appleMusic] }
 }

@@ -22,15 +22,11 @@ final class AddItemViewModel {
             errorMessage = "Esa no es una URL válida."
             return
         }
-        guard let connector = environment.connectors.connectorToResolve(url: url) else {
-            errorMessage = "Esta tienda todavía no está soportada (por ahora: App Store, Apple Books, Apple Music y Amazon — solo para guardar el enlace)."
-            return
-        }
         isResolving = true
         Task {
             defer { isResolving = false }
             do {
-                preview = try await connector.resolve(url: url)
+                preview = try await environment.connectors.resolve(url: url)
             } catch {
                 errorMessage = error.localizedDescription
             }
