@@ -162,6 +162,19 @@ Bugs reales encontrados y corregidos en las rondas 1–2 (no eran fallos de comp
 
 Capturas finales en `/tmp/pricetracker_final_*.png`: `catalog_light`, `catalog_dark`, `detail_no_history`, `add_url_idle`, `inbox`, `settings`, `sync`, más `catalog_ipad`/`detail_ipad`/`add_url_idle_ipad` (iPad Pro 11" M5, apareció en modo oscuro porque no se tocó su appearance). Comparadas contra `/tmp/pricetracker_design_handoff/screenshots/`.
 
+### Ronda de correcciones tras revisión visual final (`/tmp/pricetracker_final_fixes.md`)
+
+Las tres rondas de arriba dejaron pasar 4 fallos reales, detectados en una revisión visual posterior por Josu — no estaban corregidos, pese a que el informe anterior de esta sesión los daba por buenos:
+
+1. **Fechas relativas en inglés** («3 days ago», «17 minutes ago»). `.formatted(.relative(presentation: .named))` sigue el locale del simulador/dispositivo, no el idioma hardcodeado de la app. Nuevo `Sources/Views/DateFormatting.swift`: `Date.relativeSpanish`/`.shortTimeSpanish`, con `RelativeDateTimeFormatter`/`DateFormatter` fijados a `Locale(identifier: "es_ES")` (marcados `nonisolated(unsafe)`: Swift 6 los marca no-Sendable pero no se mutan tras construirse). Sustituye los 4 sitios que llamaban a `.formatted(.relative...)` directamente (`ItemRowView`, `ItemDetailView`, `SyncView`, `SharedInboxView`).
+2. **La tab bar seguía visible en la ficha**, debajo de Editar/Pausar/Eliminar. `ItemDetailView` añade `.toolbar(.hidden, for: .tabBar)`.
+3. **La tab bar flotante tapaba las últimas filas de "Siguiendo"** en el catálogo al hacer scroll hasta el final. `CatalogView` añade `.contentMargins(.bottom, 90, for: .scrollContent)` al `List` — margen del contenido desplazable, no un offset de la tab bar.
+4. **Sincronización repetía "Sesión de iCloud cerrada" dos veces** (tarjeta principal + sección "SIN SESIÓN DE ICLOUD" con la misma explicación). Consolidado en una sola tarjeta: el texto explicativo y "Abrir Ajustes de iCloud" ahora viven dentro de `statusCard` cuando `accountState == .signedOut`, y se eliminó `signedOutSection`. Además, `lastSyncText` ya no dice "Sincronizado hace…" sin sesión activa (implica sincronización en curso) — pasa a "Último envío hace…".
+
+`ScreenshotTests.swift` gana un paso de scroll: `swipeUp` seis veces sobre el `List`/`collectionView` del catálogo antes de capturar `catalog_scrolled_end`, para verificar el punto 3 de verdad (no solo la vista inicial) — y vuelve a subir con `swipeDown` antes de continuar con el resto del test, porque tocar una fila fuera de pantalla tras el scroll no es fiable.
+
+Los 4 puntos se verificaron visualmente con capturas nuevas después de cada fix, no solo leyendo el código: `catalog_scrolled_end.png` muestra las tres filas de "Siguiendo" completas por encima de la tab bar; `detail_no_history.png` ya no tiene tab bar; `sync.png` tiene una sola tarjeta; catálogo y Sync muestran «hace 3 días» / «Último envío hace 24 minutos». 65 tests / 14 suites siguen pasando sin regresión. Commit `8e22826`.
+
 No verificado en esta sesión:
 - Estados «resuelto»/«sin precio»/«error» de Añadir URL: el test tipeó una URL real de App Store y pulsó «Analizar enlace», pero la resolución de red no completó dentro del test en este host (sandbox sin red de simulador confirmada, o timeout); solo se capturó el estado inicial. La lógica en sí (`AddItemViewModel.lookUp`/`ConnectorRegistry.resolve`) no cambió y sigue cubierta por `ConnectorRegistryTests`/`ITunesConnectorTests`.
 - iPad no está optimizado (lista/VStack a ancho completo, sin `NavigationSplitView` ni límite de ancho): el handoff solo definía un lienzo de iPhone (402×874), así que «viable» se verificó como "no rompe, navega, es legible", no como paridad de diseño.
