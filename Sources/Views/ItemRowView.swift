@@ -81,6 +81,6 @@ struct ItemRowView: View {
     }
 
     private func elapsed(since date: Date) -> String {
-        date.formatted(.relative(presentation: .named))
+        date.relativeSpanish
     }
 }

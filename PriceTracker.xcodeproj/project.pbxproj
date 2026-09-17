@@ -38,6 +38,7 @@
 		5DE458A88C46D52C40CDAE5A /* PriceObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D58418AFC8B2E82EA09B2234 /* PriceObservation.swift */; };
 		5E6E70407AB813AF3377B19B /* AddItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E5EA2A5AFB4029A6F1C260 /* AddItemView.swift */; };
 		642CD4D349D7CA3C922FD989 /* CloudRecordMergerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41EE6A199360D70C24723D3F /* CloudRecordMergerTests.swift */; };
+		6555F0953939C00DFC281872 /* DateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C3EC8FA85C629696AB9BED8 /* DateFormatting.swift */; };
 		6680A6C654D78A23F9E60AD7 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = E122E3902D45AC03172310A0 /* Store.swift */; };
 		6EAE70B6A308177E77F6B716 /* Item.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960A1EE602900E5C8DCBCF5F /* Item.swift */; };
 		6FDFB54D9BB7AAD53DF3073D /* CloudBackedItemStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60AE5D3EBA4EABB8D61A15CF /* CloudBackedItemStore.swift */; };
@@ -140,6 +141,7 @@
 		41EE6A199360D70C24723D3F /* CloudRecordMergerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudRecordMergerTests.swift; sourceTree = "<group>"; };
 		46426E104289A29B24DDAD88 /* PriceTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceTrackerApp.swift; sourceTree = "<group>"; };
 		46D46BE799AE62AD353CC772 /* ItemImportExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemImportExportTests.swift; sourceTree = "<group>"; };
+		4C3EC8FA85C629696AB9BED8 /* DateFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateFormatting.swift; sourceTree = "<group>"; };
 		4C7DF267B444BA7390FFF69E /* ImportExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportExportView.swift; sourceTree = "<group>"; };
 		565EF4D389D3224614FB0DF0 /* LegacyImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyImport.swift; sourceTree = "<group>"; };
 		594246B2605275899321BDD2 /* SQLiteItemStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteItemStore.swift; sourceTree = "<group>"; };
@@ -313,6 +315,7 @@
 			children = (
 				B9E5EA2A5AFB4029A6F1C260 /* AddItemView.swift */,
 				3CA1825165B9C85078E3D4FF /* CatalogView.swift */,
+				4C3EC8FA85C629696AB9BED8 /* DateFormatting.swift */,
 				F56A6DA35DCA062B3BA5A2C5 /* EditItemView.swift */,
 				4C7DF267B444BA7390FFF69E /* ImportExportView.swift */,
 				5DA22398C4968495785E9127 /* ItemDetailView.swift */,
@@ -606,6 +609,7 @@
 				EDE66425D592825B23342423 /* CloudSyncManager.swift in Sources */,
 				B23E3D49A8522188CD35B78E /* CloudSyncStatus.swift in Sources */,
 				EC13B4B80DEC55DE6607BEA6 /* ConnectorRegistry.swift in Sources */,
+				6555F0953939C00DFC281872 /* DateFormatting.swift in Sources */,
 				9A224CC7B210D47698588B02 /* EditItemView.swift in Sources */,
 				A37BB4C030DF1FDA5B831C1E /* GenericStoreConnector.swift in Sources */,
 				DE77F7D9DDE47A654713A774 /* ImportExportView.swift in Sources */,

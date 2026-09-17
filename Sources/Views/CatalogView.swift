@@ -87,6 +87,10 @@ struct CatalogView: View {
                 }
             }
             .listStyle(.insetGrouped)
+            // The floating tab bar otherwise covers the last section's bottom
+            // rows — this is scroll-content margin, not a tab-bar offset, so
+            // it never fights the tab bar's own layout.
+            .contentMargins(.bottom, 90, for: .scrollContent)
             .navigationTitle("Mis precios")
             .searchable(text: $viewModel.searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Buscar en el catálogo")
             .navigationDestination(for: UUID.self) { id in

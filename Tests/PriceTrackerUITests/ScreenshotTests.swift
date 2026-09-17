@@ -18,6 +18,21 @@ final class ScreenshotTests: XCTestCase {
 
         save(app.screenshot(), to: "catalog_light")
 
+        // Scroll to the very end of the catalog list — the floating tab bar
+        // must not cover the last "Siguiendo" rows once fully scrolled.
+        let catalogList = app.collectionViews.firstMatch.exists ? app.collectionViews.firstMatch : app.tables.firstMatch
+        if catalogList.waitForExistence(timeout: 3) {
+            for _ in 0..<6 {
+                catalogList.swipeUp(velocity: .fast)
+            }
+            Thread.sleep(forTimeInterval: 0.3)
+            save(app.screenshot(), to: "catalog_scrolled_end")
+            for _ in 0..<6 {
+                catalogList.swipeDown(velocity: .fast)
+            }
+            Thread.sleep(forTimeInterval: 0.3)
+        }
+
         // Detail — first row under "Bajadas de precio".
         let row = app.descendants(matching: .any)["item-row"].firstMatch
         if row.waitForExistence(timeout: 5) {

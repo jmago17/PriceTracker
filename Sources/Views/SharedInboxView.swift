@@ -115,9 +115,9 @@ struct SharedInboxView: View {
     }
 
     private func receivedText(_ entry: SharedURLInbox.Entry) -> String {
-        let when = entry.receivedAt.formatted(date: .omitted, time: .shortened)
+        let when = entry.receivedAt.shortTimeSpanish
         let attempts = entry.attempts ?? 0
-        return "Recibido \(entry.receivedAt.formatted(.relative(presentation: .named))), \(when) · \(attempts) intento\(attempts == 1 ? "" : "s")"
+        return "Recibido \(entry.receivedAt.relativeSpanish), \(when) · \(attempts) intento\(attempts == 1 ? "" : "s")"
     }
 
     private var emptyState: some View {

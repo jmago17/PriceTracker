@@ -30,6 +30,7 @@ struct ItemDetailView: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle(item.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -293,7 +294,7 @@ struct ItemDetailView: View {
 
     private var trackingHeadline: String {
         guard let checked = item.lastCheckedAt else { return "Todavía sin comprobar" }
-        return "Comprobado \(checked.formatted(.relative(presentation: .named)))"
+        return "Comprobado \(checked.relativeSpanish)"
     }
 
     private var trackingSubline: String {

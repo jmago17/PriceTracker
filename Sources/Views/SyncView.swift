@@ -13,14 +13,11 @@ struct SyncView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                // Signed-out already explains itself below — showing the raw sync
-                // failure on top of it would say the same thing twice.
+                // Signed-out already explains itself inline in statusCard —
+                // showing the raw sync failure on top of it would say the same
+                // thing twice.
                 if let error = viewModel.snapshot.lastError, viewModel.snapshot.accountState != .signedOut {
                     errorSection(error)
-                }
-
-                if viewModel.snapshot.accountState == .signedOut {
-                    signedOutSection
                 }
             }
             .padding(20)
@@ -34,16 +31,28 @@ struct SyncView: View {
 
     private var statusCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 Image(systemName: accountIcon)
                     .font(.title2)
                     .foregroundStyle(accountColor)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(accountHeadline)
                         .font(.system(.body, weight: .semibold))
                     Text(lastSyncText)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                    if viewModel.snapshot.accountState == .signedOut {
+                        Text("El catálogo funciona igual en este iPhone. Inicia sesión en Ajustes para verlo también en tus otros dispositivos.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 2)
+                        Button("Abrir Ajustes de iCloud") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        }
+                        .font(.subheadline)
+                    }
                 }
                 Spacer()
             }
@@ -115,32 +124,6 @@ struct SyncView: View {
         }
     }
 
-    private var signedOutSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("SIN SESIÓN DE ICLOUD")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Sesión de iCloud cerrada", systemImage: "icloud.slash")
-                    .font(.system(.body, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Text("El catálogo funciona igual en este iPhone. Inicia sesión en Ajustes para verlo también en tus otros dispositivos.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Button("Abrir Ajustes de iCloud") {
-                    if let url = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(url)
-                    }
-                }
-                .font(.subheadline)
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-        }
-    }
-
     private var accountHeadline: String {
         switch viewModel.snapshot.accountState {
         case .available: return "iCloud activo"
@@ -168,8 +151,11 @@ struct SyncView: View {
     }
 
     private var lastSyncText: String {
-        guard let date = viewModel.snapshot.lastSuccessfulSync else { return "Nunca sincronizado" }
-        return "Sincronizado \(date.formatted(.relative(presentation: .named)))"
+        guard let date = viewModel.snapshot.lastSuccessfulSync else { return "Sin sincronizar todavía" }
+        // "Sincronizado" implies an active session; signed-out only ever means
+        // a past send, so it gets its own honest wording.
+        let verb = viewModel.snapshot.accountState == .signedOut ? "Último envío" : "Sincronizado"
+        return "\(verb) \(date.relativeSpanish)"
     }
 
     private var pendingText: String {
