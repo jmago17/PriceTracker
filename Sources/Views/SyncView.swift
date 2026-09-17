@@ -3,57 +3,177 @@ import UIKit
 
 struct SyncView: View {
     @Bindable var viewModel: SyncViewModel
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("iCloud") {
-                    LabeledContent("Cuenta", value: viewModel.snapshot.accountState.rawValue)
-                    LabeledContent("Última sincronización") {
-                        Text(viewModel.snapshot.lastSuccessfulSync?.formatted(date: .abbreviated, time: .shortened) ?? "Nunca")
-                    }
-                    LabeledContent("Cambios locales pendientes", value: "\(viewModel.snapshot.pendingLocalChanges)")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                statusCard
+                syncNowButton
+                Text("Los cambios se guardan primero en este dispositivo y se envían cuando iCloud está disponible. Puedes seguir usando la app sin conexión.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                // Signed-out already explains itself below — showing the raw sync
+                // failure on top of it would say the same thing twice.
+                if let error = viewModel.snapshot.lastError, viewModel.snapshot.accountState != .signedOut {
+                    errorSection(error)
                 }
 
-                if let error = viewModel.snapshot.lastError {
-                    Section("Último error") {
-                        Text(error)
-                            .foregroundStyle(.red)
-                            .textSelection(.enabled)
-                        Button("Copiar error", systemImage: "doc.on.doc") {
-                            UIPasteboard.general.string = error
-                        }
-                    }
+                if viewModel.snapshot.accountState == .signedOut {
+                    signedOutSection
                 }
+            }
+            .padding(20)
+            .padding(.bottom, 60)
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("Sincronización")
+        .navigationBarTitleDisplayMode(.large)
+        .task { await viewModel.reload() }
+    }
 
-                Section {
-                    Button {
-                        Task { await viewModel.syncNow() }
-                    } label: {
-                        if viewModel.snapshot.isSyncing {
-                            HStack {
-                                ProgressView()
-                                Text("Sincronizando…")
-                            }
-                        } else {
-                            Label("Sincronizar ahora", systemImage: "arrow.trianglehead.2.clockwise.rotate.90.icloud")
-                        }
-                    }
-                    .disabled(viewModel.snapshot.isSyncing)
-
-                    Text("Los cambios se guardan primero en este dispositivo. Si iCloud no está disponible, permanecerán en cola y se reintentará sin bloquear la app.")
-                        .font(.caption)
+    private var statusCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                Image(systemName: accountIcon)
+                    .font(.title2)
+                    .foregroundStyle(accountColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(accountHeadline)
+                        .font(.system(.body, weight: .semibold))
+                    Text(lastSyncText)
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+                Spacer()
             }
-            .navigationTitle("Sincronización")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cerrar") { dismiss() }
-                }
+            .padding(.vertical, 12)
+            Divider()
+            HStack {
+                Text("Cambios pendientes")
+                Spacer()
+                Text(pendingText).foregroundStyle(.secondary)
             }
-            .task { await viewModel.reload() }
+            .padding(.vertical, 12)
         }
+        .padding(.horizontal, 14)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var syncNowButton: some View {
+        Button {
+            Task { await viewModel.syncNow() }
+        } label: {
+            HStack {
+                Spacer()
+                if viewModel.snapshot.isSyncing {
+                    ProgressView()
+                    Text("Sincronizando…")
+                } else {
+                    Label("Sincronizar ahora", systemImage: "arrow.clockwise")
+                }
+                Spacer()
+            }
+            .frame(height: 48)
+        }
+        .disabled(viewModel.snapshot.isSyncing)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func errorSection(_ error: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("ÚLTIMO PROBLEMA")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Un cambio no se pudo enviar", systemImage: "exclamationmark.circle")
+                    .font(.system(.body, weight: .semibold))
+                    .foregroundStyle(.red)
+                Text(error)
+                    .font(.system(.footnote, design: .monospaced))
+                    .textSelection(.enabled)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.tertiarySystemFill))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                Text("Se reintentará solo. El producto sigue guardado aquí.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Button {
+                    UIPasteboard.general.string = error
+                } label: {
+                    Label("Copiar detalle del error", systemImage: "doc.on.doc")
+                }
+                .font(.subheadline)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
+    private var signedOutSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("SIN SESIÓN DE ICLOUD")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Sesión de iCloud cerrada", systemImage: "icloud.slash")
+                    .font(.system(.body, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Text("El catálogo funciona igual en este iPhone. Inicia sesión en Ajustes para verlo también en tus otros dispositivos.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Button("Abrir Ajustes de iCloud") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                .font(.subheadline)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
+    private var accountHeadline: String {
+        switch viewModel.snapshot.accountState {
+        case .available: return "iCloud activo"
+        case .checking: return "Comprobando iCloud…"
+        case .signedOut: return "Sesión de iCloud cerrada"
+        default: return viewModel.snapshot.accountState.rawValue
+        }
+    }
+
+    private var accountIcon: String {
+        switch viewModel.snapshot.accountState {
+        case .available: return "checkmark.icloud.fill"
+        case .signedOut: return "icloud.slash"
+        case .checking: return "icloud"
+        default: return "exclamationmark.icloud"
+        }
+    }
+
+    private var accountColor: Color {
+        switch viewModel.snapshot.accountState {
+        case .available: return .green
+        case .signedOut, .checking: return .secondary
+        default: return .orange
+        }
+    }
+
+    private var lastSyncText: String {
+        guard let date = viewModel.snapshot.lastSuccessfulSync else { return "Nunca sincronizado" }
+        return "Sincronizado \(date.formatted(.relative(presentation: .named)))"
+    }
+
+    private var pendingText: String {
+        let count = viewModel.snapshot.pendingLocalChanges
+        return count == 0 ? "Ninguno" : "\(count) en este dispositivo"
     }
 }

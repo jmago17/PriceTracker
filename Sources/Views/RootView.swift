@@ -1,184 +1,47 @@
 import SwiftUI
 
 struct RootView: View {
+    enum RootTab: Hashable {
+        case catalog, inbox, settings
+    }
+
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel = ItemListViewModel()
     @State private var syncViewModel = SyncViewModel()
-    @State private var showingAddItem = false
-    @State private var showingImportExport = false
-    @State private var showingSharedInbox = false
-    @State private var showingSync = false
     @State private var sharedInbox = SharedInboxViewModel()
+    @State private var selectedTab: RootTab = .catalog
 
     var body: some View {
-        NavigationStack {
-            List {
-                if let progress = viewModel.refreshProgress, viewModel.isRefreshingCatalog {
-                    Section {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ProgressView(value: Double(progress.completed), total: Double(max(progress.total, 1)))
-                            Text(progress.currentTitle.map { "Comprobando: \($0)" } ?? "Comprobando catálogo…")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-
-                ForEach(viewModel.itemsByCategory, id: \.category) { group in
-                    Section {
-                        ForEach(group.items) { item in
-                            NavigationLink(value: item.id) {
-                                ItemRowView(item: item)
-                            }
-                        }
-                        .onDelete { offsets in
-                            for index in offsets { viewModel.delete(group.items[index]) }
-                        }
-                    } header: {
-                        HStack {
-                            Text(group.category ?? "Sin categoría")
-                            Spacer()
-                            Button {
-                                viewModel.refreshCategory(group.category)
-                            } label: {
-                                Image(systemName: "arrow.clockwise")
-                            }
-                            .buttonStyle(.borderless)
-                        }
-                    }
-                }
-
-                if viewModel.filteredItems.isEmpty {
-                    ContentUnavailableView(
-                        viewModel.items.isEmpty ? "Sin artículos" : "Sin resultados",
-                        systemImage: viewModel.items.isEmpty ? "cart" : "line.3.horizontal.decrease.circle",
-                        description: Text(
-                            viewModel.items.isEmpty
-                                ? "Añade uno con el botón +"
-                                : "Cambia la búsqueda o el filtro de categoría"
-                        )
-                    )
-                }
+        TabView(selection: $selectedTab) {
+            Tab("Precios", systemImage: "tag", value: RootTab.catalog) {
+                CatalogView(viewModel: viewModel, syncViewModel: syncViewModel, selectedTab: $selectedTab)
             }
-            .navigationTitle("PriceTracker")
-            .searchable(text: $viewModel.searchText)
-            .navigationDestination(for: UUID.self) { id in
-                if let item = viewModel.items.first(where: { $0.id == id }) {
-                    ItemDetailView(item: item, viewModel: viewModel)
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showingSync = true
-                    } label: {
-                        if syncViewModel.snapshot.isSyncing {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Image(systemName: syncViewModel.snapshot.pendingLocalChanges > 0 ? "icloud.and.arrow.up" : "icloud")
-                        }
-                    }
-                    .accessibilityLabel("Estado de sincronización")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Picker("Categoría", selection: $viewModel.categoryFilter) {
-                            Label("Todas", systemImage: "square.grid.2x2")
-                                .tag(ItemCategoryFilter.all)
-                            ForEach(viewModel.categories, id: \.self) { category in
-                                Text(category)
-                                    .tag(ItemCategoryFilter.category(category))
-                            }
-                            if viewModel.hasUncategorizedItems {
-                                Label("Sin categoría", systemImage: "tag.slash")
-                                    .tag(ItemCategoryFilter.uncategorized)
-                            }
-                        }
-                    } label: {
-                        Image(
-                            systemName: viewModel.isCategoryFilterActive
-                                ? "line.3.horizontal.decrease.circle.fill"
-                                : "line.3.horizontal.decrease.circle"
-                        )
-                    }
-                    .accessibilityLabel("Filtrar por categoría")
-                    .accessibilityValue(viewModel.categoryFilter.displayName)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingAddItem = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button("Importar / exportar", systemImage: "square.and.arrow.up.on.square") {
-                            showingImportExport = true
-                        }
-                        Button("Enlaces compartidos", systemImage: "square.and.arrow.down") {
-                            sharedInbox.reload()
-                            showingSharedInbox = true
-                        }
-                        Button("Sincronización", systemImage: "icloud") {
-                            showingSync = true
-                        }
-                        if viewModel.isRefreshingCatalog {
-                            Button("Cancelar actualización", systemImage: "xmark", role: .destructive) {
-                                viewModel.cancelRefreshCatalog()
-                            }
-                        } else {
-                            Button("Actualizar todo", systemImage: "arrow.clockwise") {
-                                viewModel.startRefreshCatalog()
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                }
-            }
-            .sheet(isPresented: $showingAddItem) {
-                AddItemView(onAdded: { await viewModel.load() })
-            }
-            .sheet(isPresented: $showingImportExport) {
-                ImportExportView(viewModel: viewModel)
-            }
-            .sheet(isPresented: $showingSharedInbox) {
+            Tab("Bandeja", systemImage: "tray.and.arrow.down", value: RootTab.inbox) {
                 SharedInboxView(viewModel: sharedInbox) { await viewModel.load() }
             }
-            .sheet(isPresented: $showingSync) {
-                SyncView(viewModel: syncViewModel)
+            .badge(sharedInbox.entries.count)
+            Tab("Ajustes", systemImage: "gearshape", value: RootTab.settings) {
+                SettingsView(viewModel: viewModel, syncViewModel: syncViewModel)
             }
-            .alert(
-                "Error",
-                isPresented: Binding(
-                    get: { viewModel.lastErrorMessage != nil },
-                    set: { if !$0 { viewModel.lastErrorMessage = nil } }
-                )
-            ) {
-                Button("OK") { viewModel.lastErrorMessage = nil }
-            } message: {
-                Text(viewModel.lastErrorMessage ?? "")
-            }
-            .task {
-                await syncViewModel.start()
-                await sharedInbox.processAll()
-                await viewModel.load()
+        }
+        .task {
+            await syncViewModel.start()
+            await sharedInbox.processAll()
+            await viewModel.load()
+            await syncViewModel.syncNow()
+            await viewModel.load()
+            await syncViewModel.monitorStatus()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task {
                 await syncViewModel.syncNow()
                 await viewModel.load()
-                await syncViewModel.monitorStatus()
+                sharedInbox.reload()
             }
-            .refreshable { await viewModel.load() }
-            .onChange(of: scenePhase) { _, phase in
-                guard phase == .active else { return }
-                Task {
-                    await syncViewModel.syncNow()
-                    await viewModel.load()
-                }
-            }
-            .onChange(of: syncViewModel.snapshot.catalogRevision) { _, _ in
-                Task { await viewModel.load() }
-            }
+        }
+        .onChange(of: syncViewModel.snapshot.catalogRevision) { _, _ in
+            Task { await viewModel.load() }
         }
     }
 }

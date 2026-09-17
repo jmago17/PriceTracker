@@ -33,6 +33,30 @@ final class AddItemViewModel {
         }
     }
 
+    /// "Cambiar enlace": back to editing the URL, keeping its text.
+    func reset() {
+        preview = nil
+        errorMessage = nil
+    }
+
+    /// "Guardar solo el enlace" on a failed/unrecognized URL: keeps the item
+    /// (title derived from the URL itself) instead of losing the link because a
+    /// store couldn't be parsed. Same `Item`/`itemStore` path as a normal add —
+    /// just without a `ResolvedItem` to source metadata from.
+    @discardableResult
+    func saveLinkOnly() async throws -> Item {
+        let trimmed = urlText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed) else { throw AddItemError.nothingToAdd }
+        let title = url.host ?? trimmed
+        let item = Item(
+            store: .generic,
+            storeItemID: trimmed,
+            canonicalURL: url,
+            title: title
+        )
+        return try await environment.itemStore.upsert(item)
+    }
+
     /// Adds the previewed item. Returns the created `Item` so the caller can
     /// dismiss/navigate; throws if there is nothing previewed yet.
     @discardableResult

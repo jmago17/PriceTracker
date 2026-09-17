@@ -6,6 +6,7 @@ import Observation
 final class SharedInboxViewModel {
     private(set) var entries: [SharedURLInbox.Entry] = []
     private(set) var isProcessing = false
+    private(set) var processingEntryID: UUID?
 
     private let inbox = SharedURLInbox()
     private let environment: AppEnvironment
@@ -39,8 +40,10 @@ final class SharedInboxViewModel {
     }
 
     private func process(_ entry: SharedURLInbox.Entry) async {
+        processingEntryID = entry.id
+        defer { processingEntryID = nil }
         guard let url = URL(string: entry.urlString) else {
-            inbox.markFailed(id: entry.id, error: "Invalid URL")
+            inbox.markFailed(id: entry.id, error: "URL no válida")
             return
         }
         do {
