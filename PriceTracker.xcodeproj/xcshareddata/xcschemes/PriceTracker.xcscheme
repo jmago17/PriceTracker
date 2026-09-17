@@ -35,6 +35,20 @@
                ReferencedContainer = "container:PriceTracker.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "906796DB9D09A6E61CFCACF1"
+               BuildableName = "PriceTrackerUITests.xctest"
+               BlueprintName = "PriceTrackerUITests"
+               ReferencedContainer = "container:PriceTracker.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -61,6 +75,17 @@
                BlueprintIdentifier = "66FBDD9044DA548A8E82723E"
                BuildableName = "PriceTrackerTests.xctest"
                BlueprintName = "PriceTrackerTests"
+               ReferencedContainer = "container:PriceTracker.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "906796DB9D09A6E61CFCACF1"
+               BuildableName = "PriceTrackerUITests.xctest"
+               BlueprintName = "PriceTrackerUITests"
                ReferencedContainer = "container:PriceTracker.xcodeproj">
             </BuildableReference>
          </TestableReference>

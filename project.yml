@@ -115,6 +115,19 @@ targets:
               NSExtensionActivationSupportsWebURLWithMaxCount: 1
               NSExtensionActivationSupportsText: true
 
+  PriceTrackerUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Tests/PriceTrackerUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.maromeapps.PriceTrackerUITests
+        GENERATE_INFOPLIST_FILE: "YES"
+    dependencies:
+      - target: PriceTracker
+
   PriceTrackerTests:
     type: bundle.unit-test
     platform: iOS
@@ -134,8 +147,10 @@ schemes:
       targets:
         PriceTracker: all
         PriceTrackerTests: [test]
+        PriceTrackerUITests: [test]
     test:
       targets:
         - PriceTrackerTests
+        - PriceTrackerUITests
     run:
       config: Debug
