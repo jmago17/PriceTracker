@@ -5,6 +5,7 @@
 - Repo: `~/Developer/PriceTracker`
 - Scheme: `PriceTracker`
 - Xcode usado para la validación firmada: `/Applications/Xcode-beta.app` 27.0 (`27A5194q`).
+- Este Mac tiene además `$HOME/Downloads/Xcode-beta.app` 27.0 (`27A5252f`), con el runtime iOS 27.0 build `24A5423a`. Se usó para la sesión de rediseño (ver «Rediseño iOS 27» más abajo) porque así lo indicaba el prompt de esa tarea. Dos instalaciones de Xcode-beta coexisten en esta máquina; no asumir que `/Applications` es la única.
 - Deployment target: iOS 26.0.
 - `project.yml` es la fuente de verdad y `PriceTracker.xcodeproj` debe quedar versionado para Xcode Cloud.
 - App Group: `group.com.maromeapps.PriceTracker`.
@@ -131,3 +132,37 @@ No verificado todavía:
 - Los precios incompletos de Amazon tenían otra ruta: el conector específico devolvía éxito aunque no hubiera precio y nunca activaba el renderizador genérico. Ahora también usa ese segundo nivel, prioriza el precio visible a pagar y rechaza capturas de cola/captcha.
 - En la URL real de Amazon `B07RXN1HGG`, WebKit veía `5,49 EUR` de un producto patrocinado antes que `6,99 EUR` del ASIN pedido. La señal `priceToPay` del producto principal tiene prioridad sobre `price-to-pay`; la comprobación real devolvió `699` céntimos y el caso quedó como test local sin red.
 - El ruido final `xcrun: error: unable to find utility "simctl"` al recoger diagnósticos no fue el fallo de los tests. El primer error real del test WebKit fue usar `arguments`, reservado en JavaScript estricto; el siguiente fue un fixture `data:` sin charset UTF-8. Corregidos ambos, los 65 tests pasan.
+
+## Rediseño iOS 27 (rama `design/ios27-modern`)
+
+Implementado el handoff completo de Claude Design (`/tmp/pricetracker_design_handoff/README.md` + 10 capturas + HTML de referencia). Cambios estructurales:
+
+- `RootView` pasa de `NavigationStack` único a `TabView` de tres pestañas: **Precios** (`CatalogView`, nuevo), **Bandeja** (`SharedInboxView`, ahora pestaña propia en vez de sheet) y **Ajustes** (`SettingsView`, nuevo).
+- Catálogo: la categoría pasa de sección a filtro (`ItemCategoryFilter`, ya existía). Nuevo `ItemStatusFilter` (Activos/Con bajada/Pausados) en cápsulas. Las secciones ya no agrupan por categoría: agrupan por `drops`/`rest` (bajadas primero), ambas plegables con `Section(isExpanded:)` + `@AppStorage`.
+- `ItemRowView` rediseñada: imagen 56×56, precio con ahorro/objetivo/antigüedad como segunda línea, error de comprobación como línea propia. **No añadir un `Image(systemName: "chevron.right")` manual**: `NavigationLink` ya pone su propio disclosure indicator; duplicarlo se vio como dos flechas superpuestas en captura real.
+- `ItemDetailView` deja de ser un `Form` con guardado en cada `onChange`: ahora es una vista de lectura (precio dominante, comparativa, historial honesto, estado) con edición en `EditItemView` (sheet nuevo, guarda solo al confirmar).
+- **La ficha "con histórico" (gráfica, propuesta del handoff) no se implementó.** `PriceObservation` sigue sin store/productor (ver más arriba), así que no hay datos reales que mostrar; construir esa UI habría sido código muerto o habría requerido inventar datos, contra instrucción explícita. La vista solo tiene el estado honesto "Todavía sin historial".
+- `AddItemViewModel` gana `reset()` (botón «Cambiar enlace») y `saveLinkOnly()` (botón «Guardar solo el enlace» cuando la resolución falla — crea un `Item` `store: .generic` mínimo a partir de la URL, mismo camino de `itemStore.upsert` que el resto).
+- `SharedInboxViewModel` gana `processingEntryID` para mostrar spinner por enlace en vez de un flag global.
+- `SyncView`: sin email de iCloud (no lo expone `CloudSyncSnapshot`; mostrarlo habría sido inventado). Cuando `accountState == .signedOut`, se omite el bloque «Un cambio no se pudo enviar» — ese error es el mismo "no hay sesión" que ya explica la sección de abajo; mostrarlo dos veces con palabras distintas confundía más que ayudaba.
+- Menú «···» del catálogo conserva accesos directos a Sincronización e Importar/exportar (además de Actualizar precios y saltar a Bandeja), aunque esas dos vistas ahora viven también como filas propias en Ajustes — ambas cosas a la vez, no una sustituyendo a la otra.
+
+### Verificación visual (3 rondas)
+
+Sin AXe, sin `idb` y sin `Simulator.app` instalado en ningún Xcode-beta de esta máquina (headless real, no solo el caso ya documentado arriba): no hay forma de enviar taps al simulador desde fuera. Se añadió `Tests/PriceTrackerUITests/ScreenshotTests.swift` (target `PriceTrackerUITests`, `bundle.ui-testing`, en el scheme junto a `PriceTrackerTests`) — XCUITest sí funciona headless porque no depende de `Simulator.app`. Un test recorre catálogo → ficha → añadir URL → Bandeja → Ajustes → Sincronización y vuelca cada pantalla a `/tmp/pricetracker_final_*.png` (el cuerpo del test corre en el Mac, no en el simulador, así que puede escribir directamente ahí). Identificadores nuevos para el test: `item-row`, `add-item-button`, `settings-sync-row`.
+
+Catálogo de prueba: 7 `Item` sembrados escribiendo `items.json` directamente en el contenedor de App Group del simulador y borrando la marca `items-json-migration-v1` de `catalog.sqlite` para forzar una remigración — más fiable que depender de red real dentro del simulador. Son datos de fixture, no de producción.
+
+Bugs reales encontrados y corregidos en las rondas 1–2 (no eran fallos de compilación, solo visibles en captura):
+- Doble chevron en cada fila del catálogo (ver arriba, `ItemRowView`).
+- `Section(isExpanded:)` no dibuja un chevron propio en estilo `.insetGrouped` (solo en `.sidebar`); se añadió uno manual (`chevron.down`/`chevron.right`, azul) en las cabeceras de sección para que el plegado tenga affordance visible.
+- El resumen «N productos · M con bajada» contaba sobre `items` completo (incluye pausados) mientras que la sección «Bajadas de precio» solo cuenta sobre `.active`/`.stale` — un artículo pausado con bajada de precio hacía que el resumen y la sección visible no coincidieran. `ItemListViewModel.summary` ahora filtra `status != .archived` igual que la sección.
+- Barra de progreso de «Precio objetivo» invertida: calculaba `current/target` (superaba 1.0 y se pintaba llena en cuanto el precio actual pasaba del objetivo, aunque el texto dijera «faltan 2.99 €»). Corregido a `target/current` (100 % solo cuando `current <= target`).
+- `SyncView` mostraba el mismo mensaje «no hay sesión de iCloud» dos veces con redacciones distintas (bloque de error + bloque de sesión cerrada); ver arriba.
+
+Capturas finales en `/tmp/pricetracker_final_*.png`: `catalog_light`, `catalog_dark`, `detail_no_history`, `add_url_idle`, `inbox`, `settings`, `sync`, más `catalog_ipad`/`detail_ipad`/`add_url_idle_ipad` (iPad Pro 11" M5, apareció en modo oscuro porque no se tocó su appearance). Comparadas contra `/tmp/pricetracker_design_handoff/screenshots/`.
+
+No verificado en esta sesión:
+- Estados «resuelto»/«sin precio»/«error» de Añadir URL: el test tipeó una URL real de App Store y pulsó «Analizar enlace», pero la resolución de red no completó dentro del test en este host (sandbox sin red de simulador confirmada, o timeout); solo se capturó el estado inicial. La lógica en sí (`AddItemViewModel.lookUp`/`ConnectorRegistry.resolve`) no cambió y sigue cubierta por `ConnectorRegistryTests`/`ITunesConnectorTests`.
+- iPad no está optimizado (lista/VStack a ancho completo, sin `NavigationSplitView` ni límite de ancho): el handoff solo definía un lienzo de iPhone (402×874), así que «viable» se verificó como "no rompe, navega, es legible", no como paridad de diseño.
+- `xcrun simctl privacy grant notifications` falla con `Operation not permitted` (TCC) en este sandbox — el diálogo del sistema se descarta con el propio XCUITest (`springboard.alerts.buttons["Allow"]`), no con `simctl`.
