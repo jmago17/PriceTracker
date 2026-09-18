@@ -44,8 +44,8 @@ struct AlertNotifier: Sendable {
     }
 
     private static func line(for alert: PriceAlert, item: Item) -> String {
-        let from = alert.priceFromCents.map(formatCents) ?? "?"
-        let to = formatCents(alert.priceToCents ?? 0)
+        let from = alert.priceFromCents.map { MoneyFormatter.string(cents: $0, currency: item.currency) } ?? "?"
+        let to = MoneyFormatter.string(cents: alert.priceToCents ?? 0, currency: item.currency)
         switch alert.kind {
         case .drop:
             return "\(item.title): \(from)→\(to)"
@@ -60,7 +60,4 @@ struct AlertNotifier: Sendable {
         }
     }
 
-    private static func formatCents(_ cents: Int) -> String {
-        String(format: "%.2f€", Double(cents) / 100)
-    }
 }

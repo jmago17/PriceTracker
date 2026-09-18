@@ -93,3 +93,23 @@ struct PriceDropDetectorTests {
         #expect(evaluation.updatedItem.lastError == nil)
     }
 }
+
+
+extension PriceDropDetectorTests {
+    @Test func currencyChangeCreatesFreshBaselineWithoutFalseDrop() {
+        var item = makeItem(priceCurrentCents: 1499, targetPriceCents: 1200, priceLowCents: 1499, lastAlertedPriceCents: 1499)
+        item.currency = "EUR"
+        item.priceAtAddCents = 1499
+
+        let usd = FetchResult(priceCents: 1299, currency: "USD", isOnSale: false, saleEndsAt: nil, availability: "available")
+        let evaluation = PriceDropDetector.evaluate(item: item, fetch: usd)
+
+        #expect(evaluation.alerts.isEmpty)
+        #expect(evaluation.updatedItem.currency == "USD")
+        #expect(evaluation.updatedItem.priceCurrentCents == 1299)
+        #expect(evaluation.updatedItem.priceAtAddCents == 1299)
+        #expect(evaluation.updatedItem.priceLowCents == 1299)
+        #expect(evaluation.updatedItem.targetPriceCents == nil)
+        #expect(evaluation.updatedItem.lastAlertedPriceCents == nil)
+    }
+}

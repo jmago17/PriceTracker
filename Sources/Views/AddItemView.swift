@@ -214,7 +214,7 @@ struct AddItemView: View {
     }
 
     private func format(_ cents: Int, _ currency: String) -> String {
-        String(format: "%.2f %@", Double(cents) / 100, currency)
+        MoneyFormatter.string(cents: cents, currency: currency)
     }
 
     private func confirmAdd() {

@@ -10,10 +10,16 @@ struct ITunesConnector: StoreConnector {
 
     private let session: URLSession
     private let defaultRegion: String
+    private let storefrontRegionProvider: AppleStorefrontRegionProvider
 
-    init(session: URLSession = .shared, defaultRegion: String = "ES") {
+    init(
+        session: URLSession = .shared,
+        defaultRegion: String = "ES",
+        storefrontRegionProvider: AppleStorefrontRegionProvider = AppleStorefrontRegionProvider()
+    ) {
         self.session = session
         self.defaultRegion = defaultRegion
+        self.storefrontRegionProvider = storefrontRegionProvider
     }
 
     func canResolve(url: URL) -> Bool {
@@ -22,12 +28,14 @@ struct ITunesConnector: StoreConnector {
 
     func resolve(url: URL) async throws -> ResolvedItem {
         let identity = try Self.parseIdentity(from: url)
-        let result = try await lookup(id: identity.storeItemID, region: identity.region)
-        return try makeResolvedItem(from: result, store: identity.store, region: identity.region, fallbackURL: url)
+        let region = await storefrontRegionProvider.region(fallback: identity.region ?? defaultRegion)
+        let result = try await lookup(id: identity.storeItemID, region: region)
+        return try makeResolvedItem(from: result, store: identity.store, region: region, fallbackURL: url)
     }
 
     func fetch(_ item: Item) async throws -> FetchResult {
-        let result = try await lookup(id: item.storeItemID, region: item.region)
+        let region = await storefrontRegionProvider.region(fallback: item.region)
+        let result = try await lookup(id: item.storeItemID, region: region)
         guard let priceCents = Self.priceCents(from: result) else {
             throw ConnectorError.decoding("La tienda no devolvió un precio para \(item.storeItemID)")
         }
@@ -48,7 +56,7 @@ struct ITunesConnector: StoreConnector {
     private struct Identity {
         var store: Store
         var storeItemID: String
-        var region: String
+        var region: String?
     }
 
     private static func parseIdentity(from url: URL) throws -> Identity {
@@ -62,7 +70,7 @@ struct ITunesConnector: StoreConnector {
         }
         let storeItemID = String(match.1)
 
-        let region = segments.first(where: { $0.count == 2 && $0.lowercased() == $0 && $0.allSatisfy(\.isLetter) })?.uppercased() ?? "ES"
+        let region = segments.first(where: { $0.count == 2 && $0.lowercased() == $0 && $0.allSatisfy(\.isLetter) })?.uppercased()
 
         let store: Store
         if segments.contains("book") || segments.contains("books") {

@@ -77,7 +77,7 @@ struct ItemRowView: View {
     }
 
     private func format(_ cents: Int) -> String {
-        String(format: "%.2f €", Double(cents) / 100)
+        MoneyFormatter.string(cents: cents, currency: item.currency)
     }
 
     private func elapsed(since date: Date) -> String {

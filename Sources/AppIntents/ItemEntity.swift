@@ -27,6 +27,9 @@ struct ItemEntity: AppEntity {
     @Property(title: "Precio actual (céntimos)")
     var priceCurrentCents: Int
 
+    @Property(title: "Divisa")
+    var currency: String
+
     @Property(title: "Última comprobación")
     var lastCheckedAt: Date?
 
@@ -37,11 +40,12 @@ struct ItemEntity: AppEntity {
         category = item.category ?? ""
         status = item.status
         priceCurrentCents = item.priceCurrentCents ?? 0
+        currency = item.currency
         lastCheckedAt = item.lastCheckedAt
     }
 
     var displayRepresentation: DisplayRepresentation {
-        let priceText = priceCurrentCents > 0 ? String(format: "%.2f €", Double(priceCurrentCents) / 100) : "sin precio"
+        let priceText = priceCurrentCents > 0 ? MoneyFormatter.string(cents: priceCurrentCents, currency: currency) : "sin precio"
         return DisplayRepresentation(title: "\(title)", subtitle: "\(store.displayName) · \(priceText)")
     }
 }

@@ -19,7 +19,10 @@ struct ITunesConnectorTests {
         MockLookupURLProtocol.responseData = Data(#"{"resultCount":1,"results":[{"trackId":1053012308,"trackName":"Clash Royale","sellerName":"Supercell","currency":"USD","price":0.0,"formattedPrice":"Free","primaryGenreName":"Games","artworkUrl100":"https://example.com/icon.png","trackViewUrl":"https://apps.apple.com/us/app/clash-royale/id1053012308"}]}"#.utf8)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockLookupURLProtocol.self]
-        let connector = ITunesConnector(session: URLSession(configuration: configuration))
+        let connector = ITunesConnector(
+            session: URLSession(configuration: configuration),
+            storefrontRegionProvider: AppleStorefrontRegionProvider(resolver: { nil })
+        )
         let url = try #require(URL(string: "https://apps.apple.com/us/app/clash-royale/id1053012308"))
 
         #expect(connector.canResolve(url: url))
@@ -36,7 +39,10 @@ struct ITunesConnectorTests {
         MockLookupURLProtocol.responseData = Data(#"{"resultCount":1,"results":[{"trackId":425073498,"trackName":"Procreate","sellerName":"Savage Interactive Pty Ltd","currency":"EUR","price":14.99,"formattedPrice":"14,99 €","primaryGenreName":"Graphics & Design","trackViewUrl":"https://apps.apple.com/es/app/procreate/id425073498"}]}"#.utf8)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockLookupURLProtocol.self]
-        let connector = ITunesConnector(session: URLSession(configuration: configuration))
+        let connector = ITunesConnector(
+            session: URLSession(configuration: configuration),
+            storefrontRegionProvider: AppleStorefrontRegionProvider(resolver: { nil })
+        )
         let url = try #require(URL(string: "https://apps.apple.com/es/app/procreate/id425073498"))
 
         let item = try await connector.resolve(url: url)
@@ -50,11 +56,47 @@ struct ITunesConnectorTests {
         MockLookupURLProtocol.responseData = Data(#"{"resultCount":1,"results":[{"trackId":425073498,"trackName":"Procreate","currency":"EUR","formattedPrice":"14,99 €"}]}"#.utf8)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockLookupURLProtocol.self]
-        let connector = ITunesConnector(session: URLSession(configuration: configuration))
+        let connector = ITunesConnector(
+            session: URLSession(configuration: configuration),
+            storefrontRegionProvider: AppleStorefrontRegionProvider(resolver: { nil })
+        )
         let url = try #require(URL(string: "https://apps.apple.com/es/app/procreate/id425073498"))
 
         await #expect(throws: ConnectorError.self) {
             try await connector.resolve(url: url)
         }
+    }
+}
+
+
+extension ITunesConnectorTests {
+    @Test func signedInStorefrontOverridesCountryEmbeddedInURL() async throws {
+        MockLookupURLProtocol.responseData = Data(#"{"resultCount":1,"results":[{"trackId":425073498,"trackName":"Procreate","currency":"USD","price":12.99,"trackViewUrl":"https://apps.apple.com/us/app/procreate/id425073498"}]}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockLookupURLProtocol.self]
+        let connector = ITunesConnector(
+            session: URLSession(configuration: configuration),
+            storefrontRegionProvider: AppleStorefrontRegionProvider(resolver: { "USA" })
+        )
+
+        let item = try await connector.resolve(url: #require(URL(string: "https://apps.apple.com/es/app/procreate/id425073498")))
+
+        #expect(item.region == "USA")
+        #expect(item.currency == "USD")
+        #expect(item.priceCents == 1299)
+    }
+
+    @Test func fallsBackToURLCountryWhenStorefrontIsUnavailable() async throws {
+        MockLookupURLProtocol.responseData = Data(#"{"resultCount":1,"results":[{"trackId":425073498,"trackName":"Procreate","currency":"EUR","price":14.99}]}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockLookupURLProtocol.self]
+        let connector = ITunesConnector(
+            session: URLSession(configuration: configuration),
+            storefrontRegionProvider: AppleStorefrontRegionProvider(resolver: { nil })
+        )
+
+        let item = try await connector.resolve(url: #require(URL(string: "https://apps.apple.com/es/app/procreate/id425073498")))
+        #expect(item.region == "ES")
+        #expect(item.currency == "EUR")
     }
 }

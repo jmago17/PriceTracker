@@ -23,10 +23,41 @@ enum PriceDropDetector {
     static func evaluate(item: Item, fetch: FetchResult, now: Date = Date()) -> PriceEvaluation {
         var updated = item
         let newPrice = fetch.priceCents
+        let newCurrency = fetch.currency.uppercased()
+        let currencyChanged = item.currency.caseInsensitiveCompare(newCurrency) != .orderedSame
+
+        // Amounts in different currencies are not comparable. A storefront
+        // switch (for example EUR -> USD) establishes a fresh baseline and
+        // must never be reported as a discount or target hit.
+        if currencyChanged {
+            updated.priceCurrentCents = newPrice
+            updated.priceAtAddCents = newPrice
+            updated.priceReferenceCents = nil
+            updated.priceLowCents = newPrice
+            updated.priceLowAt = now
+            updated.targetPriceCents = nil
+            updated.lastAlertedPriceCents = nil
+            updated.currency = newCurrency
+            updated.onSaleUntil = fetch.saleEndsAt
+            if let genre = fetch.storeGenre, updated.category == nil, updated.categorySource != .manual {
+                updated.category = genre
+                updated.categorySource = .mapped
+            }
+            if let title = fetch.title, !title.isEmpty { updated.title = title }
+            if let imageURL = fetch.imageURL { updated.imageURL = imageURL }
+            updated.lastCheckedAt = now
+            updated.lastSuccessAt = now
+            updated.consecutiveFailures = 0
+            updated.lastError = nil
+            if updated.status == .unavailable || updated.status == .stale { updated.status = .active }
+            updated.updatedAt = now
+            return PriceEvaluation(alerts: [], updatedItem: updated)
+        }
+
         let previousPrice = item.priceCurrentCents
 
         updated.priceCurrentCents = newPrice
-        updated.currency = fetch.currency
+        updated.currency = newCurrency
         updated.onSaleUntil = fetch.saleEndsAt
         if let genre = fetch.storeGenre, updated.category == nil, updated.categorySource != .manual {
             updated.category = genre
