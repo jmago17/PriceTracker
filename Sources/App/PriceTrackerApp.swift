@@ -5,6 +5,7 @@ import SwiftUI
 struct PriceTrackerApp: App {
     init() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+        PriceTrackerShortcuts.updateAppShortcutParameters()
     }
 
     var body: some Scene {

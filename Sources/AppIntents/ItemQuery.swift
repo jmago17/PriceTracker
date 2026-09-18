@@ -1,4 +1,5 @@
 import AppIntents
+import CoreSpotlight
 import Foundation
 
 /// Backs the "Buscar Artículos" Shortcuts action. This is the `FindItems` half
@@ -71,5 +72,50 @@ struct ItemQuery: EntityPropertyQuery {
 
         result = ItemFilterEngine.limit(result, to: limit)
         return result.map(ItemEntity.init(item:))
+    }
+}
+
+
+extension ItemQuery {
+    func suggestedEntities() async throws -> [ItemEntity] {
+        let items = try await AppEnvironment.shared.itemStore.loadAll()
+        return items
+            .filter { $0.status != .archived }
+            .sorted { $0.updatedAt > $1.updatedAt }
+            .prefix(10)
+            .map(ItemEntity.init(item:))
+    }
+
+    func entities(matching string: String) async throws -> [ItemEntity] {
+        let needle = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        let items = try await AppEnvironment.shared.itemStore.loadAll()
+        guard !needle.isEmpty else {
+            return try await suggestedEntities()
+        }
+        return items.filter { item in
+            item.title.localizedCaseInsensitiveContains(needle)
+                || item.subtitle?.localizedCaseInsensitiveContains(needle) == true
+                || item.category?.localizedCaseInsensitiveContains(needle) == true
+                || item.store.displayName.localizedCaseInsensitiveContains(needle)
+        }.map(ItemEntity.init(item:))
+    }
+}
+
+
+@available(iOS 27.0, *)
+extension ItemQuery: IndexedEntityQuery {
+    func reindexEntities(
+        for identifiers: [UUID],
+        indexDescription: CSSearchableIndexDescription
+    ) async throws {
+        let entities = try await entities(for: identifiers)
+        try await CSSearchableIndex.default().indexAppEntities(entities)
+    }
+
+    func reindexAllEntities(indexDescription: CSSearchableIndexDescription) async throws {
+        let items = try await AppEnvironment.shared.itemStore.loadAll()
+        let index = CSSearchableIndex.default()
+        try await index.deleteAppEntities(ofType: ItemEntity.self)
+        try await index.indexAppEntities(items.map(ItemEntity.init(item:)))
     }
 }
