@@ -64,15 +64,41 @@ enum ItemFilterEngine {
         case .all:
             return items
         case .category(let category):
-            return items.filter { $0.category == category }
+            return items.filter { normalizedCategory($0.category) == normalizedCategory(category) }
         case .uncategorized:
-            return items.filter { $0.category == nil }
+            return items.filter { normalizedCategory($0.category) == nil }
         }
     }
 
     static func categoryNames(in items: [Item]) -> [String] {
-        Set(items.compactMap(\.category)).sorted {
-            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        Set(items.compactMap { normalizedCategory($0.category) }).sorted {
+            let comparison = $0.localizedCaseInsensitiveCompare($1)
+            return comparison == .orderedSame ? $0 < $1 : comparison == .orderedAscending
         }
     }
+
+    static func normalizedCategory(_ category: String?) -> String? {
+        guard let name = category?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return nil }
+        return name
+    }
+
+    struct CategorySection: Identifiable {
+        let category: String?
+        let items: [Item]
+        var id: ItemCategoryFilter { category.map(ItemCategoryFilter.category) ?? .uncategorized }
+        var title: String { category ?? "Sin categoría" }
+    }
+
+    /// Groups an already filtered/sorted sequence; preserves order within each category.
+    /// Unknown category names remain visible, and missing/blank names share the last section.
+    static func sections(in items: [Item]) -> [CategorySection] {
+        let groups = Dictionary(grouping: items) { normalizedCategory($0.category) }
+        let names = categoryNames(in: items)
+        var sections = names.map { CategorySection(category: $0, items: groups[$0] ?? []) }
+        if let unclassified = groups[nil] {
+            sections.append(CategorySection(category: nil, items: unclassified))
+        }
+        return sections
+    }
+
 }

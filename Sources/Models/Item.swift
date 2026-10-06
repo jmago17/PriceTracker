@@ -120,3 +120,14 @@ extension Store {
     /// periodically scraped, so they stay outside this set.
     static var refreshableStores: Set<Store> { [.appStore, .appleStore, .appleBooks, .appleMusic] }
 }
+
+
+extension Item {
+    /// Historical comparison only. Neither persistence nor a lower reference price
+    /// proves a promotion, or that a reduction is permanent. No time-based reset.
+    var reductionSinceAddedCents: Int? {
+        guard let current = priceCurrentCents, let initial = priceAtAddCents,
+              current >= 0, initial > current else { return nil }
+        return initial - current
+    }
+}

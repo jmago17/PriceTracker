@@ -8,8 +8,11 @@ actor CloudSyncManager: CKSyncEngineDelegate {
 
     private let localStore: SQLiteItemStore
     private let legacyJSONURL: URL
-    private let container: CKContainer
-    private let database: CKDatabase
+    private let suppliedContainer: CKContainer?
+    // Defer CloudKit construction until sync is actually requested. Offline demo
+    // and unit-test environments never need an account or a CloudKit connection.
+    private lazy var container = suppliedContainer ?? CKContainer(identifier: CloudRecordIdentity.containerIdentifier)
+    private var database: CKDatabase { container.privateCloudDatabase }
     private let zoneID = CKRecordZone.ID(
         zoneName: CloudRecordIdentity.zoneName,
         ownerName: CKCurrentUserDefaultName
@@ -25,13 +28,12 @@ actor CloudSyncManager: CKSyncEngineDelegate {
         localStore: SQLiteItemStore,
         legacyJSONURL: URL,
         statusStore: CloudSyncStatusStore = CloudSyncStatusStore(),
-        container: CKContainer = CKContainer(identifier: CloudRecordIdentity.containerIdentifier)
+        container: CKContainer? = nil
     ) {
         self.localStore = localStore
         self.legacyJSONURL = legacyJSONURL
         self.statusStore = statusStore
-        self.container = container
-        self.database = container.privateCloudDatabase
+        self.suppliedContainer = container
     }
 
     func start() async {

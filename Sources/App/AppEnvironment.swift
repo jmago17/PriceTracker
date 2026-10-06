@@ -31,10 +31,14 @@ final class AppEnvironment: Sendable {
         self.localItemStore = localItemStore
         self.syncStatusStore = syncStatusStore
         self.syncManager = syncManager
-        self.itemStore = itemStore
+        if AppGroup.isDemo {
+            self.itemStore = localItemStore
+        } else {
+            self.itemStore = itemStore
+        }
         self.alertStore = alertStore
         self.connectors = ConnectorRegistry()
-        self.refreshCoordinator = RefreshCoordinator(itemStore: itemStore, alertStore: alertStore, connectors: connectors)
-        self.alertNotifier = AlertNotifier(alertStore: alertStore, itemStore: itemStore)
+        self.refreshCoordinator = RefreshCoordinator(itemStore: self.itemStore, alertStore: alertStore, connectors: connectors)
+        self.alertNotifier = AlertNotifier(alertStore: alertStore, itemStore: self.itemStore)
     }
 }

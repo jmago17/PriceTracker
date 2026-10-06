@@ -15,8 +15,7 @@ struct ShowPriceDropsIntent: AppIntent {
 
     static func discountedItems(in items: [Item]) -> [Item] {
         items.filter { $0.status != .archived }.filter {
-            guard let current = $0.priceCurrentCents, let atAdd = $0.priceAtAddCents else { return false }
-            return current < atAdd
+            $0.reductionSinceAddedCents != nil
         }.sorted {
             (($0.priceAtAddCents ?? 0) - ($0.priceCurrentCents ?? 0)) > (($1.priceAtAddCents ?? 0) - ($1.priceCurrentCents ?? 0))
         }
@@ -26,6 +25,6 @@ struct ShowPriceDropsIntent: AppIntent {
         guard let first = items.first else { return "Ningún artículo ha bajado de precio." }
         let saving = MoneyFormatter.string(cents: (first.priceAtAddCents ?? 0) - (first.priceCurrentCents ?? 0), currency: first.currency)
         if items.count == 1 { return "\(first.title) ha bajado \(saving)." }
-        return "\(items.count) artículos han bajado. El mayor descuento es \(first.title), con \(saving) menos."
+        return "\(items.count) artículos han bajado. La mayor diferencia desde que lo añadiste es \(first.title), con \(saving) menos."
     }
 }

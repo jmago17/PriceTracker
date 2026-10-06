@@ -12,11 +12,13 @@ final class SyncViewModel {
     }
 
     func start() async {
+        guard !AppGroup.isDemo else { return }
         await environment.syncManager.start()
         await reload()
     }
 
     func syncNow() async {
+        guard !AppGroup.isDemo else { return }
         snapshot.isSyncing = true
         await environment.syncManager.syncNow()
         await reload()

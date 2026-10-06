@@ -24,7 +24,12 @@ struct RootView: View {
                 SettingsView(viewModel: viewModel, syncViewModel: syncViewModel)
             }
         }
+        .tint(Color.accentColor)
         .task {
+            if AppGroup.isDemo {
+                await viewModel.loadDemo()
+                return
+            }
             await syncViewModel.start()
             await sharedInbox.processAll()
             await viewModel.load()
@@ -33,7 +38,7 @@ struct RootView: View {
             await syncViewModel.monitorStatus()
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active else { return }
+            guard !AppGroup.isDemo, phase == .active else { return }
             Task {
                 await syncViewModel.syncNow()
                 await viewModel.load()

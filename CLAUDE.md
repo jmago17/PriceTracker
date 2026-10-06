@@ -179,3 +179,21 @@ No verificado en esta sesión:
 - Estados «resuelto»/«sin precio»/«error» de Añadir URL: el test tipeó una URL real de App Store y pulsó «Analizar enlace», pero la resolución de red no completó dentro del test en este host (sandbox sin red de simulador confirmada, o timeout); solo se capturó el estado inicial. La lógica en sí (`AddItemViewModel.lookUp`/`ConnectorRegistry.resolve`) no cambió y sigue cubierta por `ConnectorRegistryTests`/`ITunesConnectorTests`.
 - iPad no está optimizado (lista/VStack a ancho completo, sin `NavigationSplitView` ni límite de ancho): el handoff solo definía un lienzo de iPhone (402×874), así que «viable» se verificó como "no rompe, navega, es legible", no como paridad de diseño.
 - `xcrun simctl privacy grant notifications` falla con `Operation not permitted` (TCC) en este sandbox — el diálogo del sistema se descarta con el propio XCUITest (`springboard.alerts.buttons["Allow"]`), no con `simctl`.
+
+## Catálogo por categorías y semántica de bajadas (rama `codex/catalog-redesign`, 2026-10-06)
+
+Detalle de causas y decisiones en `Documentation/Catalog-audit.md`. Resumen:
+- El catálogo se agrupa por categoría (`ItemFilterEngine.sections`) después de filtrar y ordenar; sin categoría va al final. Las categorías se normalizan (espacios) solo para presentar y filtrar, sin tocar datos ni CloudKit.
+- «Bajada» pasa a ser **comparación histórica** con el precio al añadir (`Item.reductionSinceAddedCents`), no una promoción. No se muestra ningún badge de oferta: los conectores no dan un estado de promoción fiable. No se deduce si una bajada es temporal o permanente por días transcurridos.
+- Dirección editorial: encabezados serif, acento verde petróleo (`AccentColor`), filtros de 44 pt.
+- `--demo-catalog` (solo Debug) carga datos ficticios en un directorio temporal y omite sync, bandeja, notificaciones y shortcuts. Lo usan los UI tests nuevos.
+
+Verificado: suite completa en iPhone 17 Pro con `~/Downloads/Xcode-beta.app` (27A5252f): 77 unitarias / 17 suites + 3 UI tests, TEST SUCCEEDED.
+
+No verificado / pendiente:
+- **Modo oscuro**: `testDarkLargeTextAccessibility` pasa `-AppleInterfaceStyle Dark`, que en iOS no tiene efecto; la captura sale en claro. Solo verifica el texto grande. Habría que forzar el esquema en la app (p. ej. un launch argument propio en Debug).
+- Filas con «dentro de 0 segundos»: la fecha de comprobación cae unos ms en el futuro y el formateador relativo la presenta como futura. Visto con datos de demo; puede pasar con datos reales recién comprobados.
+- En la ficha, el porcentaje «↓ 31 %» usa el verde del sistema y el texto de debajo el verde petróleo.
+- iPad no ejecutado en esta ronda.
+
+Hipótesis descartadas: los bloqueos de la validación anterior (git en `read()`, swift-frontend en `pread()`, dyld en `mmap`, runner con SIGABRT, tests web pasando el timeout de 8 s) **no eran CoreSimulator ni el código**. El checkout de trabajo estaba en `~/Documents` (iCloud) con 338 ficheros `dataless`. Trasladado a `~/Developer/PriceTracker`, la misma suite pasa entera y los tests web tardan 2–3 s. No trabajar este repo desde `~/Documents`.

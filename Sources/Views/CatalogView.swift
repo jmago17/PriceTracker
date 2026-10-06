@@ -8,8 +8,6 @@ struct CatalogView: View {
     @State private var showingAddItem = false
     @State private var showingImportExport = false
     @State private var showingSync = false
-    @AppStorage("catalog.dropsExpanded") private var dropsExpanded = true
-    @AppStorage("catalog.followExpanded") private var followExpanded = true
 
     var body: some View {
         NavigationStack {
@@ -33,52 +31,28 @@ struct CatalogView: View {
                     }
                 }
 
-                if !viewModel.drops.isEmpty {
-                    Section(isExpanded: $dropsExpanded) {
-                        ForEach(viewModel.drops) { item in
+                ForEach(viewModel.categorySections) { section in
+                    Section {
+                        ForEach(section.items) { item in
                             NavigationLink(value: item.id) {
                                 ItemRowView(item: item)
                             }
                         }
                         .onDelete { offsets in
-                            for index in offsets { viewModel.delete(viewModel.drops[index]) }
+                            for index in offsets { viewModel.delete(section.items[index]) }
                         }
                     } header: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "arrow.down")
-                                .foregroundStyle(.green)
-                            Text("Bajadas de precio")
-                                .foregroundStyle(.green)
-                            Text("\(viewModel.drops.count)")
-                                .foregroundStyle(.secondary)
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(section.title)
+                                .font(.system(.title3, design: .serif, weight: .semibold))
+                                .foregroundStyle(.primary)
                             Spacer()
-                            Image(systemName: dropsExpanded ? "chevron.down" : "chevron.right")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.blue)
-                        }
-                    }
-                }
-
-                if !viewModel.rest.isEmpty {
-                    Section(isExpanded: $followExpanded) {
-                        ForEach(viewModel.rest) { item in
-                            NavigationLink(value: item.id) {
-                                ItemRowView(item: item)
-                            }
-                        }
-                        .onDelete { offsets in
-                            for index in offsets { viewModel.delete(viewModel.rest[index]) }
-                        }
-                    } header: {
-                        HStack(spacing: 6) {
-                            Text("Siguiendo")
-                            Text("\(viewModel.rest.count)")
+                            Text(section.items.count, format: .number)
+                                .font(.caption.monospacedDigit())
                                 .foregroundStyle(.secondary)
-                            Spacer()
-                            Image(systemName: followExpanded ? "chevron.down" : "chevron.right")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.blue)
                         }
+                        .textCase(nil)
+                        .padding(.vertical, 8)
                     }
                 }
 
@@ -106,6 +80,7 @@ struct CatalogView: View {
                         Image(systemName: "plus")
                     }
                     .accessibilityIdentifier("add-item-button")
+                    .accessibilityLabel("Añadir artículo")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -130,6 +105,7 @@ struct CatalogView: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
+                    .accessibilityLabel("Opciones del catálogo")
                 }
             }
             .sheet(isPresented: $showingAddItem) {
@@ -167,6 +143,8 @@ struct CatalogView: View {
         let summary = viewModel.summary
         return VStack(alignment: .leading, spacing: 10) {
             if summary.total > 0 {
+                Text("Observar. Comparar. Decidir.")
+                    .font(.system(.title2, design: .serif, weight: .medium))
                 Text(summaryText(summary))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -179,7 +157,7 @@ struct CatalogView: View {
 
     private func summaryText(_ summary: (total: Int, discounted: Int, unchecked: Int)) -> String {
         var parts = ["\(summary.total) producto\(summary.total == 1 ? "" : "s")"]
-        if summary.discounted > 0 { parts.append("\(summary.discounted) con bajada") }
+        if summary.discounted > 0 { parts.append("\(summary.discounted) por debajo del precio inicial") }
         if summary.unchecked > 0 { parts.append("\(summary.unchecked) sin comprobar") }
         return parts.joined(separator: " · ")
     }
@@ -218,8 +196,10 @@ struct CatalogView: View {
                         action: nil
                     )
                 }
+                .accessibilityIdentifier("category-filter-menu")
             }
         }
+        .accessibilityIdentifier("catalog-filters")
     }
 
     private var emptyState: some View {
@@ -229,7 +209,7 @@ struct CatalogView: View {
                 systemImage: viewModel.items.isEmpty ? "tag" : "line.3.horizontal.decrease.circle",
                 description: Text(
                     viewModel.items.isEmpty
-                        ? "Pega el enlace de una tienda y PriceTracker guardará su precio. Cuando baje, lo verás arriba del catálogo."
+                        ? "Pega el enlace de una tienda y PriceTracker guardará su precio. Organiza tu catálogo y compara cada precio con el que guardaste."
                         : "Cambia la búsqueda o los filtros."
                 )
             )
@@ -293,9 +273,11 @@ private struct FilterChip: View {
         }
         .font(.subheadline.weight(.medium))
         .padding(.horizontal, 14)
-        .frame(height: 32)
-        .foregroundStyle(isSelected ? Color.white : Color.primary)
+        .padding(.vertical, 10)
+        .frame(minHeight: 44)
+        .foregroundStyle(isSelected ? Color(.systemBackground) : Color.primary)
         .background(isSelected ? Color.accentColor : Color(.tertiarySystemFill))
         .clipShape(Capsule())
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

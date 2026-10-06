@@ -1,11 +1,24 @@
 import Foundation
 
 enum AppGroup {
+    static var isDemo: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("--demo-catalog") || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        #else
+        false
+        #endif
+    }
+
     static let identifier = "group.com.maromeapps.PriceTracker"
 
     /// Root shared container. Crashes if the App Group entitlement is missing or
     /// misconfigured — that is a build/signing bug, not a runtime condition to recover from.
     static var containerURL: URL {
+        if isDemo {
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("PriceTrackerDemo", isDirectory: true)
+            try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            return url
+        }
         guard let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: identifier) else {
             fatalError("App Group container '\(identifier)' is unavailable — check the entitlement.")
         }

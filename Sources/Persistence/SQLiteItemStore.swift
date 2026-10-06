@@ -35,7 +35,7 @@ enum SQLiteStoreError: Error, LocalizedError {
 /// Record-oriented local source of truth. Every app-facing write commits here
 /// before CloudKit is notified, so reads and writes remain available offline.
 /// WAL plus SQLite's process locks make separate app/App Intent processes safe.
-actor SQLiteItemStore {
+actor SQLiteItemStore: ItemStoring {
     static let migrationMetadataKey = "items-json-migration-v1"
     static let syncStateMetadataKey = "ck-sync-engine-state-v1"
     static let accountMetadataKey = "ck-account-record-name-v1"

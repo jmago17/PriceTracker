@@ -2,34 +2,38 @@ import SwiftUI
 
 struct ItemRowView: View {
     let item: Item
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: 14) {
+        let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout(spacing: 14))
+        layout {
             AsyncImage(url: item.imageURL) { image in
                 image.resizable().aspectRatio(contentMode: .fill)
             } placeholder: {
-                RoundedRectangle(cornerRadius: 12).fill(.quaternary)
+                RoundedRectangle(cornerRadius: 12).fill(Color.accentColor.opacity(0.10))
                     .overlay {
-                        Image(systemName: "photo")
-                            .foregroundStyle(.tertiary)
+                        Image(systemName: item.category == "Libros" ? "book.closed" : "tag")
+                            .font(.title2)
+                            .foregroundStyle(Color.accentColor)
                     }
             }
             .frame(width: 56, height: 56)
             .clipShape(RoundedRectangle(cornerRadius: 12))
+            .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .font(.system(.body, weight: .semibold))
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 Text(subtitleText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 if item.lastError != nil {
                     Label("No se pudo comprobar", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.red)
-                        .lineLimit(1)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 }
             }
 
@@ -37,12 +41,17 @@ struct ItemRowView: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text(priceText)
-                    .font(.system(.body, weight: .semibold))
+                    .font(.system(.title3, design: .rounded, weight: .bold))
                     .monospacedDigit()
                 if let detail = priceDetail {
                     detail
                         .font(.caption)
-                        .foregroundStyle(ItemListViewModel.isDiscounted(item) ? Color.green : Color.secondary)
+                        .foregroundStyle(ItemListViewModel.isDiscounted(item) ? Color.accentColor : Color.secondary)
+                    if item.reductionSinceAddedCents != nil {
+                        Text("desde el inicio")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .layoutPriority(1)
@@ -66,7 +75,7 @@ struct ItemRowView: View {
 
     private var priceDetail: Text? {
         if ItemListViewModel.isDiscounted(item), let current = item.priceCurrentCents, let atAdd = item.priceAtAddCents {
-            return Text(Image(systemName: "arrow.down")) + Text(" \(format(atAdd - current))")
+            return Text(Image(systemName: "arrow.down")) + Text(" \(format(atAdd - current)) menos")
         } else if let target = item.targetPriceCents {
             return Text("Obj. \(format(target))")
         } else if let checked = item.lastCheckedAt {

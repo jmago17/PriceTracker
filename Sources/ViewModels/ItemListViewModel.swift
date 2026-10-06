@@ -9,7 +9,7 @@ enum ItemStatusFilter: String, CaseIterable, Hashable, Sendable {
     var displayName: String {
         switch self {
         case .active: return "Activos"
-        case .discounted: return "Con bajada"
+        case .discounted: return "Menos que al añadir"
         case .paused: return "Pausados"
         }
     }
@@ -38,18 +38,15 @@ final class ItemListViewModel {
     }
 
     var hasUncategorizedItems: Bool {
-        items.contains { $0.category == nil }
+        items.contains { ItemFilterEngine.normalizedCategory($0.category) == nil }
     }
 
     var isCategoryFilterActive: Bool {
         categoryFilter != .all
     }
 
-    /// "12 productos · 3 con bajada · 1 sin comprobar" — over active+stale items
-    /// (excludes paused), independent of search/category, so it reads as an
-    /// overview of the default "Activos" view rather than the whole catalog —
-    /// otherwise a paused drop could inflate "con bajada" past what the
-    /// "Bajadas de precio" section actually lists.
+    /// Catalog overview excluding paused items, independent of search/category.
+    /// The reduction count compares recorded prices with their original baseline.
     var summary: (total: Int, discounted: Int, unchecked: Int) {
         let visible = items.filter { $0.status != .archived }
         return (
@@ -60,8 +57,7 @@ final class ItemListViewModel {
     }
 
     static func isDiscounted(_ item: Item) -> Bool {
-        guard let current = item.priceCurrentCents, let atAdd = item.priceAtAddCents else { return false }
-        return current < atAdd
+        item.reductionSinceAddedCents != nil
     }
 
     var filteredItems: [Item] {
@@ -70,7 +66,7 @@ final class ItemListViewModel {
         case .active:
             result = result.filter { $0.status == .active || $0.status == .stale }
         case .discounted:
-            result = result.filter(Self.isDiscounted)
+            result = result.filter { $0.status != .archived && Self.isDiscounted($0) }
         case .paused:
             result = result.filter { $0.status == .archived }
         }
@@ -80,10 +76,9 @@ final class ItemListViewModel {
         return result.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
-    /// "Bajadas de precio" first, then "Siguiendo" — category is a filter now,
-    /// not a section (see handoff README, structural change #2).
-    var drops: [Item] { filteredItems.filter(Self.isDiscounted) }
-    var rest: [Item] { filteredItems.filter { !Self.isDiscounted($0) } }
+    var categorySections: [ItemFilterEngine.CategorySection] {
+        ItemFilterEngine.sections(in: filteredItems)
+    }
 
     func load() async {
         do {
@@ -188,3 +183,28 @@ final class ItemListViewModel {
         }
     }
 }
+
+
+#if DEBUG
+extension ItemListViewModel {
+    func loadDemo() async {
+        let examples: [(String, String?, Int, Int)] = [
+            ("Things — organiza tus ideas", "Productividad", 1499, 2499),
+            ("Agenda de papel", "Productividad", 1890, 1890),
+            ("El arte de observar", "Libros", 899, 1299),
+            ("Rutas y viajes", "Libros", 1599, 1599),
+            ("Auriculares de estudio", "Tecnología", 12900, 15900),
+            ("Lámpara de lectura", nil, 3900, 3900)
+        ]
+        items = examples.enumerated().map { index, example in
+            Item(store: .generic, storeItemID: "demo-\(index)", canonicalURL: URL(string: "https://example.com/\(index)")!, title: example.0, subtitle: "Catálogo de demostración", category: example.1, priceCurrentCents: example.2, priceAtAddCents: example.3, priceLowCents: example.2, lastCheckedAt: Date())
+        }
+        do { try await environment.itemStore.save(items) }
+        catch { lastErrorMessage = error.localizedDescription }
+    }
+}
+#else
+extension ItemListViewModel {
+    func loadDemo() async {}
+}
+#endif

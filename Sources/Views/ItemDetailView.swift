@@ -8,6 +8,7 @@ struct ItemDetailView: View {
     let item: Item
     var viewModel: ItemListViewModel
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showingEdit = false
     @State private var isRefreshing = false
 
@@ -23,6 +24,8 @@ struct ItemDetailView: View {
                 }
                 statusRow
             }
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, 20)
             .padding(.top, 16)
             .padding(.bottom, 100)
@@ -40,6 +43,7 @@ struct ItemDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .accessibilityLabel("Opciones del artículo")
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -53,7 +57,8 @@ struct ItemDetailView: View {
     // MARK: Header
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 16) {
+        let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16)) : AnyLayout(HStackLayout(alignment: .top, spacing: 16))
+        return layout {
             AsyncImage(url: item.imageURL) { image in
                 image.resizable().aspectRatio(contentMode: .fill)
             } placeholder: {
@@ -91,7 +96,7 @@ struct ItemDetailView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(priceText)
-                    .font(.system(size: 44, weight: .bold))
+                    .font(.system(.largeTitle, design: .rounded, weight: .bold))
                     .monospacedDigit()
                 if let percent = discountPercent {
                     Label("\(percent) %", systemImage: "arrow.down")
@@ -99,10 +104,16 @@ struct ItemDetailView: View {
                         .foregroundStyle(.green)
                 }
             }
+            Text("Precio actual registrado")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             if let savingsMessage {
                 Text(savingsMessage)
                     .font(.system(.body, weight: .semibold))
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Color.accentColor)
+                Text("Comparación histórica; no confirma una promoción de la tienda.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -131,13 +142,16 @@ struct ItemDetailView: View {
 
     @ViewBuilder
     private var comparisonCard: some View {
-        if item.priceAtAddCents != nil || item.priceLowCents != nil || item.targetPriceCents != nil {
+        if item.priceReferenceCents != nil || item.priceAtAddCents != nil || item.priceLowCents != nil || item.targetPriceCents != nil {
             VStack(spacing: 0) {
                 if let atAdd = item.priceAtAddCents {
                     comparisonRow(label: "Al añadirlo", value: format(atAdd))
                 }
+                if let reference = item.priceReferenceCents {
+                    comparisonRow(label: "Referencia capturada", value: format(reference))
+                }
                 if let low = item.priceLowCents {
-                    comparisonRow(label: "Mínimo histórico", value: format(low))
+                    comparisonRow(label: "Mínimo observado", value: format(low))
                 }
                 if let target = item.targetPriceCents {
                     VStack(alignment: .leading, spacing: 6) {
@@ -182,11 +196,11 @@ struct ItemDetailView: View {
 
     private var historyCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("HISTORIAL")
-                .font(.caption)
+            Text("Evolución del precio")
+                .font(.system(.title3, design: .serif, weight: .semibold))
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 8) {
-                Text("Todavía sin historial")
+                Text("Evolución no disponible")
                     .font(.system(.body, weight: .bold))
                 Text(historyExplanation)
                     .font(.subheadline)
@@ -210,7 +224,7 @@ struct ItemDetailView: View {
             return "Los enlaces de Amazon se guardan con el precio del día en que los añades; no se vuelven a comprobar de forma automática."
         }
         if Store.refreshableStores.contains(item.store) {
-            return "Este artículo se comprueba periódicamente, pero todavía no hay suficientes comprobaciones para mostrar una evolución."
+            return "Las comprobaciones actualizan el precio y el mínimo observado. La app todavía no guarda una serie de observaciones para dibujar la evolución."
         }
         return "Este enlace se guardó con el precio del momento y no se vuelve a comprobar automáticamente."
     }
@@ -333,6 +347,7 @@ struct ItemDetailView: View {
                     .frame(width: 48, height: 48)
             }
             .buttonStyle(GhostButtonStyle(tint: .red))
+            .accessibilityLabel("Eliminar artículo")
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)

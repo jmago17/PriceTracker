@@ -114,3 +114,52 @@ struct ItemFilterEngineTests {
         #expect(ItemFilterEngine.limit(items, to: nil).count == 5)
     }
 }
+
+
+struct CatalogSemanticsTests {
+    @Test func categoryIdentityAndCaseTiesRemainStable() {
+        let input = [makeItem(title: "A", category: "libros"), makeItem(title: "B", category: "Libros"), makeItem(title: "C", category: "Sin categoría"), makeItem(title: "D")]
+        let sections = ItemFilterEngine.sections(in: input)
+        #expect(Array(sections.prefix(2)).map(\.title) == ["Libros", "libros"])
+        #expect(Set(sections.map(\.id)).count == 4)
+        #expect(sections.last?.category == nil)
+    }
+
+    @Test func groupingPreservesOrderAndUnknownNames() {
+        let input = [makeItem(title: "Z", category: "Nueva categoría"), makeItem(title: "B", category: " Libros "), makeItem(title: "A", category: "Libros"), makeItem(title: "Vacío", category: "  "), makeItem(title: "Nulo")]
+        let sections = ItemFilterEngine.sections(in: input)
+        #expect(sections.map(\.title) == ["Libros", "Nueva categoría", "Sin categoría"])
+        #expect(sections[0].items.map(\.title) == ["B", "A"])
+        #expect(sections[2].items.count == 2)
+        #expect(Set(sections.map(\.id)).count == 3)
+        #expect(ItemFilterEngine.sections(in: []).isEmpty)
+        let filtered = ItemFilterEngine.filter(input, by: .category("Libros"))
+        #expect(ItemFilterEngine.sections(in: filtered).count == 1)
+        #expect(ItemFilterEngine.filter(input, by: .uncategorized).count == 2)
+    }
+
+    @Test func groupingUsesOnlySearchResultsAndKeepsRequestedSort() {
+        let input = [makeItem(title: "B juego", category: "Juegos"), makeItem(title: "A juego", category: "Juegos"), makeItem(title: "Libro", category: "Libros")]
+        let found = ItemFilterEngine.filter(input, predicates: [{ $0.title.contains("juego") }], mode: .and)
+        let sorted = ItemFilterEngine.sort(found, by: .title, ascending: false)
+        let sections = ItemFilterEngine.sections(in: sorted)
+        #expect(sections.map(\.title) == ["Juegos"])
+        #expect(sections[0].items.map(\.title) == ["B juego", "A juego"])
+    }
+
+    @Test func historicalReductionNeverExpiresOrUsesReferenceAsPromotion() {
+        var item = makeItem(title: "Permanent reduction", priceCurrentCents: 500)
+        item.priceAtAddCents = 1000
+        item.priceReferenceCents = 2000
+        item.createdAt = .distantPast
+        #expect(item.reductionSinceAddedCents == 500)
+        item.priceAtAddCents = nil
+        #expect(item.reductionSinceAddedCents == nil)
+        item.priceAtAddCents = 500
+        #expect(item.reductionSinceAddedCents == nil)
+        item.priceCurrentCents = 0
+        #expect(item.reductionSinceAddedCents == 500)
+        item.priceCurrentCents = -1
+        #expect(item.reductionSinceAddedCents == nil)
+    }
+}
