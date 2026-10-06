@@ -145,15 +145,25 @@ struct CatalogView: View {
             if summary.total > 0 {
                 Text("Observar. Comparar. Decidir.")
                     .font(.system(.title2, design: .serif, weight: .medium))
+                    .padding(.horizontal, Self.headerHorizontalInset)
                 Text(summaryText(summary))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .padding(.horizontal, Self.headerHorizontalInset)
             }
             filterChips
         }
         .padding(.top, 4)
         .padding(.bottom, 6)
+        // The row must span the full width; the text re-applies the list's own
+        // inset so it still aligns with the rows, while the chip strip can
+        // scroll past both screen edges instead of sitting in an inset box.
+        .listRowInsets(EdgeInsets())
     }
+
+    /// Matches the inset-grouped list's horizontal margin so edge-to-edge rows
+    /// keep their text aligned with the rest of the list.
+    private static let headerHorizontalInset: CGFloat = 20
 
     private func summaryText(_ summary: (total: Int, discounted: Int, unchecked: Int)) -> String {
         var parts = ["\(summary.total) producto\(summary.total == 1 ? "" : "s")"]
@@ -198,7 +208,14 @@ struct CatalogView: View {
                 }
                 .accessibilityIdentifier("category-filter-menu")
             }
+            // Inset the chips themselves, not the scroll view, so the first and
+            // last chip align with the list rows yet can scroll to the edge.
+            .padding(.horizontal, Self.headerHorizontalInset)
         }
+        // Without this the scroll view inherits the list row's content margins
+        // and the strip looks framed, stopping short of the screen edges.
+        .contentMargins(.horizontal, 0, for: .scrollContent)
+        .scrollClipDisabled()
         .accessibilityIdentifier("catalog-filters")
     }
 

@@ -111,15 +111,27 @@ struct ITunesConnector: StoreConnector {
 
     private func lookup(id: String, region: String) async throws -> LookupResult {
         var components = URLComponents(string: "https://itunes.apple.com/lookup")!
+        // Items stored by an earlier build may still carry an alpha-3 region on
+        // disk, so normalize here too instead of trusting the caller.
+        let country = ISOCountryCodes.alpha2(from: region) ?? "US"
         components.queryItems = [
             URLQueryItem(name: "id", value: id),
-            URLQueryItem(name: "country", value: region),
+            URLQueryItem(name: "country", value: country),
         ]
         guard let url = components.url else { throw ConnectorError.unrecognizedURL }
 
         let data: Data
         do {
-            (data, _) = try await session.data(from: url)
+            let (payload, response) = try await session.data(from: url)
+            // A rejected storefront answers HTTP 400 with a non-JSON body;
+            // without this check it surfaced as an opaque decoding error and
+            // hid the real cause.
+            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                throw ConnectorError.network("iTunes devolvió HTTP \(http.statusCode) para country=\(country)")
+            }
+            data = payload
+        } catch let error as ConnectorError {
+            throw error
         } catch {
             throw ConnectorError.network(error.localizedDescription)
         }
