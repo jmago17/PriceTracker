@@ -120,31 +120,62 @@ struct ITunesConnector: StoreConnector {
         ]
         guard let url = components.url else { throw ConnectorError.unrecognizedURL }
 
+        // Keep only a reconstructed public lookup URL in diagnostics. Never
+        // include canonical URLs, response bodies, headers, cookies or accounts.
+        let safeID = !id.isEmpty && id.utf8.allSatisfy { (48...57).contains($0) } ? id : "redacted"
+        let safeCountry = country.utf8.allSatisfy { (65...90).contains($0) } ? country : "redacted"
+        let requestContext = "GET https://itunes.apple.com/lookup?id=\(safeID)&country=\(safeCountry)"
         let data: Data
+        let responseContext: String
         do {
             let (payload, response) = try await session.data(from: url)
-            // A rejected storefront answers HTTP 400 with a non-JSON body;
-            // without this check it surfaced as an opaque decoding error and
-            // hid the real cause.
+            let status = (response as? HTTPURLResponse).map { String($0.statusCode) } ?? "non-HTTP"
+            responseContext = "\(requestContext); HTTP=\(status); bytes=\(payload.count)"
+            // Apple may return a JSON error envelope instead of lookup results.
+            // Check HTTP before decoding and preserve the request context.
             if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-                throw ConnectorError.network("iTunes devolvió HTTP \(http.statusCode) para country=\(country)")
+                throw ConnectorError.network("iTunes devolvió HTTP \(http.statusCode) para country=\(safeCountry) [\(responseContext)]")
             }
             data = payload
         } catch let error as ConnectorError {
             throw error
         } catch {
-            throw ConnectorError.network(error.localizedDescription)
+            let underlying = error as NSError
+            throw ConnectorError.network("\(error.localizedDescription) [\(requestContext); transport=\(underlying.domain)/\(underlying.code)]")
         }
 
         let decoded: LookupResponse
         do {
             decoded = try JSONDecoder().decode(LookupResponse.self, from: data)
         } catch {
-            throw ConnectorError.decoding(error.localizedDescription)
+            throw ConnectorError.decoding("\(error.localizedDescription) [\(responseContext); \(Self.decodingDiagnostic(error))]")
         }
 
         guard let first = decoded.results.first else { throw ConnectorError.notFound }
         return first
+    }
+
+    /// Describe the schema failure without copying values from Apple's body.
+    private static func decodingDiagnostic(_ error: Error) -> String {
+        func path(_ keys: [any CodingKey]) -> String {
+            keys.reduce("$") { result, key in
+                if let index = key.intValue { return "\(result)[\(index)]" }
+                return "\(result).\(key.stringValue)"
+            }
+        }
+        switch error {
+        case DecodingError.keyNotFound(let key, let context):
+            return "keyNotFound path=\(path(context.codingPath + [key]))"
+        case DecodingError.valueNotFound(let type, let context):
+            return "valueNotFound expected=\(type) path=\(path(context.codingPath))"
+        case DecodingError.typeMismatch(let type, let context):
+            return "typeMismatch expected=\(type) path=\(path(context.codingPath))"
+        case DecodingError.dataCorrupted(let context):
+            return "dataCorrupted path=\(path(context.codingPath))"
+        default:
+            let underlying = error as NSError
+            return "decoder=\(underlying.domain)/\(underlying.code)"
+        }
     }
 
     private func makeResolvedItem(from result: LookupResult, store: Store, region: String, fallbackURL: URL) throws -> ResolvedItem {

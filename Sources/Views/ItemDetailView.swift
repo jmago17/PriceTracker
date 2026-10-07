@@ -293,6 +293,7 @@ struct ItemDetailView: View {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
+                    .textSelection(.enabled)
             }
             Button {
                 openInStore()
