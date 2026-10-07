@@ -11,6 +11,13 @@ protocol ItemStoring: Sendable {
     func delete(id: UUID) async throws
 }
 
+/// Successful checks commit the item and its observation together. History is
+/// local to this device; it is not embedded in the CloudKit item payload.
+protocol PriceHistoryStoring: ItemStoring {
+    @discardableResult func upsert(_ item: Item, observation: PriceObservation) async throws -> Item
+    func observations(for identityKey: String) async throws -> [PriceObservation]
+}
+
 extension ItemStoring {
     func item(id: UUID) async throws -> Item? {
         try await loadAll().first { $0.id == id }

@@ -35,7 +35,7 @@ enum SQLiteStoreError: Error, LocalizedError {
 /// Record-oriented local source of truth. Every app-facing write commits here
 /// before CloudKit is notified, so reads and writes remain available offline.
 /// WAL plus SQLite's process locks make separate app/App Intent processes safe.
-actor SQLiteItemStore: ItemStoring {
+actor SQLiteItemStore: PriceHistoryStoring {
     static let migrationMetadataKey = "items-json-migration-v1"
     static let syncStateMetadataKey = "ck-sync-engine-state-v1"
     static let accountMetadataKey = "ck-account-record-name-v1"
@@ -92,6 +92,15 @@ actor SQLiteItemStore: ItemStoring {
 
     @discardableResult
     func upsert(_ item: Item) throws -> Item {
+        try upsert(item, observation: nil)
+    }
+
+    @discardableResult
+    func upsert(_ item: Item, observation: PriceObservation) throws -> Item {
+        try upsert(item, observation: Optional(observation))
+    }
+
+    private func upsert(_ item: Item, observation: PriceObservation?) throws -> Item {
         try execute("BEGIN IMMEDIATE TRANSACTION")
         do {
             let recordName = CloudRecordIdentity.recordName(for: item.identityKey)
@@ -101,12 +110,35 @@ actor SQLiteItemStore: ItemStoring {
                 value.createdAt = existing.createdAt
             }
             try write([value], deleteMissing: false)
+            if var observation {
+                observation.itemID = value.id
+                let statement = try prepare("INSERT OR IGNORE INTO price_observations (id, identity_key, checked_at, payload) VALUES (?, ?, ?, ?)")
+                defer { sqlite3_finalize(statement) }
+                bind(observation.id.uuidString, to: 1, in: statement)
+                bind(value.identityKey, to: 2, in: statement)
+                sqlite3_bind_double(statement, 3, observation.checkedAt.timeIntervalSince1970)
+                bind(try encoder.encode(observation), to: 4, in: statement)
+                try stepDone(statement)
+            }
             try execute("COMMIT")
             return value
         } catch {
             try? execute("ROLLBACK")
             throw error
         }
+    }
+
+    func observations(for identityKey: String) throws -> [PriceObservation] {
+        let statement = try prepare("SELECT payload FROM price_observations WHERE identity_key = ? ORDER BY checked_at, id")
+        defer { sqlite3_finalize(statement) }
+        bind(identityKey, to: 1, in: statement)
+        var result: [PriceObservation] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let data = columnData(statement, index: 0) else { throw SQLiteStoreError.corruptRow(identityKey) }
+            result.append(try decoder.decode(PriceObservation.self, from: data))
+        }
+        try checkStatement(statement)
+        return result
     }
 
     func delete(id: UUID) throws {
@@ -411,6 +443,13 @@ actor SQLiteItemStore: ItemStoring {
                 system_fields BLOB
             );
             CREATE INDEX IF NOT EXISTS item_records_item_id ON item_records(item_id);
+            CREATE TABLE IF NOT EXISTS price_observations (
+                id TEXT PRIMARY KEY NOT NULL,
+                identity_key TEXT NOT NULL,
+                checked_at REAL NOT NULL,
+                payload BLOB NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS price_observations_identity_time ON price_observations(identity_key, checked_at);
             CREATE TABLE IF NOT EXISTS metadata (
                 key TEXT PRIMARY KEY NOT NULL,
                 value BLOB NOT NULL

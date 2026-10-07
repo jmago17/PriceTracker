@@ -131,3 +131,37 @@ struct SQLiteItemStoreTests {
         #expect(try await store.metadataData(for: SQLiteItemStore.migrationMetadataKey) == nil)
     }
 }
+
+extension SQLiteItemStoreTests {
+    @Test func observationAndItemCommitTogetherAndEncodingFailureRollsBack() async throws {
+        let (store, _) = makeSQLiteStore()
+        let item = sqliteItem(storeItemID: "history", title: "Original")
+        try await store.upsert(item)
+        var changed = item
+        changed.title = "Should roll back"
+        let invalid = PriceObservation(itemID: item.id, checkedAt: Date(timeIntervalSince1970: .infinity), priceCents: 100, currency: "EUR", isOnSale: false)
+        await #expect(throws: (any Error).self) { _ = try await store.upsert(changed, observation: invalid) }
+        #expect(try await store.item(id: item.id)?.title == "Original")
+        #expect(try await store.observations(for: item.identityKey).isEmpty)
+    }
+
+    @Test func remoteUpdatesDoNotInventOrEraseLocalObservations() async throws {
+        let (store, _) = makeSQLiteStore()
+        let item = sqliteItem(storeItemID: "history", title: "Original")
+        let observation = PriceObservation(itemID: item.id, checkedAt: Date(timeIntervalSince1970: 100), priceCents: 100, currency: "EUR", isOnSale: false)
+        try await store.upsert(item, observation: observation)
+        // Retrying the same observation must not duplicate it.
+        try await store.upsert(item, observation: observation)
+        var remote = item
+        remote.id = UUID()
+        remote.lastSuccessAt = Date(timeIntervalSince1970: 200)
+        remote.priceCurrentCents = 200
+        try await store.applyRemote(recordName: CloudRecordIdentity.recordName(for: item.identityKey), identityKey: item.identityKey,
+            item: remote, isTombstone: false, systemFields: Data(), dirty: false)
+        #expect(try await store.observations(for: item.identityKey) == [observation])
+        let record = try #require(try await store.localRecord(named: CloudRecordIdentity.recordName(for: item.identityKey)))
+        let cloud = try CloudRecordCodec.makeRecord(from: record, zoneID: CKRecordZone.ID(zoneName: "Test", ownerName: CKCurrentUserDefaultName))
+        #expect(!cloud.allKeys().contains("observations"))
+        #expect(cloud[CloudRecordFields.lastSuccessAt] as? Date == remote.lastSuccessAt)
+    }
+}

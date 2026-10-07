@@ -5,7 +5,12 @@ import Foundation
 /// hardcoded Spanish, so relative dates must not follow system locale either.
 extension Date {
     var relativeSpanish: String {
-        Self.relativeFormatter.localizedString(for: self, relativeTo: .now)
+        relativeSpanish(to: .now)
+    }
+
+    func relativeSpanish(to now: Date) -> String {
+        if abs(timeIntervalSince(now)) < 60 { return "ahora" }
+        return Self.relativeFormatter.localizedString(for: self, relativeTo: now)
     }
 
     var shortTimeSpanish: String {

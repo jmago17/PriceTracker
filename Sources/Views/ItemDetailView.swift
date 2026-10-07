@@ -1,12 +1,21 @@
 import SwiftUI
+import Charts
 
-/// Read-first ficha: the price is the dominant element, edits happen in a
-/// separate sheet (see EditItemView). No invented history — Amazon/generic
-/// links are captured once and not re-scraped, so "sin historial" is the
-/// honest default (handoff README, "Historial ausente").
+/// Shows successful check freshness separately from observed price changes.
+/// History is made only from recorded observations on this device.
 struct ItemDetailView: View {
-    let item: Item
-    var viewModel: ItemListViewModel
+    private let initialItem: Item
+    let viewModel: ItemListViewModel
+
+    init(item: Item, viewModel: ItemListViewModel) {
+        initialItem = item
+        self.viewModel = viewModel
+    }
+
+    // Read the observable collection here so an open detail follows refreshes.
+    private var item: Item {
+        viewModel.items.first { $0.id == initialItem.id } ?? initialItem
+    }
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showingEdit = false
@@ -31,6 +40,7 @@ struct ItemDetailView: View {
             .padding(.bottom, 100)
         }
         .background(Color(.systemGroupedBackground))
+        .task(id: item) { await viewModel.loadHistory(for: item) }
         .navigationTitle(item.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
@@ -104,7 +114,7 @@ struct ItemDetailView: View {
                         .foregroundStyle(.green)
                 }
             }
-            Text("Precio actual registrado")
+            Text(item.lastSuccessAt.map { "Comprobado \($0.relativeSpanish)" } ?? "Precio sin comprobación correcta")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if let savingsMessage {
@@ -192,7 +202,11 @@ struct ItemDetailView: View {
         }
     }
 
-    // MARK: History (always honest — see file header comment)
+    // MARK: Recorded observations
+
+    private var historySeries: PriceHistorySeries {
+        PriceHistorySeries(observations: viewModel.histories[item.identityKey] ?? [], currency: item.currency)
+    }
 
     private var historyCard: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -200,11 +214,35 @@ struct ItemDetailView: View {
                 .font(.system(.title3, design: .serif, weight: .semibold))
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 8) {
-                Text("Evolución no disponible")
-                    .font(.system(.body, weight: .bold))
-                Text(historyExplanation)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                if viewModel.historyErrors[item.identityKey] != nil {
+                    Text("No se pudo cargar el historial. Vuelve a abrir la ficha para reintentarlo.")
+                } else if viewModel.histories[item.identityKey] == nil {
+                    ProgressView("Cargando historial")
+                } else if historySeries.observations.isEmpty {
+                    Text("Todavía sin observaciones")
+                        .font(.system(.body, weight: .bold))
+                    Text(historyExplanation)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    PriceHistoryChart(series: historySeries, currency: item.currency)
+                    if !historySeries.hasTimeSpan {
+                        Text("Una comprobación: todavía no hay un intervalo que comparar.")
+                        if let observation = historySeries.observations.first {
+                            Text(observation.checkedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(Locale(identifier: "es_ES"))))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else if historySeries.isUnchanged {
+                        Text("Mismo precio en las comprobaciones registradas.")
+                    }
+                    if let changed = historySeries.lastPriceChangeAt {
+                        Text("Último cambio observado \(changed.relativeSpanish)")
+                    }
+                    Text("Comprobaciones en este dispositivo. Los puntos son precios observados; no se reconstruyen fechas anteriores.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if item.store == .amazon {
                     Link(destination: AmazonConnector.keepaURL(asin: item.storeItemID, region: item.region)) {
                         Label("Ver histórico en Keepa", systemImage: "arrow.up.right")
@@ -220,11 +258,8 @@ struct ItemDetailView: View {
     }
 
     private var historyExplanation: String {
-        if item.store == .amazon {
-            return "Los enlaces de Amazon se guardan con el precio del día en que los añades; no se vuelven a comprobar de forma automática."
-        }
         if Store.refreshableStores.contains(item.store) {
-            return "Las comprobaciones actualizan el precio y el mínimo observado. La app todavía no guarda una serie de observaciones para dibujar la evolución."
+            return "Cada comprobación correcta guarda un punto, aunque el precio no cambie. El historial empieza al comprobar desde esta versión y se guarda en este dispositivo, separado por moneda."
         }
         return "Este enlace se guardó con el precio del momento y no se vuelve a comprobar automáticamente."
     }
@@ -308,13 +343,16 @@ struct ItemDetailView: View {
     }
 
     private var trackingHeadline: String {
-        guard let checked = item.lastCheckedAt else { return "Todavía sin comprobar" }
+        guard let checked = item.lastSuccessAt else { return "Todavía sin comprobación correcta" }
         return "Comprobado \(checked.relativeSpanish)"
     }
 
     private var trackingSubline: String {
         if item.status == .archived { return "Pausado" }
-        return item.lastError == nil ? "Activo · sin incidencias" : "Activo · con incidencias"
+        if item.lastError != nil, let attempted = item.lastCheckedAt {
+            return "Último intento fallido \(attempted.relativeSpanish)"
+        }
+        return "Activo · sin incidencias"
     }
 
     private var pauseLabel: String {
@@ -357,10 +395,9 @@ struct ItemDetailView: View {
 
     private func refresh() {
         isRefreshing = true
-        viewModel.refreshSingle(item)
         Task {
-            try? await Task.sleep(for: .seconds(1))
-            isRefreshing = false
+            defer { isRefreshing = false }
+            await viewModel.refreshSingle(item)
         }
     }
 
@@ -387,5 +424,36 @@ private struct GhostButtonStyle: ButtonStyle {
             .frame(height: 48)
             .background(tint.opacity(configuration.isPressed ? 0.18 : 0.1))
             .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+private struct PriceHistoryChart: View {
+    let series: PriceHistorySeries
+    let currency: String
+
+    private var priceRange: ClosedRange<Double> {
+        let prices = series.observations.map { Double($0.priceCents) / 100 }
+        let low = prices.min() ?? 0
+        let high = prices.max() ?? 0
+        let padding = max((high - low) * 0.15, max(high * 0.03, 0.5))
+        return max(0, low - padding)...(high + padding)
+    }
+
+    var body: some View {
+        Chart(series.observations) { observation in
+            if series.hasTimeSpan {
+                LineMark(x: .value("Fecha", observation.checkedAt),
+                         y: .value("Precio", Double(observation.priceCents) / 100))
+            }
+            PointMark(x: .value("Fecha", observation.checkedAt),
+                      y: .value("Precio", Double(observation.priceCents) / 100))
+                .accessibilityLabel(observation.checkedAt.formatted(date: .abbreviated, time: .shortened))
+                .accessibilityValue(MoneyFormatter.string(cents: observation.priceCents, currency: currency))
+        }
+        .chartYScale(domain: priceRange)
+        .chartYAxisLabel(currency)
+        .environment(\.locale, Locale(identifier: "es_ES"))
+        .frame(height: 180)
+        .accessibilityIdentifier("price-history-chart")
     }
 }

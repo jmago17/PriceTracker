@@ -53,6 +53,10 @@ struct ItemRowView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                Text(item.lastSuccessAt?.relativeSpanish ?? "Sin comprobar")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(item.lastSuccessAt.map { "Comprobado \($0.relativeSpanish)" } ?? "Sin comprobación correcta")
             }
             .layoutPriority(1)
         }
@@ -78,8 +82,6 @@ struct ItemRowView: View {
             return Text(Image(systemName: "arrow.down")) + Text(" \(format(atAdd - current)) menos")
         } else if let target = item.targetPriceCents {
             return Text("Obj. \(format(target))")
-        } else if let checked = item.lastCheckedAt {
-            return Text(elapsed(since: checked))
         } else {
             return nil
         }
@@ -89,7 +91,4 @@ struct ItemRowView: View {
         MoneyFormatter.string(cents: cents, currency: item.currency)
     }
 
-    private func elapsed(since date: Date) -> String {
-        date.relativeSpanish
-    }
 }

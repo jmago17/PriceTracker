@@ -19,6 +19,8 @@ enum ItemStatusFilter: String, CaseIterable, Hashable, Sendable {
 @Observable
 final class ItemListViewModel {
     private(set) var items: [Item] = []
+    private(set) var histories: [String: [PriceObservation]] = [:]
+    private(set) var historyErrors: [String: String] = [:]
     var searchText: String = ""
     var categoryFilter: ItemCategoryFilter = .all
     var statusFilter: ItemStatusFilter = .active
@@ -100,14 +102,22 @@ final class ItemListViewModel {
         }
     }
 
-    func refreshSingle(_ item: Item) {
-        Task {
-            do {
-                _ = try await environment.refreshCoordinator.refreshItem(id: item.id)
-                await load()
-            } catch {
-                lastErrorMessage = error.localizedDescription
-            }
+    func refreshSingle(_ item: Item) async {
+        do {
+            _ = try await environment.refreshCoordinator.refreshItem(id: item.id)
+            await load()
+            await loadHistory(for: item)
+        } catch {
+            lastErrorMessage = error.localizedDescription
+        }
+    }
+
+    func loadHistory(for item: Item) async {
+        do {
+            histories[item.identityKey] = try await environment.itemStore.observations(for: item.identityKey)
+            historyErrors[item.identityKey] = nil
+        } catch {
+            historyErrors[item.identityKey] = error.localizedDescription
         }
     }
 
@@ -188,6 +198,22 @@ final class ItemListViewModel {
 #if DEBUG
 extension ItemListViewModel {
     func loadDemo() async {
+        if ProcessInfo.processInfo.arguments.contains("--demo-history") {
+            let old = Date().addingTimeInterval(-4 * 86400)
+            let item = Item(store: .appStore, storeItemID: "demo-history-\(UUID().uuidString)",
+                canonicalURL: URL(string: "https://example.com/history")!, title: "Precio estable (demo)",
+                priceCurrentCents: 1299, priceAtAddCents: 1299, priceLowCents: 1299,
+                lastCheckedAt: old, lastSuccessAt: old)
+            do {
+                try await environment.itemStore.save([item])
+                if !ProcessInfo.processInfo.arguments.contains("--demo-history-empty") {
+                    let observation = PriceObservation(itemID: item.id, checkedAt: old, priceCents: 1299, currency: "EUR", isOnSale: false)
+                    try await environment.itemStore.upsert(item, observation: observation)
+                }
+                await load()
+            } catch { lastErrorMessage = error.localizedDescription }
+            return
+        }
         let examples: [(String, String?, Int, Int)] = [
             ("Things — organiza tus ideas", "Productividad", 1499, 2499),
             ("Agenda de papel", "Productividad", 1890, 1890),
@@ -197,7 +223,7 @@ extension ItemListViewModel {
             ("Lámpara de lectura", nil, 3900, 3900)
         ]
         items = examples.enumerated().map { index, example in
-            Item(store: .generic, storeItemID: "demo-\(index)", canonicalURL: URL(string: "https://example.com/\(index)")!, title: example.0, subtitle: "Catálogo de demostración", category: example.1, priceCurrentCents: example.2, priceAtAddCents: example.3, priceLowCents: example.2, lastCheckedAt: Date())
+            Item(store: .generic, storeItemID: "demo-\(index)", canonicalURL: URL(string: "https://example.com/\(index)")!, title: example.0, subtitle: "Catálogo de demostración", category: example.1, priceCurrentCents: example.2, priceAtAddCents: example.3, priceLowCents: example.2, lastCheckedAt: Date(), lastSuccessAt: Date())
         }
         do { try await environment.itemStore.save(items) }
         catch { lastErrorMessage = error.localizedDescription }

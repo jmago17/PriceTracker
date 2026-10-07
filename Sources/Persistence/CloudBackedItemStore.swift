@@ -2,7 +2,7 @@ import Foundation
 
 /// App-facing adapter: migrate/read/write locally, then notify the sync engine
 /// after the transaction has committed. CloudKit latency never gates a write.
-struct CloudBackedItemStore: ItemStoring {
+struct CloudBackedItemStore: PriceHistoryStoring {
     let localStore: SQLiteItemStore
     let syncManager: CloudSyncManager
     let legacyJSONURL: URL
@@ -26,6 +26,18 @@ struct CloudBackedItemStore: ItemStoring {
         let stored = try await localStore.upsert(item)
         Task { await syncManager.enqueueDirtyChanges() }
         return stored
+    }
+
+    @discardableResult
+    func upsert(_ item: Item, observation: PriceObservation) async throws -> Item {
+        _ = try await localStore.migrateLegacyJSONIfNeeded(from: legacyJSONURL)
+        let stored = try await localStore.upsert(item, observation: observation)
+        Task { await syncManager.enqueueDirtyChanges() }
+        return stored
+    }
+
+    func observations(for identityKey: String) async throws -> [PriceObservation] {
+        try await localStore.observations(for: identityKey)
     }
 
     func delete(id: UUID) async throws {

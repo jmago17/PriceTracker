@@ -48,6 +48,44 @@ final class ScreenshotTests: XCTestCase {
         try app.performAccessibilityAudit(for: [.sufficientElementDescription])
     }
 
+    func testSamePriceRefreshUpdatesFreshnessAndDrawsFlatHistory() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo-catalog", "--demo-history"]
+        app.launch()
+        let row = app.descendants(matching: .any)["item-row"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+        let onePoint = app.staticTexts["Una comprobación: todavía no hay un intervalo que comparar."]
+        app.swipeUp()
+        XCTAssertTrue(onePoint.waitForExistence(timeout: 5))
+        capture(app, "history_single_point")
+        let refresh = app.buttons["Actualizar"]
+        if !refresh.isHittable { app.swipeUp() }
+        XCTAssertTrue(refresh.waitForExistence(timeout: 5))
+        refresh.tap()
+        XCTAssertTrue(app.staticTexts["Comprobado ahora"].firstMatch.waitForExistence(timeout: 5))
+        app.swipeDown()
+        XCTAssertTrue(app.staticTexts["Mismo precio en las comprobaciones registradas."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["price-history-chart"].exists)
+        capture(app, "history_flat_after_refresh")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.staticTexts["Comprobado ahora"].firstMatch.waitForExistence(timeout: 5))
+        capture(app, "catalog_fresh_after_equal_price")
+    }
+
+    func testHistoryDoesNotInventOlderObservations() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo-catalog", "--demo-history", "--demo-history-empty"]
+        app.launch()
+        let row = app.descendants(matching: .any)["item-row"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+        app.swipeUp()
+        XCTAssertTrue(app.staticTexts["Todavía sin observaciones"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["price-history-chart"].exists)
+        capture(app, "history_empty")
+    }
+
     private func capture(_ app: XCUIApplication, _ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name

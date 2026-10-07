@@ -22,26 +22,27 @@ struct RefreshSummary: Equatable, Sendable {
 /// `RefreshItem` intent fires from Shortcuts) don't race on the same file-backed
 /// store.
 actor RefreshCoordinator {
-    private let itemStore: any ItemStoring
+    private let itemStore: any PriceHistoryStoring
     private let alertStore: any AlertStoring
-    private let connectors: ConnectorRegistry
+    private let connectorToFetch: @Sendable (Store) -> (any StoreConnector)?
+    private let now: @Sendable () -> Date
 
-    init(itemStore: any ItemStoring, alertStore: any AlertStoring, connectors: ConnectorRegistry) {
+    init(itemStore: any PriceHistoryStoring, alertStore: any AlertStoring, connectorToFetch: @escaping @Sendable (Store) -> (any StoreConnector)?, now: @escaping @Sendable () -> Date = { Date() }) {
         self.itemStore = itemStore
         self.alertStore = alertStore
-        self.connectors = connectors
+        self.connectorToFetch = connectorToFetch
+        self.now = now
     }
 
     /// Refreshes one item. Returns `true` if the fetch succeeded (regardless of
-    /// whether the price moved). Throws only for programmer errors (item not
-    /// found); connector failures are recorded on the item, not thrown.
+    /// whether the price moved). Missing items and persistence errors throw;
+    /// connector failures are recorded on the item, not thrown.
     @discardableResult
     func refreshItem(id: UUID) async throws -> Bool {
         guard let item = try await itemStore.item(id: id) else {
             throw RefreshError.itemNotFound
         }
-        let (updated, alerts) = await refresh(item)
-        try await itemStore.upsert(updated)
+        let (updated, alerts) = try await refresh(item)
         for alert in alerts {
             try await alertStore.append(PriceAlert(itemID: updated.id, kind: alert.kind, priceFromCents: alert.fromCents, priceToCents: alert.toCents))
         }
@@ -75,8 +76,7 @@ actor RefreshCoordinator {
                 continue
             }
 
-            let (updated, alerts) = await refresh(item)
-            try await itemStore.upsert(updated)
+            let (updated, alerts) = try await refresh(item)
             for alert in alerts {
                 try await alertStore.append(PriceAlert(itemID: updated.id, kind: alert.kind, priceFromCents: alert.fromCents, priceToCents: alert.toCents))
             }
@@ -91,21 +91,28 @@ actor RefreshCoordinator {
         return summary
     }
 
-    /// Fetches + evaluates a single item without touching the store — used by
-    /// both the per-item and batch paths so they share one code path.
-    private func refresh(_ item: Item) async -> (Item, [PendingAlertDraft]) {
-        guard let connector = connectors.connectorToFetch(store: item.store) else {
+    /// Each successful fetch records an observation, even when the price is
+    /// unchanged. Persistence failures propagate; they are not network failures.
+    private func refresh(_ item: Item) async throws -> (Item, [PendingAlertDraft]) {
+        guard let connector = connectorToFetch(item.store) else {
             var updated = item
             updated.lastError = "Sin conector de refresco para \(item.store.displayName)."
-            return (updated, [])
+            return (try await itemStore.upsert(updated), [])
         }
+        let result: FetchResult
         do {
-            let result = try await connector.fetch(item)
-            let evaluation = PriceDropDetector.evaluate(item: item, fetch: result)
-            return (evaluation.updatedItem, evaluation.alerts)
+            result = try await connector.fetch(item)
         } catch {
-            return (PriceDropDetector.applyFailure(to: item, error: error), [])
+            let failed = PriceDropDetector.applyFailure(to: item, error: error, now: now())
+            return (try await itemStore.upsert(failed), [])
         }
+        let now = now()
+        let evaluation = PriceDropDetector.evaluate(item: item, fetch: result, now: now)
+        let observation = PriceObservation(itemID: item.id, checkedAt: now,
+            priceCents: result.priceCents, currency: result.currency.uppercased(),
+            isOnSale: result.isOnSale, saleEndsAt: result.saleEndsAt, availability: result.availability)
+        let stored = try await itemStore.upsert(evaluation.updatedItem, observation: observation)
+        return (stored, evaluation.alerts)
     }
 }
 

@@ -47,7 +47,7 @@
 
 - Se sincronizan los campos compartidos completos de `Item`: identidad/URL, metadatos, categoría, etiquetas, notas, estado, precios, fechas y IDs externos.
 - No se sincronizan `lastError`, `consecutiveFailures` ni `lastAlertedPriceCents`, porque describen ejecución/notificaciones locales.
-- `PriceObservation` existe como modelo, pero antes de esta migración no tenía store ni productor y sigue sin persistirse. Por tanto no había historial real que migrar/sincronizar. Si se introduce, debe ser un tipo de registro por observación y fusionarse por ID; no debe añadirse como un blob de historial que un dispositivo pueda sobrescribir.
+- `PriceObservation` se guarda en `price_observations` de SQLite, una fila por comprobación correcta (incluidos precios iguales), en la misma transacción que el artículo. La tabla es local al dispositivo, no se rellena con fechas antiguas ni se incluye en el payload de CloudKit. Si se añade sincronización del historial en el futuro, debe ser un registro por observación con identidad propia, nunca un blob mutable en el artículo.
 
 ## Capacidades
 
@@ -197,3 +197,12 @@ No verificado / pendiente:
 - iPad no ejecutado en esta ronda.
 
 Hipótesis descartadas: los bloqueos de la validación anterior (git en `read()`, swift-frontend en `pread()`, dyld en `mmap`, runner con SIGABRT, tests web pasando el timeout de 8 s) **no eran CoreSimulator ni el código**. El checkout de trabajo estaba en `~/Documents` (iCloud) con 338 ficheros `dataless`. Trasladado a `~/Developer/PriceTracker`, la misma suite pasa entera y los tests web tardan 2–3 s. No trabajar este repo desde `~/Documents`.
+
+
+## Frescura e historial de comprobaciones (2026-10-07)
+
+- Tarjetas y ficha muestran `lastSuccessAt`; `lastCheckedAt` se reserva para describir intentos fallidos. Durante el primer minuto el texto es «ahora». El refresco individual espera la operación real y la ficha observa el artículo actualizado por UUID.
+- Todas las rutas de RefreshCoordinator guardan una observación por éxito, con precio, moneda y fecha de la respuesta, aunque el precio no cambie. Un fallo conserva la última fecha de éxito y no añade puntos. El item y la observación se guardan atómicamente, antes de encolar los campos compartidos del item hacia CloudKit.
+- La ficha representa puntos reales: un dato no implica una evolución; dos comprobaciones iguales forman una línea horizontal. No se reconstruyen puntos desde createdAt, precio inicial o fechas de items antiguos. El gráfico muestra el último tramo continuo de la moneda actual; no conecta monedas diferentes.
+- El historial es local y está identificado como tal en la UI. Los registros de CloudKit siguen conteniendo los campos actuales del item, sin nuevo esquema de historial. Recibir una actualización remota no crea observaciones locales ni borra las existentes.
+- Validación: 48 pruebas de modelo/persistencia/CloudKit en harness macOS; build iOS Release; dos UI tests acotados con fixtures sintéticas (vacío, punto único, refresco de igual precio, línea horizontal y frescura en ficha/catálogo). No se usa catálogo real para las pruebas UI.
