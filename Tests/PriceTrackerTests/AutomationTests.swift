@@ -269,3 +269,36 @@ extension AutomationTests {
         #expect(try await log.loadAll().count == 20)
     }
 }
+
+extension AutomationTests {
+    @Test func refreshCommitRejectsDeletedOrConcurrentlyEditedRows() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("commit-\(UUID()).sqlite")
+        let store = SQLiteItemStore(databaseURL: url)
+        let otherConnection = SQLiteItemStore(databaseURL: url)
+        let item = automationItem()
+        try await store.upsert(item)
+        var updated = item; updated.priceCurrentCents = 500
+        let observation = PriceObservation(itemID: item.id, checkedAt: Date(), priceCents: 500,
+                                           currency: "EUR", isOnSale: false)
+        var edited = item; edited.notes = "Keep this concurrent edit"
+        try await otherConnection.upsert(edited)
+        await #expect(throws: RefreshCommitError.self) {
+            try await store.commitRefresh(updated, expected: item, observation: observation)
+        }
+        #expect(try await store.item(id: item.id)?.notes == edited.notes)
+        #expect(try await store.observations(for: item.identityKey).isEmpty)
+        try await otherConnection.delete(id: item.id)
+        await #expect(throws: RefreshCommitError.self) {
+            try await store.commitRefresh(updated, expected: edited, observation: observation)
+        }
+        #expect(try await store.item(id: item.id) == nil)
+        #expect(try await ItemQuery(store: store).entities(for: [item.id]).isEmpty)
+        let connector = RecordingConnector(price: 500)
+        let coordinator = RefreshCoordinator(itemStore: store, alertStore: alerts(), connectorToFetch: { _ in connector })
+        let outcome = await coordinator.refreshResult(id: item.id)
+        let result = RefreshResultEntity(outcome: outcome)
+        #expect(!result.success && result.error != nil && !result.changed)
+        #expect(result.itemID == item.id.uuidString)
+        #expect(await connector.calls == 0)
+    }
+}

@@ -113,7 +113,7 @@ actor RefreshCoordinator {
         guard let connector = connectorToFetch(item.store) else {
             var updated = item
             updated.lastError = "Sin conector de refresco para \(item.store.displayName)."
-            return (try await itemStore.upsert(updated), [])
+            return (try await itemStore.commitRefresh(updated, expected: item, observation: nil), [])
         }
         let result: FetchResult
         do {
@@ -122,7 +122,7 @@ actor RefreshCoordinator {
             try Task.checkCancellation()
             guard let latest = try await itemStore.item(id: item.id) else { throw RefreshError.itemNotFound }
             let failed = PriceDropDetector.applyFailure(to: latest, error: error, now: now())
-            return (try await itemStore.upsert(failed), [])
+            return (try await itemStore.commitRefresh(failed, expected: latest, observation: nil), [])
         }
         try Task.checkCancellation()
         // Re-read after network suspension so edits made during fetch survive.
@@ -134,7 +134,7 @@ actor RefreshCoordinator {
         let observation = PriceObservation(itemID: item.id, checkedAt: now,
             priceCents: result.priceCents, currency: result.currency.uppercased(),
             isOnSale: result.isOnSale, saleEndsAt: result.saleEndsAt, availability: result.availability)
-        let stored = try await itemStore.upsert(evaluation.updatedItem, observation: observation)
+        let stored = try await itemStore.commitRefresh(evaluation.updatedItem, expected: current, observation: observation)
         return (stored, evaluation.alerts)
     }
 }

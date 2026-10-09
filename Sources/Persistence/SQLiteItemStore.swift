@@ -100,12 +100,23 @@ actor SQLiteItemStore: PriceHistoryStoring {
         try upsert(item, observation: Optional(observation))
     }
 
-    private func upsert(_ item: Item, observation: PriceObservation?) throws -> Item {
+    @discardableResult
+    func commitRefresh(_ item: Item, expected: Item, observation: PriceObservation?) throws -> Item {
+        try upsert(item, observation: observation, expected: expected)
+    }
+
+    private func upsert(_ item: Item, observation: PriceObservation?, expected: Item? = nil) throws -> Item {
         try execute("BEGIN IMMEDIATE TRANSACTION")
         do {
             let recordName = CloudRecordIdentity.recordName(for: item.identityKey)
+            let record = try localRecord(named: recordName)
+            if let expected {
+                guard record?.isTombstone == false, record?.item == expected else {
+                    throw RefreshCommitError.itemChanged
+                }
+            }
             var value = item
-            if let existing = try localRecord(named: recordName)?.item {
+            if let existing = record?.item {
                 value.id = existing.id
                 value.createdAt = existing.createdAt
             }

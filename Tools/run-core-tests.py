@@ -11,7 +11,7 @@ source = work/'Sources/PriceTracker'
 tests = work/'Tests/PriceTrackerTests'
 source.mkdir(parents=True, exist_ok=True); tests.mkdir(parents=True, exist_ok=True)
 files = ['App/AppGroup.swift', 'AppIntents/SearchCatalogIntent.swift', 'Models/Item.swift', 'Models/Store.swift', 'Models/ItemStatus.swift', 'Models/PriceObservation.swift',
-         'Persistence/SQLiteItemStore.swift', 'Sync/CloudRecordIdentity.swift', 'Views/DateFormatting.swift', 'Persistence/ItemStoring.swift', 'Persistence/JSONFileStore.swift', 'Connectors/StoreConnector.swift',
+         'Persistence/CloudBackedItemStore.swift', 'Persistence/SQLiteItemStore.swift', 'Sync/CloudRecordIdentity.swift', 'Views/DateFormatting.swift', 'Persistence/ItemStoring.swift', 'Persistence/JSONFileStore.swift', 'Connectors/StoreConnector.swift',
          'Alerts/PriceDropDetector.swift', 'Alerts/AlertNotifier.swift', 'Refresh/RefreshCoordinator.swift',
          'Refresh/DailyRefreshSettings.swift', 'AppIntents/ItemFilterEngine.swift', 'AppIntents/ItemEntity.swift',
          'AppIntents/ItemQuery.swift', 'AppIntents/RefreshItemIntent.swift', 'Views/MoneyFormatter.swift']
@@ -24,6 +24,10 @@ final class AppEnvironment: Sendable {
     let itemStore: any PriceHistoryStoring = EmptyStore()
     let alertStore: any AlertStoring = JSONFileAlertStore(fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("unused-test-alerts.json"))
     var refreshCoordinator: RefreshCoordinator { RefreshCoordinator(itemStore: itemStore, alertStore: alertStore, connectorToFetch: { _ in nil }) }
+}
+actor CloudSyncManager {
+    func start() async {}
+    func enqueueDirtyChanges() async {}
 }
 actor EmptyStore: PriceHistoryStoring {
     func loadAll() -> [Item] { [] }
@@ -40,4 +44,4 @@ let package = Package(name: "PriceTracker", platforms: [.macOS("27.0")], targets
 print(f'Host test package: {work}', flush=True)
 env = dict(os.environ)
 env.setdefault('DEVELOPER_DIR', '/Applications/Xcode-beta.app/Contents/Developer')
-raise SystemExit(subprocess.call(['xcrun', 'swift', 'test', '--package-path', str(work), '--jobs', '2'], env=env))
+raise SystemExit(subprocess.call(['xcrun', 'swift', 'test', '--package-path', str(work), '--jobs', '1'], env=env))
