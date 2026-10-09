@@ -39,6 +39,8 @@ final class AppEnvironment: Sendable {
         self.alertStore = alertStore
         let connectors = ConnectorRegistry()
         self.connectors = connectors
+        let notifier = AlertNotifier(alertStore: alertStore, itemStore: self.itemStore)
+        self.alertNotifier = notifier
         self.refreshCoordinator = RefreshCoordinator(itemStore: self.itemStore, alertStore: alertStore, connectorToFetch: { store in
             #if DEBUG
             if AppGroup.isDemo && ProcessInfo.processInfo.arguments.contains("--demo-history") {
@@ -46,8 +48,9 @@ final class AppEnvironment: Sendable {
             }
             #endif
             return connectors.connectorToFetch(store: store)
+        }, didRefresh: {
+            _ = try? await notifier.notifyPendingDrops()
         })
-        self.alertNotifier = AlertNotifier(alertStore: alertStore, itemStore: self.itemStore)
     }
 }
 

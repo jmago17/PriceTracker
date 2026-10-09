@@ -57,6 +57,8 @@ extension ItemStoring {
 protocol AlertStoring: Sendable {
     func loadAll() async throws -> [PriceAlert]
     func save(_ alerts: [PriceAlert]) async throws
+    @discardableResult func append(_ alert: PriceAlert) async throws -> PriceAlert
+    func markSent(ids: Set<UUID>, at date: Date) async throws
 }
 
 extension AlertStoring {

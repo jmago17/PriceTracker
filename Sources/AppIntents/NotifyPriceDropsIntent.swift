@@ -1,12 +1,10 @@
 import AppIntents
 import Foundation
 
-/// Called once, at the end of the Shortcuts automation (after the
-/// "Repeat with each → RefreshItem" loop), so the user gets one summary
-/// notification instead of one per item. See Alerts/AlertNotifier.swift.
+/// Retry delivery of pending changes; uses the same opt-in and delivery gate.
 struct NotifyPriceDropsIntent: AppIntent {
-    static let title: LocalizedStringResource = "Notificar bajadas de precio"
-    static let description = IntentDescription("Envía un resumen de las bajadas de precio pendientes y las marca como notificadas.")
+    static let title: LocalizedStringResource = "Notificar cambios de precio"
+    static let description = IntentDescription("Reintenta los avisos pendientes si están activados en Ajustes. Las actualizaciones ya notifican automáticamente.")
     static let supportedModes: IntentModes = .background
 
     init() {}

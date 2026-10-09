@@ -1,17 +1,6 @@
 import AppIntents
 import Foundation
 
-/// The `RefreshItem` half of the FindItems + "Repeat with each" pattern.
-/// `supportedModes = .background` (not the deprecated `openAppWhenRun`) so an
-/// unattended hourly Shortcuts automation can invoke it without launching the
-/// app or requiring the device to be unlocked — verified against the iOS 27
-/// AppIntents `.swiftinterface`; see /tmp/opus_architecture.md "Segunda
-/// revisión" for the disassembly-backed reasoning.
-///
-/// Deliberately short-lived: one network round-trip per invocation, so no
-/// individual call gets near the ~30s per-intent budget. The untested part is
-/// the ceiling on the WHOLE automation across many invocations — see
-/// /tmp/pricetracker_status.md, "riesgos".
 struct RefreshItemIntent: AppIntent {
     static let title: LocalizedStringResource = "Actualizar artículo"
     static let description = IntentDescription("Comprueba el precio actual de un artículo y guarda el resultado.")
@@ -26,8 +15,42 @@ struct RefreshItemIntent: AppIntent {
         self.item = item
     }
 
-    func perform() async throws -> some IntentResult & ReturnsValue<Bool> {
-        let success = try await AppEnvironment.shared.refreshCoordinator.refreshItem(id: item.id)
-        return .result(value: success)
+    func perform() async throws -> some IntentResult & ReturnsValue<RefreshResultEntity> & ProvidesDialog {
+        let outcome = await AppEnvironment.shared.refreshCoordinator.refreshResult(id: item.id)
+        let text: String
+        if let error = outcome.error { text = "No se pudo comprobar \(item.title): \(error)" }
+        else if let cents = outcome.priceCents, let currency = outcome.currency {
+            text = "\(item.title): \(MoneyFormatter.string(cents: cents, currency: currency)). \(outcome.changed ? "El precio ha cambiado." : "Sin cambios de precio.")"
+        } else { text = "Comprobación terminada." }
+        return .result(value: RefreshResultEntity(outcome: outcome), dialog: IntentDialog(stringLiteral: text))
+    }
+}
+
+/// A value for each loop iteration, including failed/deleted items.
+struct RefreshResultEntity: TransientAppEntity {
+    static var typeDisplayRepresentation: TypeDisplayRepresentation { "Resultado de actualización" }
+    @Property(title: "ID del artículo") var itemID: String
+    @Property(title: "Precio (céntimos)") var priceCents: Int?
+    @Property(title: "Moneda") var currency: String?
+    @Property(title: "Ha cambiado") var changed: Bool
+    @Property(title: "Comprobación correcta") var success: Bool
+    @Property(title: "Comprobado el") var checkedAt: Date?
+    @Property(title: "Error") var error: String?
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: "\(success ? "Comprobado" : "Error")", subtitle: "\(error ?? currency ?? "")")
+    }
+    init() {
+        itemID = ""
+        changed = false
+        success = false
+    }
+    init(outcome: ItemRefreshOutcome) {
+        itemID = outcome.itemID.uuidString
+        priceCents = outcome.priceCents
+        currency = outcome.currency
+        changed = outcome.changed
+        success = outcome.error == nil
+        checkedAt = outcome.checkedAt
+        error = outcome.error
     }
 }

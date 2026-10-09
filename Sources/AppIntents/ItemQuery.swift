@@ -2,18 +2,16 @@ import AppIntents
 import CoreSpotlight
 import Foundation
 
-/// Backs the "Buscar Artículos" Shortcuts action. This is the `FindItems` half
-/// of the FindItems + "Repeat with each" RefreshItem pattern from
-/// /tmp/josu_pushback2.md — verified against the real iOS 27 AppIntents
-/// framework to be the pattern `EntityPropertyQuery` was built for (filter by
-/// store/category/status/staleness, sort by last-checked, cap with `limit:`).
-///
-/// The actual filter/sort/limit logic lives in `ItemFilterEngine` so it can be
-/// unit tested without the AppIntents runtime; this type is a thin adapter.
+/// Typed find action with property filters, sorting and limits.
 struct ItemQuery: EntityPropertyQuery {
     typealias ComparatorMappingType = @Sendable (Item) -> Bool
 
     nonisolated(unsafe) static let properties = QueryProperties {
+        Property(\ItemEntity.$title) {
+            ContainsComparator { (value: String) -> ComparatorMappingType in
+                { $0.title.localizedCaseInsensitiveContains(value) }
+            }
+        }
         Property(\ItemEntity.$store) {
             EqualToComparator { (value: Store) -> ComparatorMappingType in
                 { item in item.store == value }
@@ -42,11 +40,14 @@ struct ItemQuery: EntityPropertyQuery {
         SortableBy(\ItemEntity.$priceCurrentCents)
     }
 
-    init() {}
+    private let store: any ItemStoring
+    init() { store = AppEnvironment.shared.itemStore }
+    init(store: any ItemStoring) { self.store = store }
 
     func entities(for identifiers: [UUID]) async throws -> [ItemEntity] {
-        let items = try await AppEnvironment.shared.itemStore.loadAll()
-        return items.filter { identifiers.contains($0.id) }.map(ItemEntity.init(item:))
+        let items = try await store.loadAll()
+        let byID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        return identifiers.compactMap { byID[$0] }.map(ItemEntity.init(item:))
     }
 
     func entities(
@@ -55,7 +56,7 @@ struct ItemQuery: EntityPropertyQuery {
         sortedBy: [EntityQuerySort<ItemEntity>],
         limit: Int?
     ) async throws -> [ItemEntity] {
-        let items = try await AppEnvironment.shared.itemStore.loadAll()
+        let items = try await store.loadAll()
         let filterMode: FilterMode = (mode == .and) ? .and : .or
         var result = ItemFilterEngine.filter(items, predicates: comparators, mode: filterMode)
 
@@ -78,7 +79,7 @@ struct ItemQuery: EntityPropertyQuery {
 
 extension ItemQuery {
     func suggestedEntities() async throws -> [ItemEntity] {
-        let items = try await AppEnvironment.shared.itemStore.loadAll()
+        let items = try await store.loadAll()
         return items
             .filter { $0.status != .archived }
             .sorted { $0.updatedAt > $1.updatedAt }
@@ -88,7 +89,7 @@ extension ItemQuery {
 
     func entities(matching string: String) async throws -> [ItemEntity] {
         let needle = string.trimmingCharacters(in: .whitespacesAndNewlines)
-        let items = try await AppEnvironment.shared.itemStore.loadAll()
+        let items = try await store.loadAll()
         guard !needle.isEmpty else {
             return try await suggestedEntities()
         }
@@ -113,7 +114,7 @@ extension ItemQuery: IndexedEntityQuery {
     }
 
     func reindexAllEntities(indexDescription: CSSearchableIndexDescription) async throws {
-        let items = try await AppEnvironment.shared.itemStore.loadAll()
+        let items = try await store.loadAll()
         let index = CSSearchableIndex.default()
         try await index.deleteAppEntities(ofType: ItemEntity.self)
         try await index.indexAppEntities(items.map(ItemEntity.init(item:)))

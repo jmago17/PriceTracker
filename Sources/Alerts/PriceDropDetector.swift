@@ -79,7 +79,7 @@ enum PriceDropDetector {
         if updated.priceLowCents == nil || newPrice < updated.priceLowCents! {
             updated.priceLowCents = newPrice
             updated.priceLowAt = now
-            if hadPreviousObservation {
+            if hadPreviousObservation && previousPrice != newPrice {
                 alerts.append(PendingAlertDraft(kind: .lowRecord, fromCents: previousPrice, toCents: newPrice))
             }
         }
@@ -89,7 +89,7 @@ enum PriceDropDetector {
             updated.lastAlertedPriceCents = nil
         }
 
-        if let target = updated.targetPriceCents, newPrice <= target {
+        if previousPrice != nil, previousPrice != newPrice, let target = updated.targetPriceCents, newPrice <= target {
             if updated.lastAlertedPriceCents == nil || newPrice < updated.lastAlertedPriceCents! {
                 alerts.append(PendingAlertDraft(kind: .targetHit, fromCents: previousPrice, toCents: newPrice))
                 updated.lastAlertedPriceCents = newPrice
@@ -101,6 +101,9 @@ enum PriceDropDetector {
             }
         }
 
+        if let previousPrice, newPrice > previousPrice {
+            alerts.append(PendingAlertDraft(kind: .priceChange, fromCents: previousPrice, toCents: newPrice))
+        }
         return PriceEvaluation(alerts: alerts, updatedItem: updated)
     }
 

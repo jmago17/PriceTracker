@@ -39,8 +39,19 @@ actor JSONFileStore<Element: Codable & Sendable> {
         // leave `items.json` truncated (same lesson as RemoteSSH's state files).
         let tempURL = directory.appendingPathComponent(".\(fileURL.lastPathComponent).tmp-\(UUID().uuidString)")
         try data.write(to: tempURL, options: .atomic)
-        _ = try FileManager.default.replaceItemAt(fileURL, withItemAt: tempURL)
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            _ = try FileManager.default.replaceItemAt(fileURL, withItemAt: tempURL)
+        } else {
+            try FileManager.default.moveItem(at: tempURL, to: fileURL)
+        }
     }
+
+    func mutate(_ body: @Sendable (inout [Element]) -> Void) throws {
+        var elements = try loadAll()
+        body(&elements)
+        try save(elements)
+    }
+
 }
 
 struct JSONFileItemStore: ItemStoring {
@@ -72,5 +83,20 @@ struct JSONFileAlertStore: AlertStoring {
 
     func save(_ alerts: [PriceAlert]) async throws {
         try await backing.save(alerts)
+    }
+}
+
+extension JSONFileAlertStore {
+    @discardableResult
+    func append(_ alert: PriceAlert) async throws -> PriceAlert {
+        try await backing.mutate { $0.append(alert) }
+        return alert
+    }
+    func markSent(ids: Set<UUID>, at date: Date = Date()) async throws {
+        try await backing.mutate { alerts in
+            for index in alerts.indices where ids.contains(alerts[index].id) {
+                alerts[index].sentAt = date
+            }
+        }
     }
 }

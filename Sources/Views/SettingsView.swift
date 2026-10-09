@@ -7,9 +7,32 @@ struct SettingsView: View {
     var viewModel: ItemListViewModel
     var syncViewModel: SyncViewModel
 
+    @State private var automation = DailyRefreshSettings.shared
+
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    Toggle("Actualizar precios diariamente", isOn: Binding(
+                        get: { automation.dailyEnabled }, set: { automation.setDailyEnabled($0) }))
+                    Toggle("Notificar cambios de precio", isOn: Binding(
+                        get: { automation.notificationsEnabled },
+                        set: { value in Task { await automation.setNotificationsEnabled(value) } }))
+                        .disabled(automation.requestingPermission)
+                    if let message = automation.message {
+                        Text(message).font(.caption).foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Precios y avisos")
+                } footer: {
+                    Text("iOS decide cuándo puede actualizar en segundo plano; no se garantiza una hora ni una ejecución diaria. Solo se comprueban tiendas compatibles. Los avisos también se aplican a las comprobaciones manuales y de Atajos.")
+                }
+                Section("Atajos y Siri") {
+                    Text("En Atajos: Buscar artículos → Repetir con cada uno → Actualizar artículo. Cada resultado incluye precio en céntimos, moneda, cambio y error.")
+                    Text("Con Siri puedes decir: ‘Comprueba los precios en PriceTracker’. La disponibilidad depende del sistema, idioma y configuración de Siri.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+
                 Section {
                     NavigationLink {
                         SyncView(viewModel: syncViewModel)

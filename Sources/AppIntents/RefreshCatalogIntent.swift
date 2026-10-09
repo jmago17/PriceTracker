@@ -14,6 +14,7 @@ struct RefreshCatalogIntent: AppIntent {
     }
 
     static func spokenSummary(for summary: RefreshSummary) -> String {
+        if summary.failed > 0 { return "Comprobados \(summary.checked) artículos: \(summary.dropped) con bajadas y \(summary.failed) errores. Omitidos: \(summary.skipped)." }
         if summary.checked == 0 { return "No hay artículos que comprobar." }
         if summary.dropped == 0 { return "Comprobados \(summary.checked) artículos. Ninguno ha bajado." }
         if summary.dropped == 1 { return "Comprobados \(summary.checked) artículos. Uno ha bajado de precio." }

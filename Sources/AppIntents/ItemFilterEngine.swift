@@ -56,7 +56,7 @@ enum ItemFilterEngine {
 
     static func limit(_ items: [Item], to limit: Int?) -> [Item] {
         guard let limit else { return items }
-        return Array(items.prefix(limit))
+        return Array(items.prefix(max(0, limit)))
     }
 
     static func filter(_ items: [Item], by categoryFilter: ItemCategoryFilter) -> [Item] {
