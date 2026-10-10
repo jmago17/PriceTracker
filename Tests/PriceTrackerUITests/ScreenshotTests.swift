@@ -86,6 +86,69 @@ final class ScreenshotTests: XCTestCase {
         capture(app, "history_empty")
     }
 
+    func testContextMenuShare() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo-catalog"]
+        app.launch()
+        let item = firstItemElement(app)
+        XCTAssertTrue(item.waitForExistence(timeout: 10))
+        item.press(forDuration: 1.2)
+        XCTAssertTrue(app.buttons["Compartir"].waitForExistence(timeout: 5))
+        capture(app, "context_menu_share")
+    }
+
+    func testSelectionShareBar() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo-catalog"]
+        app.launch()
+        let item = firstItemElement(app)
+        XCTAssertTrue(item.waitForExistence(timeout: 10))
+
+        if app.buttons["start-selection-button"].exists {
+            app.buttons["start-selection-button"].tap()
+        } else {
+            app.buttons["Opciones del catálogo"].tap()
+            app.buttons["Seleccionar"].tap()
+        }
+        firstItemElement(app).tap()
+        XCTAssertTrue(app.buttons["share-selection-button"].waitForExistence(timeout: 5))
+        capture(app, "selection_share_bar")
+    }
+
+    func testItemDetailShare() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo-catalog"]
+        app.launch()
+        let item = firstItemElement(app)
+        XCTAssertTrue(item.waitForExistence(timeout: 10))
+        item.tap()
+        XCTAssertTrue(app.buttons["share-item-button"].waitForExistence(timeout: 5))
+        capture(app, "detail_share")
+    }
+
+    /// Only meaningful on a regular-width device (iPad); skips cleanly otherwise
+    /// rather than asserting a layout that an iPhone destination never shows.
+    func testMuralLandscapeAndPortrait() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo-catalog"]
+        app.launch()
+        guard app.buttons["start-selection-button"].waitForExistence(timeout: 5) else {
+            throw XCTSkip("Mural solo aparece en ancho regular (iPad)")
+        }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(app.staticTexts["Camiseta básica"].waitForExistence(timeout: 5))
+        capture(app, "mural_landscape")
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(app.staticTexts["Camiseta básica"].waitForExistence(timeout: 5))
+        capture(app, "mural_portrait")
+    }
+
+    private func firstItemElement(_ app: XCUIApplication) -> XCUIElement {
+        let row = app.descendants(matching: .any)["item-row"].firstMatch
+        if row.exists { return row }
+        return app.descendants(matching: .any)["item-card"].firstMatch
+    }
+
     private func capture(_ app: XCUIApplication, _ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name

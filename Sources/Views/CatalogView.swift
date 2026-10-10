@@ -166,7 +166,12 @@ struct CatalogView: View {
     // MARK: iPhone list
 
     private var compactList: some View {
-        List(selection: $selection) {
+        // No `selection:` on this List: merely declaring that parameter — even
+        // bound to a throwaway value — makes a plain tap toggle the row instead
+        // of pushing its NavigationLink. Multi-select below mirrors the iPad
+        // mural instead: a custom indicator + a Button that toggles `selection`
+        // while isSelecting, a plain NavigationLink otherwise.
+        List {
             if !viewModel.items.isEmpty && !isSelecting {
                 Section {
                     summaryAndSearchHeader
@@ -180,16 +185,10 @@ struct CatalogView: View {
             ForEach(viewModel.categorySections) { section in
                 Section {
                     ForEach(section.items) { item in
-                        NavigationLink(value: item.id) {
-                            ItemRowView(item: item)
-                        }
-                        .contextMenu {
-                            ItemContextMenu(item: item, viewModel: viewModel) {
-                                beginSelection(with: item)
-                            }
-                        }
+                        compactRow(item)
                     }
                     .onDelete { offsets in
+                        guard !isSelecting else { return }
                         for index in offsets { viewModel.delete(section.items[index]) }
                     }
                 } header: {
@@ -214,12 +213,40 @@ struct CatalogView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .environment(\.editMode, .constant(isSelecting ? .active : .inactive))
         // The floating tab bar otherwise covers the last section's bottom
         // rows — this is scroll-content margin, not a tab-bar offset, so
         // it never fights the tab bar's own layout.
         .contentMargins(.bottom, 90, for: .scrollContent)
         .searchable(text: $viewModel.searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Buscar en el catálogo")
+    }
+
+    @ViewBuilder
+    private func compactRow(_ item: Item) -> some View {
+        if isSelecting {
+            Button {
+                if selection.contains(item.id) {
+                    selection.remove(item.id)
+                } else {
+                    selection.insert(item.id)
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    SelectionIndicator(isSelected: selection.contains(item.id))
+                    ItemRowView(item: item)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(selection.contains(item.id) ? .isSelected : [])
+        } else {
+            NavigationLink(value: item.id) {
+                ItemRowView(item: item)
+            }
+            .contextMenu {
+                ItemContextMenu(item: item, viewModel: viewModel) {
+                    beginSelection(with: item)
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -630,5 +657,27 @@ private struct FilterChip: View {
         .background(isSelected ? Color.accentColor : Color(.tertiarySystemFill))
         .clipShape(Capsule())
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+/// Leading selection circle for the iPhone list — the mural uses its own
+/// (`ItemCardView.leadingBadge`) since it overlays the card instead of sitting
+/// inline before it.
+private struct SelectionIndicator: View {
+    let isSelected: Bool
+
+    var body: some View {
+        ZStack {
+            Circle().fill(isSelected ? Color.accentColor : Color(.tertiarySystemFill))
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.caption.weight(.heavy))
+                    .foregroundStyle(.white)
+            } else {
+                Circle().strokeBorder(Color.secondary, lineWidth: 1.5)
+            }
+        }
+        .frame(width: 24, height: 24)
+        .accessibilityHidden(true)
     }
 }

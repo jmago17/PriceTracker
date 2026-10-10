@@ -255,16 +255,27 @@ extension ItemListViewModel {
             } catch { lastErrorMessage = error.localizedDescription }
             return
         }
-        let examples: [(String, String?, Int, Int)] = [
-            ("Things — organiza tus ideas", "Productividad", 1499, 2499),
-            ("Agenda de papel", "Productividad", 1890, 1890),
-            ("El arte de observar", "Libros", 899, 1299),
-            ("Rutas y viajes", "Libros", 1599, 1599),
-            ("Auriculares de estudio", "Tecnología", 12900, 15900),
-            ("Lámpara de lectura", nil, 3900, 3900)
+        struct Example {
+            let title: String
+            let category: String?
+            let priceCurrentCents: Int
+            let priceAtAddCents: Int
+            let imageURL: URL?
+            let summary: String?
+            let size: String?
+            let color: String?
+        }
+        let examples: [Example] = [
+            Example(title: "Things — organiza tus ideas", category: "Productividad", priceCurrentCents: 1499, priceAtAddCents: 2499, imageURL: nil, summary: nil, size: nil, color: nil),
+            Example(title: "Agenda de papel", category: "Productividad", priceCurrentCents: 1890, priceAtAddCents: 1890, imageURL: URL(string: "https://example.com/img/agenda.jpg"), summary: "Agenda anual de tapa dura con gomas elásticas y separadores mensuales.", size: nil, color: "Burdeos"),
+            Example(title: "El arte de observar", category: "Libros", priceCurrentCents: 899, priceAtAddCents: 1299, imageURL: URL(string: "https://example.com/img/libro.jpg"), summary: "Ensayo breve sobre atención y percepción visual, con casos prácticos.", size: nil, color: nil),
+            Example(title: "Rutas y viajes", category: "Libros", priceCurrentCents: 1599, priceAtAddCents: 1599, imageURL: nil, summary: nil, size: nil, color: nil),
+            Example(title: "Auriculares de estudio", category: "Tecnología", priceCurrentCents: 12900, priceAtAddCents: 15900, imageURL: URL(string: "https://example.com/img/auriculares.jpg"), summary: "Auriculares cerrados de monitorización, cable desmontable de 3 m.", size: nil, color: "Negro"),
+            Example(title: "Lámpara de lectura", category: nil, priceCurrentCents: 3900, priceAtAddCents: 3900, imageURL: nil, summary: nil, size: nil, color: nil),
+            Example(title: "Camiseta básica", category: "Ropa", priceCurrentCents: 1299, priceAtAddCents: 1299, imageURL: nil, summary: "Camiseta de algodón orgánico, corte regular.", size: "M", color: "Verde oliva")
         ]
         items = examples.enumerated().map { index, example in
-            Item(store: .generic, storeItemID: "demo-\(index)", canonicalURL: URL(string: "https://example.com/\(index)")!, title: example.0, subtitle: "Catálogo de demostración", category: example.1, priceCurrentCents: example.2, priceAtAddCents: example.3, priceLowCents: example.2, lastCheckedAt: Date(), lastSuccessAt: Date())
+            Item(store: .generic, storeItemID: "demo-\(index)", canonicalURL: URL(string: "https://example.com/\(index)")!, title: example.title, subtitle: "Catálogo de demostración", imageURL: example.imageURL, category: example.category, priceCurrentCents: example.priceCurrentCents, priceAtAddCents: example.priceAtAddCents, priceLowCents: example.priceCurrentCents, lastCheckedAt: Date(), lastSuccessAt: Date(), summary: example.summary, size: example.size, color: example.color)
         }
         do { try await environment.itemStore.save(items) }
         catch { lastErrorMessage = error.localizedDescription }
