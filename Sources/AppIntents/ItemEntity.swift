@@ -26,7 +26,7 @@ struct ItemEntity: AppEntity, IndexedEntity {
     var status: ItemStatus
 
     @Property(title: "Precio actual (céntimos)")
-    var priceCurrentCents: Int
+    var priceCurrentCents: Int?
 
     @Property(title: "Divisa")
     var currency: String
@@ -40,22 +40,20 @@ struct ItemEntity: AppEntity, IndexedEntity {
         store = item.store
         category = item.category ?? ""
         status = item.status
-        priceCurrentCents = item.priceCurrentCents ?? 0
+        priceCurrentCents = item.priceCurrentCents
         currency = item.currency
         lastCheckedAt = item.lastCheckedAt
     }
 
     var displayRepresentation: DisplayRepresentation {
-        let priceText = priceCurrentCents > 0 ? MoneyFormatter.string(cents: priceCurrentCents, currency: currency) : "sin precio"
+        let priceText = priceCurrentCents.map { MoneyFormatter.string(cents: $0, currency: currency) } ?? "sin precio"
         return DisplayRepresentation(title: "\(title)", subtitle: "\(store.displayName) · \(priceText)")
     }
 
     var attributeSet: CSSearchableItemAttributeSet {
         let attributes = defaultAttributeSet
         attributes.title = title
-        attributes.contentDescription = priceCurrentCents > 0
-            ? "\(store.displayName) · \(MoneyFormatter.string(cents: priceCurrentCents, currency: currency))"
-            : store.displayName
+        attributes.contentDescription = priceCurrentCents.map { "\(store.displayName) · \(MoneyFormatter.string(cents: $0, currency: currency))" } ?? store.displayName
         attributes.keywords = [title, store.displayName, category].filter { !$0.isEmpty }
         return attributes
     }

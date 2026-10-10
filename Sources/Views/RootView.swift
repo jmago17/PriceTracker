@@ -9,12 +9,15 @@ struct RootView: View {
     @State private var viewModel = ItemListViewModel()
     @State private var syncViewModel = SyncViewModel()
     @State private var sharedInbox = SharedInboxViewModel()
+    @State private var searchNavigation = CatalogSearchNavigation.shared
+    @State private var catalogPresentationID = UUID()
     @State private var selectedTab: RootTab = .catalog
 
     var body: some View {
         TabView(selection: $selectedTab) {
             Tab("Precios", systemImage: "tag", value: RootTab.catalog) {
                 CatalogView(viewModel: viewModel, syncViewModel: syncViewModel, selectedTab: $selectedTab)
+                    .id(catalogPresentationID)
             }
             Tab("Bandeja", systemImage: "tray.and.arrow.down", value: RootTab.inbox) {
                 SharedInboxView(viewModel: sharedInbox) { await viewModel.load() }
@@ -26,6 +29,15 @@ struct RootView: View {
         }
         .tabViewStyle(.sidebarAdaptable)
         .tint(Color.accentColor)
+        .onChange(of: searchNavigation.pending, initial: true) { _, request in
+            guard let request else { return }
+            viewModel.searchText = request.term
+            viewModel.categoryFilter = .all
+            viewModel.statusFilter = .active
+            selectedTab = .catalog
+            catalogPresentationID = request.id
+            searchNavigation.pending = nil
+        }
         .task {
             let viewModel = viewModel
             sharedInbox.onItemAdded = { item, pageText in

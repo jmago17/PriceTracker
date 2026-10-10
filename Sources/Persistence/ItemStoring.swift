@@ -16,6 +16,26 @@ protocol ItemStoring: Sendable {
 protocol PriceHistoryStoring: ItemStoring {
     @discardableResult func upsert(_ item: Item, observation: PriceObservation) async throws -> Item
     func observations(for identityKey: String) async throws -> [PriceObservation]
+    /// Compare and commit in one transaction; never resurrect a deleted item or
+    /// overwrite an edit made after the coordinator's last read.
+    @discardableResult func commitRefresh(_ item: Item, expected: Item, observation: PriceObservation?) async throws -> Item
+}
+
+extension PriceHistoryStoring {
+    /// Fallback for lightweight in-memory test stores. SQLite overrides atomically.
+    @discardableResult
+    func commitRefresh(_ item: Item, expected: Item, observation: PriceObservation?) async throws -> Item {
+        guard try await self.item(id: expected.id) == expected else { throw RefreshCommitError.itemChanged }
+        if let observation { return try await upsert(item, observation: observation) }
+        return try await upsert(item)
+    }
+}
+
+enum RefreshCommitError: Error, LocalizedError {
+    case itemChanged
+    var errorDescription: String? {
+        "El artículo se modificó o eliminó durante la comprobación. Vuelve a intentarlo."
+    }
 }
 
 extension ItemStoring {
@@ -57,6 +77,8 @@ extension ItemStoring {
 protocol AlertStoring: Sendable {
     func loadAll() async throws -> [PriceAlert]
     func save(_ alerts: [PriceAlert]) async throws
+    @discardableResult func append(_ alert: PriceAlert) async throws -> PriceAlert
+    func markSent(ids: Set<UUID>, at date: Date) async throws
 }
 
 extension AlertStoring {

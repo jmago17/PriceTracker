@@ -36,6 +36,7 @@ enum CategorySource: String, Codable, Sendable {
 }
 
 enum AlertKind: String, Codable, Sendable {
+    case priceChange
     case drop
     case targetHit
     case lowRecord

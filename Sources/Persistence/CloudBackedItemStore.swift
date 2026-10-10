@@ -36,6 +36,14 @@ struct CloudBackedItemStore: PriceHistoryStoring {
         return stored
     }
 
+    @discardableResult
+    func commitRefresh(_ item: Item, expected: Item, observation: PriceObservation?) async throws -> Item {
+        _ = try await localStore.migrateLegacyJSONIfNeeded(from: legacyJSONURL)
+        let stored = try await localStore.commitRefresh(item, expected: expected, observation: observation)
+        Task { await syncManager.enqueueDirtyChanges() }
+        return stored
+    }
+
     func observations(for identityKey: String) async throws -> [PriceObservation] {
         try await localStore.observations(for: identityKey)
     }

@@ -13,45 +13,67 @@ struct RefreshSummary: Equatable, Sendable {
     var skipped: Int = 0
 }
 
-/// Drives every "refresh" path in the app: a single item (also the body of the
-/// `RefreshItem` App Intent), a category, or the whole catalog. Deliberately NOT
-/// one monolithic "RunPriceCheck" — see project brief and
-/// /tmp/josu_pushback2.md for why that shape was rejected.
-///
-/// An `actor` so overlapping calls (e.g. the UI triggers "refresh all" while the
-/// `RefreshItem` intent fires from Shortcuts) don't race on the same file-backed
-/// store.
+/// Shared by foreground, background and App Intents in the app process.
 actor RefreshCoordinator {
     private let itemStore: any PriceHistoryStoring
     private let alertStore: any AlertStoring
     private let connectorToFetch: @Sendable (Store) -> (any StoreConnector)?
+    private var busy = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private let didRefresh: @Sendable () async -> Void
+
+    private func acquire() async {
+        if busy { await withCheckedContinuation { waiters.append($0) } }
+        else { busy = true }
+    }
+
+    private func release() {
+        if waiters.isEmpty { busy = false } else { waiters.removeFirst().resume() }
+    }
+
     private let now: @Sendable () -> Date
 
-    init(itemStore: any PriceHistoryStoring, alertStore: any AlertStoring, connectorToFetch: @escaping @Sendable (Store) -> (any StoreConnector)?, now: @escaping @Sendable () -> Date = { Date() }) {
+    init(itemStore: any PriceHistoryStoring, alertStore: any AlertStoring, connectorToFetch: @escaping @Sendable (Store) -> (any StoreConnector)?, now: @escaping @Sendable () -> Date = { Date() }, didRefresh: @escaping @Sendable () async -> Void = {}) {
         self.itemStore = itemStore
         self.alertStore = alertStore
         self.connectorToFetch = connectorToFetch
         self.now = now
+        self.didRefresh = didRefresh
     }
 
     /// Refreshes one item. Returns `true` if the fetch succeeded (regardless of
-    /// whether the price moved). Missing items and persistence errors throw;
-    /// connector failures are recorded on the item, not thrown.
+    /// whether the price moved). The typed result preserves per-item errors.
     @discardableResult
     func refreshItem(id: UUID) async throws -> Bool {
-        guard let item = try await itemStore.item(id: id) else {
-            throw RefreshError.itemNotFound
+        let result = await refreshResult(id: id)
+        if let error = result.error, !result.didPersist { throw RefreshError.failed(error) }
+        return result.error == nil
+    }
+
+    func refreshResult(id: UUID) async -> ItemRefreshOutcome {
+        await acquire()
+        defer { release() }
+        do {
+            try Task.checkCancellation()
+            guard let item = try await itemStore.item(id: id) else { throw RefreshError.itemNotFound }
+            let (updated, alerts) = try await refresh(item)
+            for alert in alerts {
+                try await alertStore.append(PriceAlert(itemID: id, kind: alert.kind, priceFromCents: alert.fromCents, priceToCents: alert.toCents))
+            }
+            await didRefresh()
+            return ItemRefreshOutcome(itemID: id, priceCents: updated.priceCurrentCents,
+                currency: updated.currency, changed: updated.lastError == nil &&
+                    (item.priceCurrentCents != updated.priceCurrentCents || item.currency != updated.currency),
+                checkedAt: updated.lastCheckedAt, error: updated.lastError,
+                dropped: alerts.contains { $0.kind == .drop || $0.kind == .targetHit || $0.kind == .lowRecord }, didPersist: true)
+        } catch {
+            return ItemRefreshOutcome(itemID: id, error: error.localizedDescription)
         }
-        let (updated, alerts) = try await refresh(item)
-        for alert in alerts {
-            try await alertStore.append(PriceAlert(itemID: updated.id, kind: alert.kind, priceFromCents: alert.fromCents, priceToCents: alert.toCents))
-        }
-        return updated.lastError == nil
     }
 
     func refreshCategory(_ category: String?, onProgress: (@MainActor @Sendable (RefreshProgress) -> Void)? = nil) async throws -> RefreshSummary {
         let items = try await itemStore.loadAll().filter { $0.category == category && $0.status != .archived }
-        return try await refreshBatch(items, onProgress: onProgress)
+        return try await refreshBatch(ItemFilterEngine.sort(items, by: .lastCheckedAt, ascending: true), onProgress: onProgress)
     }
 
     /// Refreshes every active item. Cooperatively cancelable: callers hold the
@@ -61,7 +83,7 @@ actor RefreshCoordinator {
     /// pass a closure that touches its own state directly, with no manual hop.
     func refreshCatalog(onProgress: (@MainActor @Sendable (RefreshProgress) -> Void)? = nil) async throws -> RefreshSummary {
         let items = try await itemStore.loadAll().filter { $0.status != .archived }
-        return try await refreshBatch(items, onProgress: onProgress)
+        return try await refreshBatch(ItemFilterEngine.sort(items, by: .lastCheckedAt, ascending: true), onProgress: onProgress)
     }
 
     private func refreshBatch(_ items: [Item], onProgress: (@MainActor @Sendable (RefreshProgress) -> Void)?) async throws -> RefreshSummary {
@@ -76,16 +98,10 @@ actor RefreshCoordinator {
                 continue
             }
 
-            let (updated, alerts) = try await refresh(item)
-            for alert in alerts {
-                try await alertStore.append(PriceAlert(itemID: updated.id, kind: alert.kind, priceFromCents: alert.fromCents, priceToCents: alert.toCents))
-            }
+            let result = await refreshResult(id: item.id)
             summary.checked += 1
-            if updated.lastError != nil {
-                summary.failed += 1
-            } else if !alerts.isEmpty {
-                summary.dropped += 1
-            }
+            if result.error != nil { summary.failed += 1 }
+            else if result.dropped { summary.dropped += 1 }
         }
         await onProgress?(RefreshProgress(completed: total, total: total, currentTitle: nil))
         return summary
@@ -97,31 +113,51 @@ actor RefreshCoordinator {
         guard let connector = connectorToFetch(item.store) else {
             var updated = item
             updated.lastError = "Sin conector de refresco para \(item.store.displayName)."
-            return (try await itemStore.upsert(updated), [])
+            return (try await itemStore.commitRefresh(updated, expected: item, observation: nil), [])
         }
         let result: FetchResult
         do {
             result = try await connector.fetch(item)
         } catch {
-            let failed = PriceDropDetector.applyFailure(to: item, error: error, now: now())
-            return (try await itemStore.upsert(failed), [])
+            try Task.checkCancellation()
+            guard let latest = try await itemStore.item(id: item.id) else { throw RefreshError.itemNotFound }
+            let failed = PriceDropDetector.applyFailure(to: latest, error: error, now: now())
+            return (try await itemStore.commitRefresh(failed, expected: latest, observation: nil), [])
+        }
+        try Task.checkCancellation()
+        // Re-read after network suspension so edits made during fetch survive.
+        guard let current = try await itemStore.item(id: item.id), current.identityKey == item.identityKey else {
+            throw RefreshError.itemNotFound
         }
         let now = now()
-        let evaluation = PriceDropDetector.evaluate(item: item, fetch: result, now: now)
+        let evaluation = PriceDropDetector.evaluate(item: current, fetch: result, now: now)
         let observation = PriceObservation(itemID: item.id, checkedAt: now,
             priceCents: result.priceCents, currency: result.currency.uppercased(),
             isOnSale: result.isOnSale, saleEndsAt: result.saleEndsAt, availability: result.availability)
-        let stored = try await itemStore.upsert(evaluation.updatedItem, observation: observation)
+        let stored = try await itemStore.commitRefresh(evaluation.updatedItem, expected: current, observation: observation)
         return (stored, evaluation.alerts)
     }
 }
 
 enum RefreshError: Error, LocalizedError {
     case itemNotFound
+    case failed(String)
 
     var errorDescription: String? {
         switch self {
+        case .failed(let message): return message
         case .itemNotFound: return "El artículo ya no existe."
         }
     }
+}
+
+struct ItemRefreshOutcome: Sendable {
+    var itemID: UUID
+    var priceCents: Int? = nil
+    var currency: String? = nil
+    var changed: Bool = false
+    var checkedAt: Date? = nil
+    var error: String? = nil
+    var dropped: Bool = false
+    var didPersist: Bool = false
 }

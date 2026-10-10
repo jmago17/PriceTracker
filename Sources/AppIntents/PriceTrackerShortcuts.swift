@@ -2,6 +2,11 @@ import AppIntents
 
 struct PriceTrackerShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
+        AppShortcut(intent: RefreshItemIntent(), phrases: [
+            "Actualiza \(\.$item) en \(.applicationName)",
+            "Actualiza un artículo en \(.applicationName)"
+        ], shortTitle: "Actualizar artículo", systemImageName: "arrow.clockwise.circle")
+
         AppShortcut(intent: ShowPriceDropsIntent(), phrases: [
             "Qué ha bajado en \(.applicationName)", "Bajadas de precio en \(.applicationName)",
             "Show price drops in \(.applicationName)"

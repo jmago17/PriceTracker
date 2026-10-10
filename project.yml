@@ -77,7 +77,10 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.maromeapps.PriceTracker.daily-prices
         UIBackgroundModes:
+          - fetch
           - remote-notification
         ITSAppUsesNonExemptEncryption: false
 
