@@ -79,7 +79,11 @@ struct ItemCardView: View {
     }
 
     private var imageTile: some View {
-        Color.white
+        // Plain white blended into the page background (also white) and left
+        // the tile invisible outside the context menu's own preview shadow —
+        // confirmed on a real mural screenshot. secondarySystemBackground plus
+        // a soft shadow keeps it visible in both light and dark mode.
+        Color(.secondarySystemBackground)
             .aspectRatio(aspectRatio, contentMode: .fit)
             .overlay {
                 AsyncImage(url: item.imageURL) { image in
@@ -91,6 +95,7 @@ struct ItemCardView: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .shadow(color: .black.opacity(0.08), radius: 8, y: 4)
             .overlay(alignment: .topTrailing) {
                 PriceBadge(text: priceText)
                     .padding(10)

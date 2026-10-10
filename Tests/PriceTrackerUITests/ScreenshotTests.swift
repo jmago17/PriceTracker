@@ -154,9 +154,15 @@ final class ScreenshotTests: XCTestCase {
         }
         XCUIDevice.shared.orientation = .landscapeLeft
         XCTAssertTrue(app.staticTexts["Camiseta básica"].waitForExistence(timeout: 5))
+        // The element exists as soon as the rotation starts, well before the
+        // interface finishes animating to it — without this the screenshot
+        // captures the old portrait layout rendered into a landscape-shaped
+        // buffer (confirmed on a real capture: sideways text, black bars).
+        Thread.sleep(forTimeInterval: 1)
         capture(app, "mural_landscape")
         XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(app.staticTexts["Camiseta básica"].waitForExistence(timeout: 5))
+        Thread.sleep(forTimeInterval: 1)
         capture(app, "mural_portrait")
     }
 
