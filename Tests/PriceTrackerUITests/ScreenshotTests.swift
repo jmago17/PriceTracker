@@ -126,6 +126,23 @@ final class ScreenshotTests: XCTestCase {
         capture(app, "detail_share")
     }
 
+    /// Covers an item that carries size/color (`variantChips`), distinct from
+    /// `testItemDetailShare`'s item which only has a summary.
+    func testItemDetailVariantChips() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo-catalog"]
+        app.launch()
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.tap()
+        search.typeText("Camiseta")
+        let row = firstItemElement(app)
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        XCTAssertTrue(app.staticTexts["Verde oliva"].waitForExistence(timeout: 5))
+        capture(app, "detail_variant_chips")
+    }
+
     /// Only meaningful on a regular-width device (iPad); skips cleanly otherwise
     /// rather than asserting a layout that an iPhone destination never shows.
     func testMuralLandscapeAndPortrait() throws {
