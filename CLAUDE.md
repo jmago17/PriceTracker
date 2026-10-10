@@ -4,8 +4,8 @@
 
 - Repo: `~/Developer/PriceTracker`
 - Scheme: `PriceTracker`
-- Xcode usado para la validación firmada: `/Applications/Xcode-beta.app` 27.0 (`27A5194q`).
-- Este Mac tiene además `$HOME/Downloads/Xcode-beta.app` 27.0 (`27A5252f`), con el runtime iOS 27.0 build `24A5423a`. Se usó para la sesión de rediseño (ver «Rediseño iOS 27» más abajo) porque así lo indicaba el prompt de esa tarea. Dos instalaciones de Xcode-beta coexisten en esta máquina; no asumir que `/Applications` es la única.
+- **2026-10-10: ya no hay Xcode-beta en esta máquina.** Las dos instalaciones beta descritas abajo (histórico) desaparecieron; solo queda `/Applications/Xcode.app`, ya estable, 27.0 (`27A266a`), con `xcode-select` apuntando ahí. Apple debió de sustituir las betas al liberar la estable. Usar esa (`export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`) y no asumir que hace falta buscar una beta.
+- Histórico (sesiones hasta 2026-10-09): Xcode usado para la validación firmada era `/Applications/Xcode-beta.app` 27.0 (`27A5194q`); este Mac tenía además `$HOME/Downloads/Xcode-beta.app` 27.0 (`27A5252f`), con el runtime iOS 27.0 build `24A5423a`, usado para la sesión de rediseño. Ya no existen.
 - Deployment target: iOS 26.0.
 - `project.yml` es la fuente de verdad y `PriceTracker.xcodeproj` debe quedar versionado para Xcode Cloud.
 - App Group: `group.com.maromeapps.PriceTracker`.
@@ -215,5 +215,30 @@ Hipótesis descartadas: los bloqueos de la validación anterior (git en `read()`
 - `ProductInsightGenerator` (FoundationModels, on-device, `@Generable`) genera resumen + talla/color con presupuesto 6.000→2.500 caracteres. `ItemEnricher` relee el ítem antes de guardar. Se lanza en segundo plano tras añadir (manual y Bandeja) y desde «Generar resumen» en la ficha. Sin Apple Intelligence: no hace nada y la ficha lo explica.
 - **CloudKit: nuevos campos `summary`, `variantSize`, `variantColor` en `CatalogItem`.** Hay que crearlos en Development y desplegarlos a Production ANTES de publicar una build Release; si no, Production rechazará los registros con esos campos (mismo fallo que `category`).
 - iPad (size class regular): `CatalogView` muestra mural en columnas (`MasonryLayout`, `ItemCardView`), búsqueda serif grande, chips de categoría con recuento y controles flotantes Liquid Glass; ficha en dos columnas. Propuesta de Claude Design: https://claude.ai/artifact/8tjYeNdW3sQzXBrueFuiox
-- `project.pbxproj` se parcheó a mano (sin xcodegen disponible en la sesión) para 4 ficheros nuevos y grupos `Intelligence`/`Sharing`; regenerar con xcodegen debería dar lo mismo.
-- NO compilado ni probado en esta sesión (sin acceso a Xcode). Primer paso pendiente: build + tests.
+- `project.pbxproj` se parcheó a mano en la sesión original (sin xcodegen disponible). Verificado 2026-10-10: `xcodegen generate` reproduce exactamente el mismo resultado (mismo diff, ficheros en los grupos correctos).
+
+### Verificación 2026-10-10: build, tests, dos bugs reales arreglados, capturas
+
+Build y tests, ambos simuladores (iPhone 17 Pro, iPad Pro 11" M5, iOS 27.0, Xcode 27.0/`27A266a`):
+- `xcodebuild build`: **BUILD SUCCEEDED** en los dos, sin errores ni avisos nuevos (los 2 avisos preexistentes en `DateFormatting.swift`/`ItemRowView.swift` no son de esta rama).
+- `PriceTrackerTests`: **103 tests / 23 suites, todos pasan** (incluye los 3 nuevos de `ShareAndInsightTests`: `ItemShareFormatterTests`, `PageTextAndVariantTests`, `SummaryCloudCodecTests`).
+- `PriceTrackerUITests` (`ScreenshotTests`): **10/10 en iPhone** (9 pasan + 1 se salta por diseño, `testMuralLandscapeAndPortrait` solo aplica a ancho regular); **4/4 relevantes en iPad** (contextual, selección, ficha, mural horizontal/vertical) tras arrancar el simulador en frío una vez (ver abajo). Los tests preexistentes orientados a iPhone (`testSyntheticCatalogAndDetail`, `testSearchAndCategoryFilter`, `testDarkLargeTextAccessibility`, los de historial, `testItemDetailVariantChips`) no se ejecutaron contra iPad a propósito: usan elementos específicos del layout compacto (`item-row`, `category-filter-menu`, `searchFields` nativo) que el mural no tiene; no es un fallo, es que nunca fueron pensados para ese destino.
+
+**Bug real #1 — ningún toque navegaba a la ficha en el iPhone.** `CatalogView.compactList` usaba `List(selection: $selection)` para la selección múltiple nueva. Aislado con bisección contra `main` (el mismo test pasa ahí, donde la lista no tenía `selection:`) y con tres repros dirigidos: ni gatear el binding a `isSelecting ? $selection : .constant(...)`, ni quitar `.contextMenu`, ni quitar `tabViewStyle(.sidebarAdaptable)` arreglaban nada — solo quitar `selection:` del `List` por completo lo hizo. Conclusión: el mero hecho de declarar ese parámetro en un `List`, aunque esté enlazado a un valor descartable, hace que XCUITest (toque sintetizado, simulador headless sin `Simulator.app`) interprete el toque como "marcar seleccionado" en vez de activar el `NavigationLink`. Arreglado replicando el patrón que ya usaba el mural de iPad: fila como `Button` que alterna `selection` mientras `isSelecting`, `NavigationLink` normal si no — sin `List(selection:)` en ningún sitio. Nuevo `SelectionIndicator` (círculo con check) sustituye al afordance nativo de `editMode`.
+- No verificado si esto también pasaría con un toque físico real (no XCUITest) — la causa exacta (por qué `List(selection:)` cambia el primer toque incluso fuera de edit mode) no está confirmada contra documentación de Apple, solo contra el comportamiento observado y reproducido.
+
+**Bug real #2 — tarjetas con imagen invisibles en el mural.** `ItemCardView.imageTile` usaba `Color.white` de fondo; en modo claro se confunde con el fondo blanco de la página: en una captura real, el badge de precio y el icono de "sin imagen" quedaban flotando sin ningún borde de tarjeta visible (solo se veía con el efecto de zoom del menú contextual, que añade su propia sombra). Cambiado a `Color(.secondarySystemBackground)` (igual que `textTile`) + sombra suave. Verificado con captura antes/después.
+
+**Capturas finales** (`/tmp/pricetracker_final_iphone/`, `/tmp/pricetracker_final_ipad/`, quedan solo en este Mac, no en el repo):
+- iPhone: `catalog`, `context_menu_share`, `selection_share_bar`, `detail_share`, más `detail_variant_chips` (talla/color) vía test dedicado.
+- iPad: `mural_portrait` (tarjetas con y sin imagen, summary, talla/color, todo correcto tras el fix #2), `selection_share_bar`, `detail_share_two_column`, `context_menu_share`.
+- Comparadas a ojo contra el artboard de Claude Design (https://claude.ai/artifact/8tjYeNdW3sQzXBrueFuiox): estructura, tipografía serif, chips y controles flotantes coinciden; no se detectaron más discrepancias.
+
+**Resumen con Apple Intelligence: probado de extremo a extremo con red real.** `SystemLanguageModel.default.availability` → `available` en este Mac (M4, macOS 27.2). Test puntual (no commiteado: depende de red externa real y de Apple Intelligence, no apto para Xcode Cloud) añadió `https://apps.apple.com/.../things-3/id904237743` desde «Añadir producto», resolvió precio real (9,99 US$) e icono, y generó un resumen real en español tras «Añadir al catálogo» — pipeline completo `PageCapture`/`iTunesConnector.pageText` → `ProductInsightGenerator` → `ItemEnricher` → ficha, confirmado funcionando. Corrió en modo demo (contenedor temporal: cualquier proceso lanzado por XCUITest activa `AppGroup.isDemo` vía `XCTestConfigurationFilePath`, independientemente de `--demo-catalog`), así que no tocó CloudKit real.
+
+**No verificado en esta sesión:**
+- La captura de pantalla en horizontal del mural (`mural_landscape`) sale con el contenido sin rotar (texto en vertical, barras negras) pese a esperar 1s tras `XCUIDevice.shared.orientation = .landscapeLeft`. El contenido en sí está bien maquetado (se confirma en la jerarquía de accesibilidad: barra de navegación, chips y tarjetas correctos), así que parece una limitación del simulador headless sin `Simulator.app` capturando el framebuffer rotado, no un bug de la app — pero no se consiguió una captura visual limpia de la app en horizontal.
+- Dos dispositivos físicos, iCloud real con los campos nuevos.
+- El límite de `ProductInsightGenerator` (6.000→2.500 caracteres) con una página real por encima de ese umbral — la prueba de Things 3 tenía descripción corta.
+
+**Pendiente antes de Release:** desplegar `summary`/`variantSize`/`variantColor` en `CatalogItem` a Production en CloudKit Dashboard — sigue sin hacerse. Mientras tanto, cualquier build sigue en Development vía `ICLOUD_CONTAINER_ENVIRONMENT` del `project.yml`; no se tocó Production en ningún momento de esta sesión.
