@@ -206,3 +206,14 @@ Hipótesis descartadas: los bloqueos de la validación anterior (git en `read()`
 - La ficha representa puntos reales: un dato no implica una evolución; dos comprobaciones iguales forman una línea horizontal. No se reconstruyen puntos desde createdAt, precio inicial o fechas de items antiguos. El gráfico muestra el último tramo continuo de la moneda actual; no conecta monedas diferentes.
 - El historial es local y está identificado como tal en la UI. Los registros de CloudKit siguen conteniendo los campos actuales del item, sin nuevo esquema de historial. Recibir una actualización remota no crea observaciones locales ni borra las existentes.
 - Validación: 48 pruebas de modelo/persistencia/CloudKit en harness macOS; build iOS Release; dos UI tests acotados con fixtures sintéticas (vacío, punto único, refresco de igual precio, línea horizontal y frescura en ficha/catálogo). No se usa catálogo real para las pruebas UI.
+
+## Compartir, iPad mural y resumen con Apple Intelligence (rama `feature/share-ipad-summary`, 2026-10-09)
+
+- Compartir: menú contextual (lista iPhone y mural iPad) y botón en la ficha comparten la URL con título + variante. Selección múltiple («Seleccionar» en ··· en iPhone / botón en iPad) comparte texto plano con `ItemShareFormatter`: `• Nombre — Talla M · Color — URL`, una línea por artículo.
+- `Item` gana `summary`, `size`, `color` (opcionales; payload SQLite JSON compatible sin migración). Talla/color salen de JSON-LD (`size`/`color`), de `PageCapture.js` (Amazon twister, itemprop, `<select>`/controles seleccionados, parámetros URL) o, si faltan, del modelo.
+- `PageCapture.js` y `StorePageParser.visibleText` extraen el texto visible (≤12.000 caracteres). `ResolvedItem.pageText` es transitorio, nunca se persiste.
+- `ProductInsightGenerator` (FoundationModels, on-device, `@Generable`) genera resumen + talla/color con presupuesto 6.000→2.500 caracteres. `ItemEnricher` relee el ítem antes de guardar. Se lanza en segundo plano tras añadir (manual y Bandeja) y desde «Generar resumen» en la ficha. Sin Apple Intelligence: no hace nada y la ficha lo explica.
+- **CloudKit: nuevos campos `summary`, `variantSize`, `variantColor` en `CatalogItem`.** Hay que crearlos en Development y desplegarlos a Production ANTES de publicar una build Release; si no, Production rechazará los registros con esos campos (mismo fallo que `category`).
+- iPad (size class regular): `CatalogView` muestra mural en columnas (`MasonryLayout`, `ItemCardView`), búsqueda serif grande, chips de categoría con recuento y controles flotantes Liquid Glass; ficha en dos columnas. Propuesta de Claude Design: https://claude.ai/artifact/8tjYeNdW3sQzXBrueFuiox
+- `project.pbxproj` se parcheó a mano (sin xcodegen disponible en la sesión) para 4 ficheros nuevos y grupos `Intelligence`/`Sharing`; regenerar con xcodegen debería dar lo mismo.
+- NO compilado ni probado en esta sesión (sin acceso a Xcode). Primer paso pendiente: build + tests.

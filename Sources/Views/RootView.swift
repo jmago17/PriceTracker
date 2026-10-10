@@ -24,8 +24,13 @@ struct RootView: View {
                 SettingsView(viewModel: viewModel, syncViewModel: syncViewModel)
             }
         }
+        .tabViewStyle(.sidebarAdaptable)
         .tint(Color.accentColor)
         .task {
+            let viewModel = viewModel
+            sharedInbox.onItemAdded = { item, pageText in
+                await viewModel.didAdd(item, pageText: pageText)
+            }
             if AppGroup.isDemo {
                 await viewModel.loadDemo()
                 return

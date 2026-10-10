@@ -38,6 +38,13 @@ struct Item: Identifiable, Codable, Hashable, Sendable {
     var tags: [String]?
     var notes: String?
 
+    /// Short on-device summary of the store page (Apple Intelligence). Nil when
+    /// the model is unavailable or the page offered no usable text.
+    var summary: String?
+    /// Selected variant, when the product has one ("M", "42", "256 GB"...).
+    var size: String?
+    var color: String?
+
     var createdAt: Date
     var updatedAt: Date
 
@@ -71,6 +78,9 @@ struct Item: Identifiable, Codable, Hashable, Sendable {
         externalIDs: [String: String] = [:],
         tags: [String]? = nil,
         notes: String? = nil,
+        summary: String? = nil,
+        size: String? = nil,
+        color: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -103,6 +113,9 @@ struct Item: Identifiable, Codable, Hashable, Sendable {
         self.externalIDs = externalIDs
         self.tags = tags
         self.notes = notes
+        self.summary = summary
+        self.size = size
+        self.color = color
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -129,5 +142,50 @@ extension Item {
         guard let current = priceCurrentCents, let initial = priceAtAddCents,
               current >= 0, initial > current else { return nil }
         return initial - current
+    }
+}
+
+
+extension Item {
+    /// "Talla M · Verde oliva" — only the parts that exist.
+    var variantDescription: String? {
+        let parts = [
+            size.flatMap { $0.trimmedNonEmpty }.map { "Talla \($0)" },
+            color.flatMap { $0.trimmedNonEmpty },
+        ].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// Builds a new catalog entry from a connector's one-time resolution.
+    init(resolved: ResolvedItem, at date: Date = Date()) {
+        self.init(
+            store: resolved.store,
+            storeItemID: resolved.storeItemID,
+            region: resolved.region,
+            currency: resolved.currency,
+            canonicalURL: resolved.canonicalURL,
+            title: resolved.title,
+            subtitle: resolved.subtitle,
+            imageURL: resolved.imageURL,
+            category: resolved.storeGenre,
+            categorySource: resolved.storeGenre == nil ? .none : .mapped,
+            storeGenre: resolved.storeGenre,
+            priceCurrentCents: resolved.priceCents,
+            priceAtAddCents: resolved.priceCents,
+            priceReferenceCents: resolved.priceReferenceCents,
+            priceLowCents: resolved.priceCents,
+            priceLowAt: resolved.priceCents != nil ? date : nil,
+            lastCheckedAt: resolved.priceCents != nil ? date : nil,
+            lastSuccessAt: resolved.priceCents != nil ? date : nil,
+            size: resolved.size,
+            color: resolved.color
+        )
+    }
+}
+
+extension String {
+    var trimmedNonEmpty: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

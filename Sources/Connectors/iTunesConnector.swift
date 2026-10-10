@@ -107,6 +107,8 @@ struct ITunesConnector: StoreConnector {
         var artworkUrl60: String?
         var trackViewUrl: String?
         var collectionViewUrl: String?
+        var description: String?
+        var longDescription: String?
     }
 
     private func lookup(id: String, region: String) async throws -> LookupResult {
@@ -195,7 +197,9 @@ struct ITunesConnector: StoreConnector {
             imageURL: Self.bestArtwork(result),
             priceCents: priceCents,
             priceReferenceCents: nil,
-            storeGenre: result.primaryGenreName
+            storeGenre: result.primaryGenreName,
+            pageText: (result.description ?? result.longDescription)
+                .flatMap { StorePageParser.visibleText(in: $0) }
         )
     }
 

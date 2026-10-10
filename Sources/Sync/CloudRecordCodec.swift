@@ -30,6 +30,9 @@ enum CloudRecordFields {
     static let externalIDs = "externalIDs"
     static let tags = "tags"
     static let notes = "notes"
+    static let summary = "summary"
+    static let size = "variantSize"
+    static let color = "variantColor"
     static let createdAt = "createdAt"
     static let updatedAt = "updatedAt"
 
@@ -38,7 +41,8 @@ enum CloudRecordFields {
         subtitle, imageURL, category, categorySource, storeGenre, status,
         priceCurrentCents, priceAtAddCents, priceReferenceCents, priceLowCents,
         priceLowAt, targetPriceCents, onSaleUntil, checkIntervalHours,
-        lastCheckedAt, lastSuccessAt, externalIDs, tags, notes, createdAt, updatedAt,
+        lastCheckedAt, lastSuccessAt, externalIDs, tags, notes, summary, size, color,
+        createdAt, updatedAt,
     ]
     static let all = [identityKey, tombstone] + itemFields
 }
@@ -100,6 +104,9 @@ enum CloudRecordCodec {
         record[CloudRecordFields.externalIDs] = try encoded(item.externalIDs) as CKRecordValue
         set(try item.tags.map(encoded), key: CloudRecordFields.tags, on: record)
         set(item.notes, key: CloudRecordFields.notes, on: record)
+        set(item.summary, key: CloudRecordFields.summary, on: record)
+        set(item.size, key: CloudRecordFields.size, on: record)
+        set(item.color, key: CloudRecordFields.color, on: record)
         record[CloudRecordFields.createdAt] = item.createdAt as CKRecordValue
         record[CloudRecordFields.updatedAt] = item.updatedAt as CKRecordValue
         return record
@@ -174,6 +181,9 @@ enum CloudRecordCodec {
             externalIDs: externalIDs,
             tags: tags,
             notes: string(record, CloudRecordFields.notes),
+            summary: string(record, CloudRecordFields.summary),
+            size: string(record, CloudRecordFields.size),
+            color: string(record, CloudRecordFields.color),
             createdAt: date(record, CloudRecordFields.createdAt) ?? Date(),
             updatedAt: date(record, CloudRecordFields.updatedAt) ?? Date()
         )

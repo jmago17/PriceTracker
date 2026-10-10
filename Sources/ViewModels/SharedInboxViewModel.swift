@@ -8,6 +8,9 @@ final class SharedInboxViewModel {
     private(set) var isProcessing = false
     private(set) var processingEntryID: UUID?
 
+    /// Set by the root view so shared links get the same summary as manual adds.
+    var onItemAdded: (@MainActor (Item, String?) async -> Void)?
+
     private let inbox = SharedURLInbox()
     private let environment: AppEnvironment
 
@@ -51,28 +54,10 @@ final class SharedInboxViewModel {
                 url: url,
                 pageCapture: entry.pageCapture
             )
-            let item = Item(
-                store: resolved.store,
-                storeItemID: resolved.storeItemID,
-                region: resolved.region,
-                currency: resolved.currency,
-                canonicalURL: resolved.canonicalURL,
-                title: resolved.title,
-                subtitle: resolved.subtitle,
-                imageURL: resolved.imageURL,
-                category: resolved.storeGenre,
-                categorySource: resolved.storeGenre == nil ? .none : .mapped,
-                storeGenre: resolved.storeGenre,
-                priceCurrentCents: resolved.priceCents,
-                priceAtAddCents: resolved.priceCents,
-                priceReferenceCents: resolved.priceReferenceCents,
-                priceLowCents: resolved.priceCents,
-                priceLowAt: resolved.priceCents != nil ? .now : nil,
-                lastCheckedAt: resolved.priceCents != nil ? .now : nil,
-                lastSuccessAt: resolved.priceCents != nil ? .now : nil
-            )
-            try await environment.itemStore.upsert(item)
+            let item = Item(resolved: resolved)
+            let stored = try await environment.itemStore.upsert(item)
             inbox.remove(id: entry.id)
+            await onItemAdded?(stored, resolved.pageText)
         } catch {
             inbox.markFailed(id: entry.id, error: error.localizedDescription)
         }

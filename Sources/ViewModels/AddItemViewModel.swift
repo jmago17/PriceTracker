@@ -62,26 +62,7 @@ final class AddItemViewModel {
     @discardableResult
     func confirmAdd() async throws -> Item {
         guard let preview else { throw AddItemError.nothingToAdd }
-        let item = Item(
-            store: preview.store,
-            storeItemID: preview.storeItemID,
-            region: preview.region,
-            currency: preview.currency,
-            canonicalURL: preview.canonicalURL,
-            title: preview.title,
-            subtitle: preview.subtitle,
-            imageURL: preview.imageURL,
-            category: preview.storeGenre,
-            categorySource: preview.storeGenre == nil ? .none : .mapped,
-            storeGenre: preview.storeGenre,
-            priceCurrentCents: preview.priceCents,
-            priceAtAddCents: preview.priceCents,
-            priceReferenceCents: preview.priceReferenceCents,
-            priceLowCents: preview.priceCents,
-            priceLowAt: preview.priceCents != nil ? Date() : nil,
-            lastCheckedAt: preview.priceCents != nil ? Date() : nil,
-            lastSuccessAt: preview.priceCents != nil ? Date() : nil
-        )
+        let item = Item(resolved: preview)
         return try await environment.itemStore.upsert(item)
     }
 }

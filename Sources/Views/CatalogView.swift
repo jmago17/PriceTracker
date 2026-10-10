@@ -1,115 +1,53 @@
 import SwiftUI
 
+/// iPhone: inset-grouped list. iPad (regular width): a mural of cards in
+/// masonry columns with a large serif search field, category chips and
+/// floating controls. Both share selection, sharing, sheets and navigation.
 struct CatalogView: View {
     @Bindable var viewModel: ItemListViewModel
     var syncViewModel: SyncViewModel
     @Binding var selectedTab: RootView.RootTab
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @ScaledMetric(relativeTo: .largeTitle) private var muralSearchSize: CGFloat = 56
+
     @State private var showingAddItem = false
     @State private var showingImportExport = false
     @State private var showingSync = false
+    @State private var isSelecting = false
+    @State private var selection = Set<UUID>()
+    @FocusState private var muralSearchFocused: Bool
+
+    private var isRegular: Bool { horizontalSizeClass == .regular }
 
     var body: some View {
         NavigationStack {
-            List {
-                if !viewModel.items.isEmpty {
-                    Section {
-                        summaryAndSearchHeader
-                    }
-                    .listRowBackground(Color.clear)
-                    .listSectionSeparator(.hidden)
-                }
-
-                if let progress = viewModel.refreshProgress, viewModel.isRefreshingCatalog {
-                    Section {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ProgressView(value: Double(progress.completed), total: Double(max(progress.total, 1)))
-                            Text(progress.currentTitle.map { "Comprobando: \($0)" } ?? "Comprobando \(progress.completed) de \(progress.total)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-
-                ForEach(viewModel.categorySections) { section in
-                    Section {
-                        ForEach(section.items) { item in
-                            NavigationLink(value: item.id) {
-                                ItemRowView(item: item)
-                            }
-                        }
-                        .onDelete { offsets in
-                            for index in offsets { viewModel.delete(section.items[index]) }
-                        }
-                    } header: {
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(section.title)
-                                .font(.system(.title3, design: .serif, weight: .semibold))
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            Text(section.items.count, format: .number)
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
-                        .textCase(nil)
-                        .padding(.vertical, 8)
-                    }
-                }
-
-                if viewModel.filteredItems.isEmpty {
-                    emptyState
+            Group {
+                if isRegular {
+                    mural
+                } else {
+                    compactList
                 }
             }
-            .listStyle(.insetGrouped)
-            // The floating tab bar otherwise covers the last section's bottom
-            // rows — this is scroll-content margin, not a tab-bar offset, so
-            // it never fights the tab bar's own layout.
-            .contentMargins(.bottom, 90, for: .scrollContent)
             .navigationTitle("Mis precios")
-            .searchable(text: $viewModel.searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Buscar en el catálogo")
             .navigationDestination(for: UUID.self) { id in
                 if let item = viewModel.items.first(where: { $0.id == id }) {
                     ItemDetailView(item: item, viewModel: viewModel)
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingAddItem = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .accessibilityIdentifier("add-item-button")
-                    .accessibilityLabel("Añadir artículo")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        if viewModel.isRefreshingCatalog {
-                            Button("Cancelar actualización", systemImage: "xmark", role: .destructive) {
-                                viewModel.cancelRefreshCatalog()
-                            }
-                        } else {
-                            Button("Actualizar precios", systemImage: "arrow.clockwise") {
-                                viewModel.startRefreshCatalog()
-                            }
-                        }
-                        Button("Enlaces compartidos", systemImage: "tray.and.arrow.down") {
-                            selectedTab = .inbox
-                        }
-                        Button("Sincronizar con iCloud", systemImage: "icloud") {
-                            showingSync = true
-                        }
-                        Button("Importar / exportar JSON", systemImage: "square.and.arrow.up.on.square") {
-                            showingImportExport = true
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                    .accessibilityLabel("Opciones del catálogo")
+            .toolbar { toolbarContent }
+            .toolbar(isSelecting && !isRegular ? .hidden : .automatic, for: .tabBar)
+            .safeAreaInset(edge: .bottom) {
+                if isSelecting {
+                    SelectionShareBar(items: viewModel.items(withIDs: selection))
+                } else if isRegular {
+                    muralBottomControls
                 }
             }
             .sheet(isPresented: $showingAddItem) {
-                AddItemView(onAdded: { await viewModel.load() })
+                AddItemView(onAdded: { item, pageText in
+                    await viewModel.didAdd(item, pageText: pageText)
+                })
             }
             .sheet(isPresented: $showingImportExport) {
                 ImportExportView(viewModel: viewModel)
@@ -136,6 +74,165 @@ struct CatalogView: View {
                 Text(viewModel.lastErrorMessage ?? "")
             }
             .refreshable { await viewModel.load() }
+            .onChange(of: viewModel.filteredItems.map(\.id)) { _, visible in
+                // Never share something the user can no longer see.
+                selection.formIntersection(visible)
+            }
+        }
+    }
+
+    // MARK: Toolbar
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        if isSelecting {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(allVisibleSelected ? "Ninguno" : "Seleccionar todo") {
+                    if allVisibleSelected {
+                        selection.removeAll()
+                    } else {
+                        selection = Set(viewModel.filteredItems.map(\.id))
+                    }
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Listo") { endSelection() }
+                    .fontWeight(.semibold)
+                    .accessibilityIdentifier("end-selection-button")
+            }
+        } else {
+            if !isRegular {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingAddItem = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityIdentifier("add-item-button")
+                    .accessibilityLabel("Añadir artículo")
+                }
+            } else if !viewModel.items.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Seleccionar") { isSelecting = true }
+                        .accessibilityIdentifier("start-selection-button")
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    if !isRegular && !viewModel.items.isEmpty {
+                        Button("Seleccionar", systemImage: "checkmark.circle") { isSelecting = true }
+                    }
+                    if viewModel.isRefreshingCatalog {
+                        Button("Cancelar actualización", systemImage: "xmark", role: .destructive) {
+                            viewModel.cancelRefreshCatalog()
+                        }
+                    } else {
+                        Button("Actualizar precios", systemImage: "arrow.clockwise") {
+                            viewModel.startRefreshCatalog()
+                        }
+                    }
+                    Button("Enlaces compartidos", systemImage: "tray.and.arrow.down") {
+                        selectedTab = .inbox
+                    }
+                    Button("Sincronizar con iCloud", systemImage: "icloud") {
+                        showingSync = true
+                    }
+                    Button("Importar / exportar JSON", systemImage: "square.and.arrow.up.on.square") {
+                        showingImportExport = true
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel("Opciones del catálogo")
+            }
+        }
+    }
+
+    private var allVisibleSelected: Bool {
+        let visible = Set(viewModel.filteredItems.map(\.id))
+        return !visible.isEmpty && visible.isSubset(of: selection)
+    }
+
+    private func endSelection() {
+        isSelecting = false
+        selection.removeAll()
+    }
+
+    private func beginSelection(with item: Item) {
+        selection = [item.id]
+        isSelecting = true
+    }
+
+    // MARK: iPhone list
+
+    private var compactList: some View {
+        List(selection: $selection) {
+            if !viewModel.items.isEmpty && !isSelecting {
+                Section {
+                    summaryAndSearchHeader
+                }
+                .listRowBackground(Color.clear)
+                .listSectionSeparator(.hidden)
+            }
+
+            refreshProgressSection
+
+            ForEach(viewModel.categorySections) { section in
+                Section {
+                    ForEach(section.items) { item in
+                        NavigationLink(value: item.id) {
+                            ItemRowView(item: item)
+                        }
+                        .contextMenu {
+                            ItemContextMenu(item: item, viewModel: viewModel) {
+                                beginSelection(with: item)
+                            }
+                        }
+                    }
+                    .onDelete { offsets in
+                        for index in offsets { viewModel.delete(section.items[index]) }
+                    }
+                } header: {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(section.title)
+                            .font(.system(.title3, design: .serif, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Text(section.items.count, format: .number)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                    .textCase(nil)
+                    .padding(.vertical, 8)
+                }
+            }
+
+            if viewModel.filteredItems.isEmpty {
+                emptyState
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .environment(\.editMode, .constant(isSelecting ? .active : .inactive))
+        // The floating tab bar otherwise covers the last section's bottom
+        // rows — this is scroll-content margin, not a tab-bar offset, so
+        // it never fights the tab bar's own layout.
+        .contentMargins(.bottom, 90, for: .scrollContent)
+        .searchable(text: $viewModel.searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Buscar en el catálogo")
+    }
+
+    @ViewBuilder
+    private var refreshProgressSection: some View {
+        if let progress = viewModel.refreshProgress, viewModel.isRefreshingCatalog {
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    ProgressView(value: Double(progress.completed), total: Double(max(progress.total, 1)))
+                    Text(progress.currentTitle.map { "Comprobando: \($0)" } ?? "Comprobando \(progress.completed) de \(progress.total)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 
@@ -219,6 +316,210 @@ struct CatalogView: View {
         .accessibilityIdentifier("catalog-filters")
     }
 
+    // MARK: iPad mural
+
+    private var mural: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                muralSearchField
+                Divider()
+                muralChips
+
+                if let progress = viewModel.refreshProgress, viewModel.isRefreshingCatalog {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ProgressView(value: Double(progress.completed), total: Double(max(progress.total, 1)))
+                        Text(progress.currentTitle.map { "Comprobando: \($0)" } ?? "Comprobando \(progress.completed) de \(progress.total)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: 420, alignment: .leading)
+                }
+
+                if viewModel.filteredItems.isEmpty {
+                    emptyState
+                } else {
+                    MasonryLayout(minColumnWidth: 220, spacing: 22) {
+                        ForEach(viewModel.filteredItems) { item in
+                            muralCard(item)
+                        }
+                    }
+                    .padding(.top, 6)
+                }
+            }
+            .padding(.horizontal, 40)
+            .padding(.top, 8)
+            .padding(.bottom, 40)
+        }
+        .scrollDismissesKeyboard(.immediately)
+        .toolbar(removing: .title)
+    }
+
+    @ViewBuilder
+    private func muralCard(_ item: Item) -> some View {
+        let card = ItemCardView(
+            item: item,
+            isSelecting: isSelecting,
+            isSelected: selection.contains(item.id),
+            isSummarizing: viewModel.summarizingIDs.contains(item.id)
+        )
+        if isSelecting {
+            Button {
+                if selection.contains(item.id) {
+                    selection.remove(item.id)
+                } else {
+                    selection.insert(item.id)
+                }
+            } label: {
+                card
+            }
+            .buttonStyle(.plain)
+        } else {
+            NavigationLink(value: item.id) {
+                card
+            }
+            .buttonStyle(.plain)
+            .contextMenu {
+                ItemContextMenu(item: item, viewModel: viewModel) {
+                    beginSelection(with: item)
+                }
+            }
+        }
+    }
+
+    private var muralSearchField: some View {
+        HStack(alignment: .center, spacing: 12) {
+            TextField("Busca en tus precios…", text: $viewModel.searchText)
+                .font(.system(size: muralSearchSize, weight: .regular, design: .serif).italic())
+                .textFieldStyle(.plain)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                .focused($muralSearchFocused)
+                .accessibilityLabel("Buscar en el catálogo")
+            if !viewModel.searchText.isEmpty {
+                Button {
+                    viewModel.searchText = ""
+                    muralSearchFocused = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityLabel("Borrar búsqueda")
+            }
+        }
+    }
+
+    private var muralChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                MuralChip(title: "Todo", count: categoryCount(nil), isSelected: viewModel.categoryFilter == .all) {
+                    viewModel.categoryFilter = .all
+                }
+                ForEach(viewModel.categories, id: \.self) { category in
+                    MuralChip(
+                        title: category,
+                        count: categoryCount(category),
+                        isSelected: viewModel.categoryFilter == .category(category)
+                    ) {
+                        viewModel.categoryFilter = .category(category)
+                    }
+                }
+                if viewModel.hasUncategorizedItems {
+                    MuralChip(
+                        title: "Sin categoría",
+                        count: uncategorizedCount,
+                        isSelected: viewModel.categoryFilter == .uncategorized
+                    ) {
+                        viewModel.categoryFilter = .uncategorized
+                    }
+                }
+                if !viewModel.items.isEmpty {
+                    Text(summaryText(viewModel.summary))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 8)
+                        .fixedSize()
+                }
+            }
+        }
+        .scrollClipDisabled()
+        .accessibilityIdentifier("catalog-filters")
+    }
+
+    private var unpausedItems: [Item] {
+        viewModel.items.filter { $0.status != .archived }
+    }
+
+    private func categoryCount(_ category: String?) -> Int {
+        guard let category else { return unpausedItems.count }
+        return unpausedItems.filter { ItemFilterEngine.normalizedCategory($0.category) == category }.count
+    }
+
+    private var uncategorizedCount: Int {
+        unpausedItems.filter { ItemFilterEngine.normalizedCategory($0.category) == nil }.count
+    }
+
+    private var muralBottomControls: some View {
+        HStack(alignment: .center) {
+            Button {
+                if viewModel.isRefreshingCatalog {
+                    viewModel.cancelRefreshCatalog()
+                } else {
+                    viewModel.startRefreshCatalog()
+                }
+            } label: {
+                Image(systemName: viewModel.isRefreshingCatalog ? "xmark" : "arrow.clockwise")
+                    .font(.title3.weight(.semibold))
+                    .frame(width: 56, height: 56)
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: .circle)
+            .accessibilityLabel(viewModel.isRefreshingCatalog ? "Cancelar actualización" : "Actualizar precios")
+
+            Spacer()
+
+            HStack(spacing: 4) {
+                ForEach(ItemStatusFilter.allCases, id: \.self) { filter in
+                    let isSelected = viewModel.statusFilter == filter
+                    Button {
+                        viewModel.statusFilter = filter
+                    } label: {
+                        Text(filter.shortName)
+                            .font(.body.weight(.semibold))
+                            .padding(.horizontal, 20)
+                            .frame(height: 44)
+                            .foregroundStyle(isSelected ? Color(.systemBackground) : Color.primary)
+                            .background(isSelected ? Color.accentColor : Color.clear, in: Capsule())
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+                }
+            }
+            .padding(5)
+            .glassEffect(.regular, in: .capsule)
+
+            Spacer()
+
+            Button {
+                showingAddItem = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(Color(.systemBackground))
+                    .frame(width: 56, height: 56)
+                    .background(Color.accentColor, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("add-item-button")
+            .accessibilityLabel("Añadir artículo")
+        }
+        .padding(.horizontal, 32)
+        .padding(.bottom, 16)
+    }
+
+    // MARK: Empty state
+
     private var emptyState: some View {
         VStack(spacing: 20) {
             ContentUnavailableView(
@@ -254,8 +555,41 @@ struct CatalogView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 40)
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
+    }
+}
+
+private extension ItemStatusFilter {
+    var shortName: String {
+        switch self {
+        case .active: return "Activos"
+        case .discounted: return "Con bajada"
+        case .paused: return "Pausados"
+        }
+    }
+}
+
+private struct MuralChip: View {
+    let title: String
+    let count: Int
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Text(title)
+                Text(count, format: .number)
+                    .monospacedDigit()
+                    .foregroundStyle(isSelected ? Color(.systemBackground).opacity(0.7) : Color.secondary)
+            }
+            .font(.subheadline.weight(.medium))
+            .padding(.horizontal, 16)
+            .frame(minHeight: 44)
+            .foregroundStyle(isSelected ? Color(.systemBackground) : Color.primary)
+            .background(isSelected ? Color.primary : Color(.secondarySystemBackground), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

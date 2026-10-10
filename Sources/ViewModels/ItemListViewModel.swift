@@ -27,6 +27,9 @@ final class ItemListViewModel {
     private(set) var isRefreshingCatalog = false
     private(set) var refreshProgress: RefreshProgress?
     var lastErrorMessage: String?
+    /// Items whose Apple Intelligence summary is being generated right now.
+    private(set) var summarizingIDs: Set<UUID> = []
+    private(set) var summaryErrors: [UUID: String] = [:]
 
     private let environment: AppEnvironment
     private var refreshTask: Task<Void, Never>?
@@ -88,6 +91,44 @@ final class ItemListViewModel {
             reconcileCategoryFilter()
         } catch {
             lastErrorMessage = error.localizedDescription
+        }
+    }
+
+    /// Items in catalog order for a set of ids (multi-selection sharing).
+    func items(withIDs ids: Set<UUID>) -> [Item] {
+        filteredItems.filter { ids.contains($0.id) }
+    }
+
+    /// Called after any add path. The summary is generated in the background
+    /// so saving never waits for the model.
+    func didAdd(_ item: Item, pageText: String?) async {
+        await load()
+        guard pageText?.trimmedNonEmpty != nil else { return }
+        Task { await summarize(item, pageText: pageText) }
+    }
+
+    /// "Generar resumen" in the ficha: reads the page again and summarizes it.
+    func generateSummary(for item: Item) {
+        Task { await summarize(item, pageText: nil) }
+    }
+
+    var canSummarize: Bool { ProductInsightGenerator.isAvailable }
+
+    private func summarize(_ item: Item, pageText: String?) async {
+        guard !AppGroup.isDemo, !summarizingIDs.contains(item.id) else { return }
+        summarizingIDs.insert(item.id)
+        summaryErrors[item.id] = nil
+        defer { summarizingIDs.remove(item.id) }
+        do {
+            let enricher = ItemEnricher(itemStore: environment.itemStore, connectors: environment.connectors)
+            _ = try await enricher.enrich(item, pageText: pageText)
+            await load()
+        } catch {
+            // Automatic runs after adding stay silent; only an explicit request
+            // shows why no summary was produced.
+            if pageText == nil {
+                summaryErrors[item.id] = error.localizedDescription
+            }
         }
     }
 

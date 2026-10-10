@@ -15,6 +15,10 @@ struct StorePageMetadata: Sendable {
     var priceKind: PriceKind?
     var canonicalURL: URL
     var imageURL: URL?
+    var size: String? = nil
+    var color: String? = nil
+    /// Visible text of the page body, for the on-device summary only.
+    var pageText: String? = nil
 }
 
 struct StorePageLoader: Sendable {
@@ -97,7 +101,7 @@ enum StorePageParser {
         let candidatePriceCents = product?.priceCents ?? metaPrice.map(cents)
         let priceCents = currency == nil ? nil : candidatePriceCents
 
-        return StorePageMetadata(
+        var metadata = StorePageMetadata(
             title: title,
             description: firstNonEmpty(
                 product?.description,
@@ -115,6 +119,54 @@ enum StorePageParser {
                 ?? resolved(meta["og:image"].flatMap(URL.init(string:)), relativeTo: canonicalURL)
                 ?? resolved(meta["twitter:image"].flatMap(URL.init(string:)), relativeTo: canonicalURL)
         )
+        metadata.size = products.lazy.compactMap(\.size).first
+        metadata.color = products.lazy.compactMap(\.color).first
+        metadata.pageText = visibleText(in: html)
+        return metadata
+    }
+
+    /// Rough visible text of the main content: scripts, styles and markup are
+    /// removed and block boundaries become line breaks. Bounded in length,
+    /// because it only feeds a small on-device model.
+    static func visibleText(in html: String, limit: Int = 12_000) -> String? {
+        var body = html
+        for tag in ["main", "article", "body"] {
+            if let regex = try? NSRegularExpression(
+                pattern: "<\(tag)\\b[^>]*>(.*)</\(tag)>",
+                options: [.caseInsensitive, .dotMatchesLineSeparators]
+            ),
+                let match = regex.firstMatch(in: html, range: NSRange(html.startIndex..<html.endIndex, in: html)),
+                let range = Range(match.range(at: 1), in: html) {
+                body = String(html[range])
+                break
+            }
+        }
+
+        let replacements: [(String, String)] = [
+            (#"<(script|style|noscript|svg|template|iframe)\b[^>]*>.*?</\1>"#, " "),
+            (#"<!--.*?-->"#, " "),
+            (#"<(br|/p|/div|/li|/h[1-6]|/tr|/section|/dd|/dt)\b[^>]*>"#, "\n"),
+            (#"<[^>]+>"#, " "),
+        ]
+        for (pattern, template) in replacements {
+            guard let regex = try? NSRegularExpression(
+                pattern: pattern,
+                options: [.caseInsensitive, .dotMatchesLineSeparators]
+            ) else { continue }
+            body = regex.stringByReplacingMatches(
+                in: body,
+                range: NSRange(body.startIndex..<body.endIndex, in: body),
+                withTemplate: template
+            )
+        }
+
+        let lines = decodeHTMLEntities(body)
+            .components(separatedBy: .newlines)
+            .map { $0.split(whereSeparator: \.isWhitespace).joined(separator: " ") }
+            .filter { $0.count > 1 }
+        guard !lines.isEmpty else { return nil }
+        let text = lines.joined(separator: "\n")
+        return text.count > limit ? String(text.prefix(limit)) : text
     }
 
     private static func jsonLDProducts(in html: String) -> [StorePageMetadata] {
@@ -258,8 +310,21 @@ enum StorePageParser {
             priceCents: rawPrice.map(cents),
             priceKind: exactOffer != nil ? .exact : (aggregateOffer != nil ? .from : nil),
             canonicalURL: canonicalURL,
-            imageURL: imageURL(dictionary["image"])
+            imageURL: imageURL(dictionary["image"]),
+            size: variantName(dictionary["size"]),
+            color: variantName(dictionary["color"])
         )
+    }
+
+    private static func variantName(_ value: Any?) -> String? {
+        let raw: String?
+        if let dictionary = value as? [String: Any] {
+            raw = firstString(dictionary["name"] ?? dictionary["value"])
+        } else {
+            raw = firstString(value)
+        }
+        guard let raw, raw.count <= 40 else { return nil }
+        return raw
     }
 
     private static func metaContents(in html: String) -> [String: String] {

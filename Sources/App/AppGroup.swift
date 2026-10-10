@@ -50,6 +50,10 @@ struct SharedPageCapture: Codable, Hashable, Sendable {
     var priceCents: Int?
     var currency: String?
     var category: String?
+    var size: String?
+    var color: String?
+    /// Main visible text of the rendered page, trimmed by PageCapture.js.
+    var pageText: String?
 
     init(
         pageURLString: String? = nil,
@@ -59,7 +63,10 @@ struct SharedPageCapture: Codable, Hashable, Sendable {
         imageURLString: String? = nil,
         priceCents: Int? = nil,
         currency: String? = nil,
-        category: String? = nil
+        category: String? = nil,
+        size: String? = nil,
+        color: String? = nil,
+        pageText: String? = nil
     ) {
         self.pageURLString = pageURLString
         self.canonicalURLString = canonicalURLString
@@ -69,6 +76,9 @@ struct SharedPageCapture: Codable, Hashable, Sendable {
         self.priceCents = priceCents
         self.currency = currency
         self.category = category
+        self.size = size
+        self.color = color
+        self.pageText = pageText
     }
 
     init?(propertyList: [String: Any]) {
@@ -86,6 +96,9 @@ struct SharedPageCapture: Codable, Hashable, Sendable {
         priceCents = (propertyList["priceCents"] as? NSNumber)?.intValue
         currency = string("currency")?.uppercased()
         category = string("category")
+        size = string("size")
+        color = string("color")
+        pageText = string("pageText")
 
         guard pageURLString != nil || canonicalURLString != nil || title != nil else { return nil }
     }

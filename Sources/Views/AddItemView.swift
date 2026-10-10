@@ -4,7 +4,8 @@ import UIKit
 struct AddItemView: View {
     @State private var viewModel = AddItemViewModel()
     @Environment(\.dismiss) private var dismiss
-    var onAdded: () async -> Void
+    /// The saved item and, when available, the page text captured while resolving.
+    var onAdded: (Item, String?) async -> Void
 
     var body: some View {
         NavigationStack {
@@ -130,6 +131,11 @@ struct AddItemView: View {
                     Text(storeCategoryText(preview))
                         .font(.footnote)
                         .foregroundStyle(.tertiary)
+                    if let variant = Item(resolved: preview).variantDescription {
+                        Text(variant)
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(Color.accentColor)
+                    }
                 }
             }
 
@@ -170,8 +176,8 @@ struct AddItemView: View {
                 Button("Guardar solo el enlace") {
                     Task {
                         do {
-                            _ = try await viewModel.saveLinkOnly()
-                            await onAdded()
+                            let item = try await viewModel.saveLinkOnly()
+                            await onAdded(item, nil)
                             dismiss()
                         } catch {
                             viewModel.errorMessage = error.localizedDescription
@@ -220,8 +226,9 @@ struct AddItemView: View {
     private func confirmAdd() {
         Task {
             do {
-                _ = try await viewModel.confirmAdd()
-                await onAdded()
+                let pageText = viewModel.preview?.pageText
+                let item = try await viewModel.confirmAdd()
+                await onAdded(item, pageText)
                 dismiss()
             } catch {
                 viewModel.errorMessage = error.localizedDescription

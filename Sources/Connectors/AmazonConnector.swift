@@ -52,7 +52,10 @@ struct AmazonConnector: StoreConnector {
             imageURL: renderedCapture?.imageURL ?? metadata?.imageURL,
             priceCents: renderedCapture?.priceCents ?? metadata?.priceCents,
             priceReferenceCents: nil,
-            storeGenre: renderedCapture?.category ?? metadata?.category ?? metadataTitle.category
+            storeGenre: renderedCapture?.category ?? metadata?.category ?? metadataTitle.category,
+            size: renderedCapture?.size ?? metadata?.size,
+            color: renderedCapture?.color ?? metadata?.color,
+            pageText: renderedCapture?.pageText ?? metadata?.pageText
         )
     }
 

@@ -63,7 +63,10 @@ struct GenericStoreConnector: StoreConnector {
             imageURL: renderedCapture?.imageURL ?? metadata?.imageURL,
             priceCents: priceCents,
             priceReferenceCents: nil,
-            storeGenre: category
+            storeGenre: category,
+            size: renderedCapture?.size ?? metadata?.size,
+            color: renderedCapture?.color ?? metadata?.color,
+            pageText: renderedCapture?.pageText ?? metadata?.pageText
         )
     }
 

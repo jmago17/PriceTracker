@@ -166,6 +166,103 @@ function priceTrackerHydratedProduct() {
     return candidates[0] || null;
 }
 
+
+function priceTrackerJSONLDProducts() {
+    const products = [];
+    function collect(value, depth) {
+        if (!value || typeof value !== "object" || depth > 6) return;
+        if (Array.isArray(value)) {
+            for (const item of value) collect(item, depth + 1);
+            return;
+        }
+        const type = [].concat(value["@type"] || []).join(" ").toLowerCase();
+        if (type.includes("product")) products.push(value);
+        if (value["@graph"]) collect(value["@graph"], depth + 1);
+        if (value.hasVariant) collect(value.hasVariant, depth + 1);
+    }
+    for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+        try {
+            collect(JSON.parse(script.textContent || ""), 0);
+        } catch (_) {}
+    }
+    return products;
+}
+
+function priceTrackerCleanVariant(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === "object") value = value.name || value.value || null;
+    if (value === null || value === undefined) return null;
+    const text = String(value).replace(/\s+/g, " ").trim();
+    if (!text || text.length > 40) return null;
+    if (/^(selecciona|elige|seleccione|choose|select|pick)\b/i.test(text)) return null;
+    return text;
+}
+
+function priceTrackerSelectedOption(keywords) {
+    const pattern = keywords.join("|");
+    const regex = new RegExp(pattern, "i");
+    for (const select of document.querySelectorAll("select")) {
+        const name = (select.name || "") + " " + (select.id || "") + " " + (select.getAttribute("aria-label") || "");
+        if (!regex.test(name)) continue;
+        const option = select.selectedOptions && select.selectedOptions[0];
+        const value = priceTrackerCleanVariant(option && option.textContent);
+        if (value && option.value !== "") return value;
+    }
+    const containers = Array.from(document.querySelectorAll("[class], [id], [data-testid]")).filter(element => {
+        const label = (element.className && element.className.baseVal === undefined ? element.className : "")
+            + " " + (element.id || "") + " " + (element.getAttribute("data-testid") || "");
+        return regex.test(label);
+    }).slice(0, 40);
+    for (const container of containers) {
+        const chosen = container.querySelector('[aria-checked="true"], [aria-pressed="true"], [aria-selected="true"], input:checked + label, .selected, .is-selected, .active');
+        const value = priceTrackerCleanVariant(chosen && (chosen.getAttribute("aria-label") || chosen.getAttribute("title") || chosen.textContent));
+        if (value) return value;
+    }
+    return null;
+}
+
+function priceTrackerURLParameter(keys) {
+    try {
+        const params = new URL(location.href).searchParams;
+        for (const key of keys) {
+            const value = priceTrackerCleanVariant(params.get(key));
+            if (value) return value;
+        }
+    } catch (_) {}
+    return null;
+}
+
+function priceTrackerVariant(kind) {
+    const isSize = kind === "size";
+    const amazon = priceTrackerText(document.querySelector(isSize
+        ? "#variation_size_name .selection, #inline-twister-expanded-dimension-text-size_name"
+        : "#variation_color_name .selection, #inline-twister-expanded-dimension-text-color_name"));
+    if (priceTrackerCleanVariant(amazon)) return priceTrackerCleanVariant(amazon);
+
+    const itemprop = priceTrackerText(document.querySelector(isSize ? '[itemprop="size"]' : '[itemprop="color"]'));
+    if (priceTrackerCleanVariant(itemprop)) return priceTrackerCleanVariant(itemprop);
+
+    for (const product of priceTrackerJSONLDProducts()) {
+        const value = priceTrackerCleanVariant(isSize ? product.size : product.color);
+        if (value) return value;
+    }
+
+    return priceTrackerSelectedOption(isSize ? ["size", "talla", "taille", "groesse", "größe"] : ["colou?r", "farbe", "couleur"])
+        || priceTrackerURLParameter(isSize ? ["size", "talla", "taille"] : ["color", "colour", "couleur"]);
+}
+
+function priceTrackerPageText() {
+    const root = document.querySelector('#dp-container, #ppd, main, [role="main"], article') || document.body;
+    if (!root) return null;
+    const text = (root.innerText || root.textContent || "")
+        .split("\n")
+        .map(line => line.replace(/\s+/g, " ").trim())
+        .filter(line => line.length > 1)
+        .join("\n");
+    if (!text) return null;
+    return text.length > 12000 ? text.slice(0, 12000) : text;
+}
+
 function capturePage() {
     const hydrated = priceTrackerHydratedProduct();
     const hydratedProduct = hydrated ? hydrated.value : null;
@@ -239,6 +336,12 @@ function capturePage() {
         result.currency = currency;
     }
     if (category) result.category = category;
+    const size = priceTrackerVariant("size");
+    if (size) result.size = size;
+    const color = priceTrackerVariant("color");
+    if (color) result.color = color;
+    const pageText = priceTrackerPageText();
+    if (pageText) result.pageText = pageText;
     return result;
 }
 

@@ -12,6 +12,11 @@ struct ResolvedItem: Sendable {
     var priceCents: Int?
     var priceReferenceCents: Int?
     var storeGenre: String?
+    var size: String? = nil
+    var color: String? = nil
+    /// Visible page text captured while resolving. Transient: it feeds the
+    /// on-device summary and is never persisted or synced.
+    var pageText: String? = nil
 }
 
 struct FetchResult: Sendable {
@@ -69,6 +74,9 @@ extension StoreConnector {
             resolved.currency = currency
         }
         if resolved.storeGenre == nil { resolved.storeGenre = pageCapture.category }
+        if resolved.size == nil { resolved.size = pageCapture.size }
+        if resolved.color == nil { resolved.color = pageCapture.color }
+        if resolved.pageText == nil { resolved.pageText = pageCapture.pageText }
         return resolved
     }
 }

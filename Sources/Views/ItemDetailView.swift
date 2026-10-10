@@ -18,24 +18,20 @@ struct ItemDetailView: View {
     }
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showingEdit = false
     @State private var isRefreshing = false
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                header
-                priceBlock
-                comparisonCard
-                historyCard
-                if item.tags?.isEmpty == false || item.notes?.isEmpty == false {
-                    tagsAndNotesCard
+            Group {
+                if horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize {
+                    regularLayout
+                } else {
+                    compactLayout
                 }
-                statusRow
             }
-            .frame(maxWidth: 760)
             .frame(maxWidth: .infinity)
-            .padding(.horizontal, 20)
             .padding(.top, 16)
             .padding(.bottom, 100)
         }
@@ -45,6 +41,17 @@ struct ItemDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ShareLink(
+                    item: item.canonicalURL,
+                    subject: Text(item.title),
+                    message: Text(ItemShareFormatter.message(for: item))
+                ) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .accessibilityLabel("Compartir artículo")
+                .accessibilityIdentifier("share-item-button")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button("Editar", systemImage: "pencil") { showingEdit = true }
@@ -61,6 +68,138 @@ struct ItemDetailView: View {
         }
         .sheet(isPresented: $showingEdit) {
             EditItemView(item: item, viewModel: viewModel)
+        }
+    }
+
+    // MARK: Layouts
+
+    private var compactLayout: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            header
+            priceBlock
+            summaryCard
+            comparisonCard
+            historyCard
+            if item.tags?.isEmpty == false || item.notes?.isEmpty == false {
+                tagsAndNotesCard
+            }
+            statusRow
+        }
+        .frame(maxWidth: 760)
+        .padding(.horizontal, 20)
+    }
+
+    /// iPad: the product image and its price history on the left, everything
+    /// you read or act on in a column on the right.
+    private var regularLayout: some View {
+        HStack(alignment: .top, spacing: 36) {
+            VStack(alignment: .leading, spacing: 20) {
+                Color.white
+                    .aspectRatio(1, contentMode: .fit)
+                    .overlay {
+                        AsyncImage(url: item.imageURL) { image in
+                            image.resizable().scaledToFit().padding(28)
+                        } placeholder: {
+                            Image(systemName: "photo")
+                                .font(.largeTitle)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .accessibilityHidden(true)
+                historyCard
+            }
+            .frame(maxWidth: .infinity)
+
+            VStack(alignment: .leading, spacing: 18) {
+                Text(storeAndCategoryText.uppercased())
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(item.title)
+                    .font(.system(size: 40, weight: .regular, design: .serif))
+                    .fixedSize(horizontal: false, vertical: true)
+                if let subtitle = item.subtitle, !subtitle.isEmpty, item.summary == nil {
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(4)
+                }
+                variantChips
+                priceBlock
+                summaryCard
+                comparisonCard
+                if item.tags?.isEmpty == false || item.notes?.isEmpty == false {
+                    tagsAndNotesCard
+                }
+                statusRow
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .frame(maxWidth: 1180)
+        .padding(.horizontal, 40)
+    }
+
+    @ViewBuilder
+    private var variantChips: some View {
+        if item.size?.trimmedNonEmpty != nil || item.color?.trimmedNonEmpty != nil {
+            HStack(spacing: 8) {
+                if let size = item.size?.trimmedNonEmpty {
+                    VariantChip(label: "Talla", value: size)
+                }
+                if let color = item.color?.trimmedNonEmpty {
+                    VariantChip(label: "Color", value: color)
+                }
+            }
+        }
+    }
+
+    // MARK: Summary (Apple Intelligence)
+
+    private var isSummarizing: Bool { viewModel.summarizingIDs.contains(item.id) }
+
+    @ViewBuilder
+    private var summaryCard: some View {
+        let unavailableReason = ProductInsightGenerator.unavailableReason
+        if item.summary != nil || isSummarizing || unavailableReason == nil {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Resumen", systemImage: "sparkles")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                if isSummarizing {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Leyendo la página con Apple Intelligence…")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if let summary = item.summary {
+                    Text(summary)
+                        .font(.system(.body, design: .serif))
+                        .textSelection(.enabled)
+                    Text("Generado en el dispositivo con Apple Intelligence a partir de la página de la tienda.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(viewModel.summaryErrors[item.id] ?? "Todavía sin resumen de esta ficha.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                if !isSummarizing, unavailableReason == nil {
+                    Button(item.summary == nil ? "Generar resumen" : "Volver a generar", systemImage: "arrow.clockwise") {
+                        viewModel.generateSummary(for: item)
+                    }
+                    .font(.subheadline)
+                    .accessibilityIdentifier("generate-summary-button")
+                } else if let unavailableReason, item.summary != nil {
+                    Text(unavailableReason)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
         }
     }
 
@@ -89,6 +228,8 @@ struct ItemDetailView: View {
                 Text(storeAndCategoryText)
                     .font(.footnote)
                     .foregroundStyle(.tertiary)
+                variantChips
+                    .padding(.top, 4)
             }
         }
     }
@@ -424,6 +565,23 @@ private struct GhostButtonStyle: ButtonStyle {
             .frame(height: 48)
             .background(tint.opacity(configuration.isPressed ? 0.18 : 0.1))
             .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+private struct VariantChip: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(label).foregroundStyle(.secondary)
+            Text(value).fontWeight(.semibold)
+        }
+        .font(.subheadline)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color(.tertiarySystemFill), in: Capsule())
+        .accessibilityElement(children: .combine)
     }
 }
 

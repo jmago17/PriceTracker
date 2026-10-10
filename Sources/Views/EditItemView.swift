@@ -11,6 +11,9 @@ struct EditItemView: View {
     @State private var targetPriceText: String
     @State private var notes: String
     @State private var tagsText: String
+    @State private var size: String
+    @State private var color: String
+    @State private var summary: String
 
     init(item: Item, viewModel: ItemListViewModel) {
         self.item = item
@@ -19,6 +22,9 @@ struct EditItemView: View {
         _targetPriceText = State(initialValue: item.targetPriceCents.map { String(format: "%.2f", Double($0) / 100) } ?? "")
         _notes = State(initialValue: item.notes ?? "")
         _tagsText = State(initialValue: (item.tags ?? []).joined(separator: ", "))
+        _size = State(initialValue: item.size ?? "")
+        _color = State(initialValue: item.color ?? "")
+        _summary = State(initialValue: item.summary ?? "")
     }
 
     var body: some View {
@@ -31,6 +37,20 @@ struct EditItemView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                }
+
+                Section {
+                    TextField("Talla", text: $size)
+                    TextField("Color", text: $color)
+                } header: {
+                    Text("Variante")
+                } footer: {
+                    Text("Se incluye al compartir el artículo.")
+                }
+
+                Section("Resumen") {
+                    TextField("Sin resumen", text: $summary, axis: .vertical)
+                        .lineLimit(3...10)
                 }
 
                 Section("Precio objetivo") {
@@ -76,6 +96,9 @@ struct EditItemView: View {
             updated.targetPriceCents = nil
         }
         updated.notes = notes.isEmpty ? nil : notes
+        updated.size = size.trimmedNonEmpty
+        updated.color = color.trimmedNonEmpty
+        updated.summary = summary.trimmedNonEmpty
         let tags = tagsText
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }

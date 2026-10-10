@@ -43,7 +43,10 @@ struct AppleStoreConnector: StoreConnector {
             imageURL: product.imageURL,
             priceCents: priceCents,
             priceReferenceCents: nil,
-            storeGenre: "Hardware"
+            storeGenre: "Hardware",
+            size: product.size,
+            color: product.color,
+            pageText: product.pageText
         )
     }
 
