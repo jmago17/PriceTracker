@@ -33,7 +33,7 @@ struct SettingsView: View {
                 Section("Apariencia") {
                     Toggle("Mural en iPhone", isOn: $compactCatalogMuralEnabled)
                         .accessibilityIdentifier("compact-catalog-mural-toggle")
-                    Text("Catálogo con tarjetas en una columna y el estilo del mural de iPad. Desactivado conserva la lista habitual. En iPad a ancho completo se mantiene el mural.")
+                    Text("Catálogo gris con tarjetas en dos columnas escalonadas, adaptable a una columna con texto accesible o poco ancho. Desactivado conserva la lista habitual. En iPad a ancho completo se mantiene el mural.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Atajos y Siri") {

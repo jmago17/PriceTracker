@@ -8,6 +8,10 @@ import SwiftUI
 struct MasonryLayout: Layout {
     var minColumnWidth: CGFloat = 220
     var spacing: CGFloat = 22
+    /// Defaults preserve the regular-width mural. Compact width caps the grid
+    /// at two columns and offsets the second column like the reference.
+    var maximumColumns: Int? = nil
+    var initialColumnOffset: CGFloat = 0
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? 900
@@ -27,9 +31,10 @@ struct MasonryLayout: Layout {
     }
 
     private func arrange(width: CGFloat, subviews: Subviews) -> [CGRect] {
-        let columns = max(1, Int((width + spacing) / (minColumnWidth + spacing)))
+        let fittingColumns = max(1, Int((width + spacing) / (minColumnWidth + spacing)))
+        let columns = min(fittingColumns, max(1, maximumColumns ?? fittingColumns))
         let columnWidth = (width - CGFloat(columns - 1) * spacing) / CGFloat(columns)
-        var heights = Array(repeating: CGFloat.zero, count: columns)
+        var heights = (0..<columns).map { CGFloat($0) * initialColumnOffset }
         return subviews.map { subview in
             let column = heights.indices.min { heights[$0] < heights[$1] } ?? 0
             let size = subview.sizeThatFits(ProposedViewSize(width: columnWidth, height: nil))
@@ -42,6 +47,117 @@ struct MasonryLayout: Layout {
             heights[column] += size.height + spacing
             return frame
         }
+    }
+}
+
+// MARK: - Compact editorial card
+
+/// The iPhone mural has one continuous, rounded surface per item. Content
+/// determines its height; no random spacers or invented dates/categories.
+/// The existing ItemCardView below remains the regular-width presentation.
+struct CompactMuralCardView: View {
+    let item: Item
+    var isSelecting = false
+    var isSelected = false
+    var isSummarizing = false
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
+
+    private let cornerRadius: CGFloat = 32
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 6) {
+                Text(item.lastSuccessAt?.relativeSpanish ?? "Sin comprobar")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(item.lastSuccessAt.map { "Comprobado \($0.relativeSpanish)" } ?? "Sin comprobación correcta")
+                if isSelecting {
+                    Spacer(minLength: 0)
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.title3)
+                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            Text(item.title)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(priceText)
+                .font(.headline.weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(metaText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let reduction = item.reductionSinceAddedCents {
+                Text("↓ \(MoneyFormatter.string(cents: reduction, currency: item.currency)) desde el inicio")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if isSummarizing {
+                Label("Resumiendo…", systemImage: "sparkles")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .symbolEffect(.pulse, isActive: !reduceMotion)
+            } else if let summary = item.summary?.trimmedNonEmpty {
+                Text(summary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 5)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if item.lastError != nil {
+                Label("No se pudo comprobar", systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let imageURL = item.imageURL {
+                Color(.tertiarySystemGroupedBackground)
+                    .aspectRatio(1.05, contentMode: .fit)
+                    .overlay {
+                        AsyncImage(url: imageURL) { image in
+                            image.resizable().scaledToFit().padding(8)
+                        } placeholder: {
+                            Image(systemName: "photo")
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .accessibilityHidden(true)
+                    .padding(.top, 4)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(isSelected ? Color.accentColor : Color(.separator).opacity(0.35), lineWidth: isSelected ? 2 : 0.5)
+        }
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.2 : 0.045), radius: 10, y: 5)
+        .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("item-card")
+    }
+
+    private var priceText: String {
+        guard let cents = item.priceCurrentCents else { return "Precio sin comprobar" }
+        return cents == 0 ? "Gratis" : MoneyFormatter.string(cents: cents, currency: item.currency)
+    }
+
+    private var metaText: String {
+        let detail = item.variantDescription ?? item.category?.trimmedNonEmpty
+        return detail.map { "\(item.store.displayName) · \($0)" } ?? item.store.displayName
     }
 }
 

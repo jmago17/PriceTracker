@@ -235,6 +235,116 @@ final class ScreenshotTests: XCTestCase {
         capture(app, "iphone_list_settings_disabled")
     }
 
+    /// Geometry assertions distinguish a staggered mural from a two-column
+    /// LazyVGrid. Run on an ordinary-width iPhone (e.g. 17 Pro) in portrait.
+    func testCompactMuralStaggeredColumnsAndFloatingActions() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo-catalog", "-compactCatalogMuralEnabled", "YES",
+                               "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryM"]
+        app.launch()
+        let scroll = app.scrollViews["catalog-mural-compact"]
+        guard scroll.waitForExistence(timeout: 5), app.frame.width >= 358 else {
+            throw XCTSkip("Dos columnas: iPhone compacto de al menos 358 pt")
+        }
+        let cards = app.descendants(matching: .any).matching(identifier: "item-card")
+        XCTAssertTrue(cards.firstMatch.waitForExistence(timeout: 5))
+        let frames = uniqueCardFrames(cards)
+        XCTAssertGreaterThanOrEqual(frames.count, 2)
+        let first = frames[0]
+        let second = frames[1]
+        XCTAssertGreaterThan(abs(first.midX - second.midX), 100)
+        XCTAssertEqual(first.width, second.width, accuracy: 2)
+        XCTAssertEqual(second.minY - first.minY, 52, accuracy: 2)
+        capture(app, "iphone_gray_masonry_light")
+
+        let searchButton = app.buttons["mural-search-button"]
+        let refresh = app.buttons["mural-refresh-button"]
+        let filter = app.buttons["mural-status-filter-menu"]
+        let add = app.buttons["add-item-button"]
+        for button in [searchButton, refresh, filter, add] {
+            XCTAssertTrue(button.isHittable)
+            XCTAssertGreaterThanOrEqual(button.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(button.frame.height, 44)
+            XCTAssertLessThanOrEqual(button.frame.maxY, app.tabBars.firstMatch.frame.minY)
+        }
+        XCTAssertLessThan(searchButton.frame.maxX, refresh.frame.minX)
+        XCTAssertLessThan(refresh.frame.maxX, filter.frame.minX)
+        XCTAssertLessThan(filter.frame.maxX, add.frame.minX)
+
+        // Even at the bottom, the last card must be reachable above the controls.
+        for _ in 0..<6 { scroll.swipeUp() }
+        let finalFrames = uniqueCardFrames(cards)
+        let last = try XCTUnwrap(finalFrames.max(by: { $0.maxY < $1.maxY }))
+        XCTAssertLessThanOrEqual(last.maxY, searchButton.frame.minY)
+        capture(app, "iphone_gray_masonry_last_card")
+        searchButton.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        let search = app.textFields["mural-search-field"]
+        XCTAssertTrue(search.isHittable)
+        search.typeText("Camiseta")
+        app.buttons["dismiss-mural-keyboard-button"].tap()
+        let match = cards.firstMatch
+        XCTAssertTrue(match.waitForExistence(timeout: 5))
+        XCTAssertTrue(match.label.contains("12,99"), "La tarjeta mantiene el precio real")
+        XCTAssertTrue(match.label.contains("Verde oliva"))
+        XCTAssertTrue(match.label.contains("Comprobado"))
+        XCTAssertTrue(app.buttons["mural-status-filter-menu"].isHittable)
+        filter.tap()
+        XCTAssertTrue(app.buttons["Pausados"].waitForExistence(timeout: 5))
+        app.buttons["Pausados"].tap()
+        XCTAssertTrue(app.staticTexts["Sin resultados"].waitForExistence(timeout: 5))
+        filter.tap()
+        app.buttons["Activos"].tap()
+        XCTAssertTrue(cards.firstMatch.waitForExistence(timeout: 5))
+        add.tap()
+        XCTAssertTrue(app.navigationBars["Añadir producto"].waitForExistence(timeout: 5))
+    }
+
+    func testCompactMuralDarkTwoColumns() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo-catalog", "-compactCatalogMuralEnabled", "YES",
+                               "-AppleInterfaceStyle", "Dark",
+                               "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryM"]
+        app.launch()
+        guard app.scrollViews["catalog-mural-compact"].waitForExistence(timeout: 5), app.frame.width >= 358 else {
+            throw XCTSkip("Ejecutar en iPhone compacto de al menos 358 pt")
+        }
+        let frames = uniqueCardFrames(app.descendants(matching: .any).matching(identifier: "item-card"))
+        XCTAssertGreaterThanOrEqual(frames.count, 2)
+        XCTAssertGreaterThan(abs(frames[0].midX - frames[1].midX), 100)
+        capture(app, "iphone_gray_masonry_dark")
+        try app.performAccessibilityAudit(for: [.sufficientElementDescription])
+    }
+
+    /// On a narrow destination such as iPhone SE, normal text also gets one
+    /// column rather than squeezing a title and currency into tiny tiles.
+    func testCompactMuralNarrowWidthFallback() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo-catalog", "-compactCatalogMuralEnabled", "YES",
+                               "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryM"]
+        app.launch()
+        guard app.scrollViews["catalog-mural-compact"].waitForExistence(timeout: 5), app.frame.width < 358 else {
+            throw XCTSkip("Ejecutar en destino compacto menor de 358 pt")
+        }
+        let frames = uniqueCardFrames(app.descendants(matching: .any).matching(identifier: "item-card"))
+        XCTAssertGreaterThanOrEqual(frames.count, 2)
+        XCTAssertEqual(frames[0].minX, frames[1].minX, accuracy: 2)
+        XCTAssertGreaterThan(frames[0].width, app.frame.width * 0.8)
+        capture(app, "iphone_gray_masonry_narrow_fallback")
+    }
+
+    private func uniqueCardFrames(_ query: XCUIElementQuery) -> [CGRect] {
+        // Some OS versions expose both the link and its combined label with
+        // the same identifier. Deduplicate frames without depending on type.
+        query.allElementsBoundByIndex.reduce(into: [CGRect]()) { frames, element in
+            let frame = element.frame
+            if !frame.isEmpty && !frames.contains(frame) { frames.append(frame) }
+        }
+    }
+
     func testCompactMuralSearchKeyboardAndLargeText() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
@@ -245,6 +355,10 @@ final class ScreenshotTests: XCTestCase {
         guard app.scrollViews["catalog-mural-compact"].waitForExistence(timeout: 5) else {
             throw XCTSkip("Prueba de ancho compacto; ejecutar en iPhone vertical")
         }
+        let frames = uniqueCardFrames(app.descendants(matching: .any).matching(identifier: "item-card"))
+        XCTAssertGreaterThanOrEqual(frames.count, 2)
+        XCTAssertEqual(frames[0].minX, frames[1].minX, accuracy: 2)
+        XCTAssertGreaterThan(frames[0].width, app.frame.width * 0.8)
         capture(app, "iphone_mural_dark_large_text")
         try app.performAccessibilityAudit(for: [.sufficientElementDescription])
         let search = app.textFields["mural-search-field"]
