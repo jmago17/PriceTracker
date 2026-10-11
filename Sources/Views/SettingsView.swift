@@ -8,6 +8,8 @@ struct SettingsView: View {
     var syncViewModel: SyncViewModel
 
     @State private var automation = DailyRefreshSettings.shared
+    @State private var bridge = ShortcutBridgeSettings.shared
+    @AppStorage("compactCatalogMuralEnabled") private var compactCatalogMuralEnabled = false
 
     var body: some View {
         NavigationStack {
@@ -26,6 +28,13 @@ struct SettingsView: View {
                     Text("Precios y avisos")
                 } footer: {
                     Text("iOS decide cuándo puede actualizar en segundo plano; no se garantiza una hora ni una ejecución diaria. Solo se comprueban tiendas compatibles. Los avisos también se aplican a las comprobaciones manuales y de Atajos.")
+                }
+                shortcutBridgeSection
+                Section("Apariencia") {
+                    Toggle("Mural en iPhone", isOn: $compactCatalogMuralEnabled)
+                        .accessibilityIdentifier("compact-catalog-mural-toggle")
+                    Text("Catálogo con tarjetas en una columna y el estilo del mural de iPad. Desactivado conserva la lista habitual. En iPad a ancho completo se mantiene el mural.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Atajos y Siri") {
                     Text("En Atajos: Buscar artículos → Repetir con cada uno → Actualizar artículo. Cada resultado incluye precio en céntimos, moneda, cambio y error.")
@@ -62,6 +71,50 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Ajustes")
+        }
+    }
+
+    private var shortcutBridgeSection: some View {
+        Section {
+            Toggle("Puente diario para Atajos", isOn: Binding(
+                get: { bridge.enabled },
+                set: { value in Task { await bridge.setEnabled(value) } }))
+                .disabled(bridge.isWorking && !bridge.enabled)
+            DatePicker("Hora local", selection: Binding(
+                get: { bridge.time },
+                set: { value in Task { await bridge.setTime(value) } }),
+                displayedComponents: .hourAndMinute)
+                .disabled(bridge.isWorking)
+            Button("Enviar notificación de prueba") {
+                Task { await bridge.test() }
+            }
+            .disabled(bridge.isWorking)
+            if let message = bridge.message {
+                Text(message).font(.caption).foregroundStyle(.secondary)
+            }
+            Link("Abrir ajustes de notificaciones", destination: URL(string: UIApplication.openNotificationSettingsURLString)!)
+            NavigationLink("Cómo configurar la automatización") {
+                List {
+                    Section("Configuración manual en Atajos") {
+                        Text("1. Abre Atajos → Automatización → Nueva automatización. Si tu versión ofrece el disparador Notificación, selecciónalo y elige PriceTracker.")
+                        Text("2. Filtra el cuerpo por el texto exacto ‘PriceTracker refresh’. Si solo permite elegir la app, añade una condición sobre el cuerpo antes de ejecutar la acción para no reaccionar a los avisos de precios.")
+                        Text("3. Añade PriceTracker → Comprobar precios (actualiza el catálogo). Elige Ejecutar inmediatamente si el sistema lo permite; si pide confirmación, tendrás que confirmarla.")
+                        Text("4. Activa el puente y elige la hora. Envía una prueba y sal de PriceTracker. Verifica la recepción y la ejecución; programar una notificación no comprueba que Atajos esté configurado.")
+                    }
+                    Section("Si no aparece Notificación") {
+                        Text("No todas las versiones de iOS ofrecen ese disparador. Usa Atajos → Automatización → Hora del día → Diariamente → PriceTracker → Comprobar precios. Desactiva este puente para evitar avisos innecesarios.")
+                    }
+                    Section("Límites") {
+                        Text("Es una notificación local pasiva: sin sonido ni insignia, no invisible. Puede quedar en el Centro de notificaciones. No inicia Atajos por sí sola ni garantiza una actualización. La entrega, permisos, modos de concentración, confirmaciones y ejecución en segundo plano dependen de iOS.")
+                        Text("El permiso es compartido con los avisos de precios, pero el puente no activa ni desactiva esos avisos. Si usas la automatización, puedes desactivar la actualización diaria de mejor esfuerzo para evitar comprobaciones duplicadas.")
+                    }
+                }
+                .navigationTitle("Puente de Atajos")
+            }
+        } header: {
+            Text("Automatización por notificación")
+        } footer: {
+            Text("Optativo. Envía ‘PriceTracker refresh’ cada día a la hora local elegida. Requiere configurar Atajos manualmente y que iOS ofrezca un disparador compatible. Silenciosa significa sin sonido, no invisible.")
         }
     }
 

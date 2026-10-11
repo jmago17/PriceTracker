@@ -13,10 +13,10 @@ source.mkdir(parents=True, exist_ok=True); tests.mkdir(parents=True, exist_ok=Tr
 files = ['App/AppGroup.swift', 'AppIntents/SearchCatalogIntent.swift', 'Models/Item.swift', 'Models/Store.swift', 'Models/ItemStatus.swift', 'Models/PriceObservation.swift',
          'Persistence/CloudBackedItemStore.swift', 'Persistence/SQLiteItemStore.swift', 'Sync/CloudRecordIdentity.swift', 'Views/DateFormatting.swift', 'Persistence/ItemStoring.swift', 'Persistence/JSONFileStore.swift', 'Connectors/StoreConnector.swift',
          'Alerts/PriceDropDetector.swift', 'Alerts/AlertNotifier.swift', 'Refresh/RefreshCoordinator.swift',
-         'Refresh/DailyRefreshSettings.swift', 'AppIntents/ItemFilterEngine.swift', 'AppIntents/ItemEntity.swift',
+         'Refresh/DailyRefreshSettings.swift', 'Refresh/ShortcutBridgeSettings.swift', 'AppIntents/ItemFilterEngine.swift', 'AppIntents/ItemEntity.swift',
          'AppIntents/ItemQuery.swift', 'AppIntents/RefreshItemIntent.swift', 'Views/MoneyFormatter.swift']
 for name in files: shutil.copy2(root/'Sources'/name, source/Path(name).name)
-for name in ['AutomationTests.swift', 'PriceDropDetectorTests.swift', 'ItemFilterEngineTests.swift']:
+for name in ['AutomationTests.swift', 'ShortcutBridgeTests.swift', 'PriceDropDetectorTests.swift', 'ItemFilterEngineTests.swift']:
     shutil.copy2(root/'Tests/PriceTrackerTests'/name, tests/name)
 (source/'TestComposition.swift').write_text('''import Foundation
 final class AppEnvironment: Sendable {

@@ -1,15 +1,17 @@
 import SwiftUI
 
-/// iPhone: inset-grouped list. iPad (regular width): a mural of cards in
-/// masonry columns with a large serif search field, category chips and
-/// floating controls. Both share selection, sharing, sheets and navigation.
+/// iPhone defaults to an inset-grouped list, with an optional single-column
+/// mural. Regular width keeps the masonry mural. All presentations share
+/// selection, sharing, sheets and navigation.
 struct CatalogView: View {
     @Bindable var viewModel: ItemListViewModel
     var syncViewModel: SyncViewModel
     @Binding var selectedTab: RootView.RootTab
 
+    @AppStorage("compactCatalogMuralEnabled") private var compactCatalogMuralEnabled = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @ScaledMetric(relativeTo: .largeTitle) private var muralSearchSize: CGFloat = 56
+    @ScaledMetric(relativeTo: .title) private var compactMuralSearchSize: CGFloat = 30
 
     @State private var showingAddItem = false
     @State private var showingImportExport = false
@@ -19,11 +21,12 @@ struct CatalogView: View {
     @FocusState private var muralSearchFocused: Bool
 
     private var isRegular: Bool { horizontalSizeClass == .regular }
+    private var usesMural: Bool { isRegular || compactCatalogMuralEnabled }
 
     var body: some View {
         NavigationStack {
             Group {
-                if isRegular {
+                if usesMural {
                     mural
                 } else {
                     compactList
@@ -40,8 +43,12 @@ struct CatalogView: View {
             .safeAreaInset(edge: .bottom) {
                 if isSelecting {
                     SelectionShareBar(items: viewModel.items(withIDs: selection))
-                } else if isRegular {
-                    muralBottomControls
+                } else if usesMural && !muralSearchFocused {
+                    if isRegular {
+                        muralBottomControls
+                    } else {
+                        compactMuralBottomControls
+                    }
                 }
             }
             .sheet(isPresented: $showingAddItem) {
@@ -101,7 +108,7 @@ struct CatalogView: View {
                     .accessibilityIdentifier("end-selection-button")
             }
         } else {
-            if !isRegular {
+            if !usesMural {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showingAddItem = true
@@ -113,14 +120,14 @@ struct CatalogView: View {
                 }
             } else if !viewModel.items.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Seleccionar") { isSelecting = true }
+                    Button("Seleccionar") { startSelection() }
                         .accessibilityIdentifier("start-selection-button")
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    if !isRegular && !viewModel.items.isEmpty {
-                        Button("Seleccionar", systemImage: "checkmark.circle") { isSelecting = true }
+                    if !usesMural && !viewModel.items.isEmpty {
+                        Button("Seleccionar", systemImage: "checkmark.circle") { startSelection() }
                     }
                     if viewModel.isRefreshingCatalog {
                         Button("Cancelar actualización", systemImage: "xmark", role: .destructive) {
@@ -146,6 +153,13 @@ struct CatalogView: View {
                 .accessibilityLabel("Opciones del catálogo")
             }
         }
+        ToolbarItemGroup(placement: .keyboard) {
+            if usesMural {
+                Spacer()
+                Button("Listo") { muralSearchFocused = false }
+                    .accessibilityIdentifier("dismiss-mural-keyboard-button")
+            }
+        }
     }
 
     private var allVisibleSelected: Bool {
@@ -158,9 +172,14 @@ struct CatalogView: View {
         selection.removeAll()
     }
 
+    private func startSelection() {
+        muralSearchFocused = false
+        isSelecting = true
+    }
+
     private func beginSelection(with item: Item) {
         selection = [item.id]
-        isSelecting = true
+        startSelection()
     }
 
     // MARK: iPhone list
@@ -343,14 +362,20 @@ struct CatalogView: View {
         .accessibilityIdentifier("catalog-filters")
     }
 
-    // MARK: iPad mural
+    // MARK: Adaptive mural
 
     private var mural: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: isRegular ? 18 : 16) {
                 muralSearchField
                 Divider()
                 muralChips
+                if !isRegular && !viewModel.items.isEmpty {
+                    Text(summaryText(viewModel.summary))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 if let progress = viewModel.refreshProgress, viewModel.isRefreshingCatalog {
                     VStack(alignment: .leading, spacing: 4) {
@@ -364,20 +389,30 @@ struct CatalogView: View {
 
                 if viewModel.filteredItems.isEmpty {
                     emptyState
-                } else {
+                } else if isRegular {
                     MasonryLayout(minColumnWidth: 220, spacing: 22) {
                         ForEach(viewModel.filteredItems) { item in
                             muralCard(item)
                         }
                     }
                     .padding(.top, 6)
+                } else {
+                    // Compact width stays one column even in landscape. A lazy
+                    // stack also avoids measuring the entire catalog up front.
+                    LazyVStack(spacing: 24) {
+                        ForEach(viewModel.filteredItems) { item in
+                            muralCard(item)
+                        }
+                    }
+                    .padding(.top, 4)
                 }
             }
-            .padding(.horizontal, 40)
+            .padding(.horizontal, isRegular ? 40 : 20)
             .padding(.top, 8)
-            .padding(.bottom, 40)
+            .padding(.bottom, isRegular ? 40 : 24)
         }
-        .scrollDismissesKeyboard(.immediately)
+        .accessibilityIdentifier(isRegular ? "catalog-mural-regular" : "catalog-mural-compact")
+        .scrollDismissesKeyboard(.interactively)
         .toolbar(removing: .title)
     }
 
@@ -387,7 +422,8 @@ struct CatalogView: View {
             item: item,
             isSelecting: isSelecting,
             isSelected: selection.contains(item.id),
-            isSummarizing: viewModel.summarizingIDs.contains(item.id)
+            isSummarizing: viewModel.summarizingIDs.contains(item.id),
+            isCompact: !isRegular
         )
         if isSelecting {
             Button {
@@ -416,12 +452,14 @@ struct CatalogView: View {
     private var muralSearchField: some View {
         HStack(alignment: .center, spacing: 12) {
             TextField("Busca en tus precios…", text: $viewModel.searchText)
-                .font(.system(size: muralSearchSize, weight: .regular, design: .serif).italic())
+                .font(.system(size: isRegular ? muralSearchSize : compactMuralSearchSize, weight: .regular, design: .serif).italic())
                 .textFieldStyle(.plain)
                 .submitLabel(.search)
                 .autocorrectionDisabled()
                 .focused($muralSearchFocused)
+                .onSubmit { muralSearchFocused = false }
                 .accessibilityLabel("Buscar en el catálogo")
+                .accessibilityIdentifier("mural-search-field")
             if !viewModel.searchText.isEmpty {
                 Button {
                     viewModel.searchText = ""
@@ -430,6 +468,7 @@ struct CatalogView: View {
                     Image(systemName: "xmark.circle.fill")
                         .font(.title2)
                         .foregroundStyle(.secondary)
+                        .frame(minWidth: 44, minHeight: 44)
                 }
                 .accessibilityLabel("Borrar búsqueda")
             }
@@ -460,7 +499,7 @@ struct CatalogView: View {
                         viewModel.categoryFilter = .uncategorized
                     }
                 }
-                if !viewModel.items.isEmpty {
+                if isRegular && !viewModel.items.isEmpty {
                     Text(summaryText(viewModel.summary))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -484,6 +523,66 @@ struct CatalogView: View {
 
     private var uncategorizedCount: Int {
         unpausedItems.filter { ItemFilterEngine.normalizedCategory($0.category) == nil }.count
+    }
+
+    /// Keep three reachable actions rather than squeezing iPad's segmented
+    /// control into a phone. The native menu retains every status filter.
+    private var compactMuralBottomControls: some View {
+        HStack(spacing: 12) {
+            Button {
+                if viewModel.isRefreshingCatalog {
+                    viewModel.cancelRefreshCatalog()
+                } else {
+                    viewModel.startRefreshCatalog()
+                }
+            } label: {
+                Image(systemName: viewModel.isRefreshingCatalog ? "xmark" : "arrow.clockwise")
+                    .font(.title3.weight(.semibold))
+                    .frame(width: 48, height: 48)
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: .circle)
+            .accessibilityLabel(viewModel.isRefreshingCatalog ? "Cancelar actualización" : "Actualizar precios")
+            .accessibilityIdentifier("mural-refresh-button")
+
+            Menu {
+                Picker("Estado", selection: $viewModel.statusFilter) {
+                    ForEach(ItemStatusFilter.allCases, id: \.self) { filter in
+                        Text(filter.displayName).tag(filter)
+                    }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Text(viewModel.statusFilter.shortName)
+                        .font(.subheadline.weight(.semibold))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .contentShape(Capsule())
+            }
+            .glassEffect(.regular.interactive(), in: .capsule)
+            .accessibilityLabel("Filtrar por estado")
+            .accessibilityValue(viewModel.statusFilter.displayName)
+            .accessibilityIdentifier("mural-status-filter-menu")
+
+            Button { showingAddItem = true } label: {
+                Image(systemName: "plus")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color(.systemBackground))
+                    .frame(width: 48, height: 48)
+                    .background(Color.accentColor, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Añadir artículo")
+            .accessibilityIdentifier("add-item-button")
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
     }
 
     private var muralBottomControls: some View {

@@ -47,13 +47,17 @@ struct MasonryLayout: Layout {
 
 // MARK: - Card
 
-/// One tile of the iPad mural. Items with an image show it on a light tile
-/// with the price as a badge; items without one become a typographic card.
+/// One mural tile. Compact width uses a calmer landscape image and puts
+/// prices in the caption, leaving room for large text without badge collisions.
 struct ItemCardView: View {
     let item: Item
     var isSelecting = false
     var isSelected = false
     var isSummarizing = false
+    var isCompact = false
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -64,7 +68,7 @@ struct ItemCardView: View {
             }
             caption
         }
-        .opacity(isSelecting && !isSelected ? 0.55 : 1)
+        .opacity(isSelecting && !isSelected && !isCompact ? 0.55 : 1)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -74,6 +78,7 @@ struct ItemCardView: View {
     /// Stable per item (not `hashValue`, which changes every launch), so the
     /// mural does not reshuffle between launches.
     private var aspectRatio: CGFloat {
+        if isCompact { return 1.35 }
         let ratios: [CGFloat] = [1.0, 0.8, 1.15, 0.9]
         return ratios[Int(item.id.uuid.0) % ratios.count]
     }
@@ -97,8 +102,10 @@ struct ItemCardView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .shadow(color: .black.opacity(0.08), radius: 8, y: 4)
             .overlay(alignment: .topTrailing) {
-                PriceBadge(text: priceText)
-                    .padding(10)
+                if !isCompact {
+                    PriceBadge(text: priceText)
+                        .padding(10)
+                }
             }
             .overlay(alignment: .topLeading) { leadingBadge.padding(10) }
             .overlay { selectionOutline }
@@ -115,12 +122,12 @@ struct ItemCardView: View {
             }
             Text(item.title)
                 .font(.system(.title2, design: .serif))
-                .lineLimit(4)
+                .lineLimit(isCompact && dynamicTypeSize.isAccessibilitySize ? nil : 4)
             if let summary = item.summary {
                 Text(summary)
                     .font(.system(.callout, design: .serif))
                     .foregroundStyle(.secondary)
-                    .lineLimit(5)
+                    .lineLimit(isCompact && dynamicTypeSize.isAccessibilitySize ? nil : 5)
             }
             Text(priceText)
                 .font(.system(.title3, design: .rounded, weight: .bold))
@@ -136,23 +143,28 @@ struct ItemCardView: View {
         VStack(alignment: .leading, spacing: 2) {
             if item.imageURL != nil {
                 Text(item.title)
-                    .font(.subheadline.weight(.medium))
-                    .lineLimit(2)
+                    .font(isCompact ? .headline : .subheadline.weight(.medium))
+                    .lineLimit(isCompact && dynamicTypeSize.isAccessibilitySize ? nil : (isCompact ? 3 : 2))
+                if isCompact {
+                    Text(priceText)
+                        .font(.system(.title3, design: .rounded, weight: .bold))
+                        .monospacedDigit()
+                }
             }
             Text(metaText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
+                .lineLimit(isCompact && dynamicTypeSize.isAccessibilitySize ? nil : (isCompact ? 2 : 1))
             if isSummarizing {
                 Label("Resumiendo…", systemImage: "sparkles")
                     .font(.caption)
                     .foregroundStyle(Color.accentColor)
-                    .symbolEffect(.pulse)
+                    .symbolEffect(.pulse, isActive: !reduceMotion)
             } else if item.imageURL != nil, let summary = item.summary {
                 Text(summary)
                     .font(.system(.footnote, design: .serif))
                     .foregroundStyle(.secondary)
-                    .lineLimit(3)
+                    .lineLimit(isCompact && dynamicTypeSize.isAccessibilitySize ? nil : 3)
                     .padding(.top, 2)
             }
             if item.lastError != nil {
@@ -241,8 +253,13 @@ private struct PriceBadge: View {
 struct SelectionShareBar: View {
     let items: [Item]
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        HStack(spacing: 16) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(spacing: 16))
+        layout {
             VStack(alignment: .leading, spacing: 3) {
                 Text(headline)
                     .font(.subheadline.weight(.semibold))
@@ -267,7 +284,8 @@ struct SelectionShareBar: View {
                 Label("Compartir", systemImage: "square.and.arrow.up")
                     .font(.body.weight(.semibold))
                     .padding(.horizontal, 18)
-                    .frame(height: 46)
+                    .padding(.vertical, 6)
+                    .frame(minHeight: 46)
                     .foregroundStyle(Color(.systemBackground))
                     .background(Color.accentColor, in: Capsule())
             }
