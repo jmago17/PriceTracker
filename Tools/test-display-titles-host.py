@@ -33,6 +33,8 @@ let package = Package(
         "Sources/Intelligence/DisplayTitleCache.swift",
         "Sources/Models/Item.swift",
         "Sources/Models/CatalogPriceCheck.swift",
+        "Sources/Models/CatalogCardDetails.swift",
+        "Sources/Views/MoneyFormatter.swift",
         "Sources/Alerts/PriceDropDetector.swift",
         "Sources/Models/Store.swift",
         "Sources/Models/ItemStatus.swift",
@@ -44,6 +46,7 @@ let package = Package(
     assert marker, "Connector value declarations boundary changed; update the host harness"
     (source / "ResolvedItem.swift").write_text(resolved)
     shutil.copy2(root / "Tests/PriceTrackerTests/CatalogPriceCheckTests.swift", tests)
+    shutil.copy2(root / "Tests/PriceTrackerTests/CatalogCardDetailsTests.swift", tests)
     test_source = (root / "Tests/PriceTrackerTests/DisplayTitleCacheTests.swift").read_text()
     pure_tests, marker, _ = test_source.partition("\n@MainActor\nstruct CatalogTitleLayoutTests")
     assert marker, "UI test boundary changed; update the host harness"

@@ -116,6 +116,14 @@ struct CompactMuralCardView: View {
                 .monospacedDigit()
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
+            if let target = CatalogCardDetails.targetPrice(for: item), let cents = item.targetPriceCents {
+                Text(target)
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel("Precio objetivo: \(MoneyFormatter.string(cents: cents, currency: item.currency))")
+            }
             Text(metaText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -180,8 +188,7 @@ struct CompactMuralCardView: View {
     }
 
     private var metaText: String {
-        let detail = item.variantDescription ?? item.category?.trimmedNonEmpty
-        return detail.map { "\(item.store.displayName) · \($0)" } ?? item.store.displayName
+        CatalogCardDetails.metadata(for: item)
     }
 }
 
