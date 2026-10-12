@@ -363,7 +363,7 @@ enum StorePageParser {
         return nil
     }
 
-    private static func attributes(in tag: String) -> [String: String] {
+    static func attributes(in tag: String) -> [String: String] {
         guard let regex = try? NSRegularExpression(
             pattern: #"([A-Za-z_:][A-Za-z0-9_:.-]*)\s*=\s*([\"'])(.*?)\2"#,
             options: [.caseInsensitive, .dotMatchesLineSeparators]
@@ -456,7 +456,7 @@ enum StorePageParser {
         return URL(string: candidate.relativeString, relativeTo: baseURL)?.absoluteURL
     }
 
-    private static func decodeHTMLEntities(_ value: String) -> String {
+    static func decodeHTMLEntities(_ value: String) -> String {
         value
             .replacingOccurrences(of: "&amp;", with: "&")
             .replacingOccurrences(of: "&quot;", with: "\"")

@@ -18,6 +18,7 @@ private final class MockAmazonURLProtocol: URLProtocol, @unchecked Sendable {
     override func stopLoading() {}
 }
 
+@Suite(.serialized)
 struct AmazonConnectorTests {
     @Test func extractsMetadataOnceButRemainsNonRefreshable() async throws {
         MockAmazonURLProtocol.responseData = Data("""
@@ -49,7 +50,7 @@ struct AmazonConnectorTests {
         #expect(item.imageURL?.absoluteString == "https://example.com/amazon-real.jpg")
         #expect(item.priceCents == 2_550)
         #expect(item.storeGenre == "Electrónica")
-        #expect(!Store.refreshableStores.contains(.amazon))
+        #expect(Store.refreshableStores.contains(.amazon))
     }
 
     @Test func renderedVisiblePriceOverridesAmbiguousStructuredPrice() async throws {

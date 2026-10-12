@@ -65,31 +65,30 @@ struct RefreshFeedbackTests {
         #expect(result.completionMessage.contains("Actualizados: 1. Errores: 0."))
     }
 
-    @Test func amazonOnlyBatchExplicitlyReportsOmissionWithoutChangingDate() async throws {
+    @Test func amazonNowParticipatesInTheCommonRefreshBatch() async throws {
         let original = item(.amazon), now = fresh
         let catalog = FeedbackCatalog([original]), connector = FeedbackConnector()
         let coordinator = RefreshCoordinator(itemStore: catalog, alertStore: FeedbackAlerts(), connectorToFetch: { _ in connector }, now: { now })
         let result = try await coordinator.refreshCatalog()
-        #expect(result.checked == 0 && result.failed == 0 && result.skipped == 1)
-        #expect(result.skippedStores == [.amazon])
-        #expect(await connector.calls == 0)
-        #expect(await catalog.loadAll().first == original)
-        #expect(await catalog.history.isEmpty)
-        #expect(result.completionMessage.contains("Sin comprobar: 1 (Amazon)"))
-        #expect(result.completionMessage.contains("su fecha no se actualiza"))
+        #expect(result.checked == 1 && result.failed == 0 && result.skipped == 0)
+        #expect(result.skippedStores.isEmpty)
+        #expect(await connector.calls == 1)
+        #expect(await catalog.loadAll().first?.lastSuccessAt == fresh)
+        #expect(await catalog.history.count == 1)
+        #expect(result.completionMessage.contains("Actualizados: 1."))
     }
 
-    @Test func errorsAndSkippedItemsCannotLookLikeAllSuccessful() async throws {
+    @Test func errorsAndPausedItemsCannotLookLikeAllSuccessful() async throws {
         let apple = item(), amazon = item(.amazon), now = fresh
         var paused = item(); paused.status = .archived
         let catalog = FeedbackCatalog([apple, amazon, paused]), connector = FeedbackConnector(fails: true)
         let coordinator = RefreshCoordinator(itemStore: catalog, alertStore: FeedbackAlerts(), connectorToFetch: { _ in connector }, now: { now })
         let result = try await coordinator.refreshCatalog()
-        #expect(result.checked == 1 && result.failed == 1 && result.skipped == 1)
+        #expect(result.checked == 2 && result.failed == 2 && result.skipped == 0)
         let stored = try #require(await catalog.loadAll().first { $0.id == apple.id })
         #expect(stored.lastSuccessAt == old && stored.lastCheckedAt == fresh)
         #expect(stored.lastError?.contains("429") == true)
-        #expect(result.completionMessage.contains("Actualizados: 0. Errores: 1."))
+        #expect(result.completionMessage.contains("Actualizados: 0. Errores: 2."))
         #expect(await catalog.loadAll().first { $0.id == paused.id } == paused)
         #expect(await catalog.history.isEmpty)
     }

@@ -18,6 +18,7 @@ private final class MockGenericStoreURLProtocol: URLProtocol, @unchecked Sendabl
     override func stopLoading() {}
 }
 
+@Suite(.serialized)
 struct GenericStoreConnectorTests {
     @Test func arbitraryStoreExtractsOpenGraphMetadataOnce() async throws {
         MockGenericStoreURLProtocol.responseData = Data("""
@@ -55,7 +56,7 @@ struct GenericStoreConnectorTests {
 
         #expect(item.title == "Producto sin precio")
         #expect(item.priceCents == nil)
-        #expect(!Store.refreshableStores.contains(item.store))
+        #expect(Store.refreshableStores.contains(item.store))
     }
 
     @Test func playStationJSONLDExtractsCompleteProduct() async throws {

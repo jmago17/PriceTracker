@@ -1,7 +1,7 @@
 import Foundation
 
 /// Central lookup: specific connectors handle refreshable stores and exceptional
-/// metadata; every other HTTP URL falls through to the generic one-time capture.
+/// metadata; every other HTTP URL falls through to the generic public-price connector.
 final class ConnectorRegistry: Sendable {
     private let resolvers: [any StoreConnector]
     private let fetchersByStore: [Store: any StoreConnector]
@@ -16,6 +16,10 @@ final class ConnectorRegistry: Sendable {
             .appleStore: appleStore,
             .appleBooks: itunes,
             .appleMusic: itunes,
+            .amazon: amazon,
+            .generic: generic,
+            .psStore: generic,
+            .eshop: generic,
         ])
     }
 
@@ -24,8 +28,7 @@ final class ConnectorRegistry: Sendable {
         self.fetchersByStore = fetchersByStore
     }
 
-    /// Tries every connector that knows how to add-by-URL. Amazon resolves (to
-    /// capture the ASIN) but is not in `fetchersByStore` — it never auto-refreshes.
+    /// Tries specific metadata resolvers before the generic web fallback.
     func resolve(url: URL, pageCapture: SharedPageCapture? = nil) async throws -> ResolvedItem {
         let candidates = resolvers.filter { $0.canResolve(url: url) }
         guard !candidates.isEmpty else { throw ConnectorError.unrecognizedURL }

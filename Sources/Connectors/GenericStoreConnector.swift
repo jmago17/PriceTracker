@@ -1,20 +1,22 @@
 import Foundation
 
-/// Last-resort resolver for any web store. It captures metadata once when the
-/// item is added; generic items are deliberately not periodically scraped.
+/// Resolves arbitrary HTTP stores and checks explicitly identified public prices.
+/// Dynamic or ambiguous pages can be saved but fail clearly when refreshed.
 struct GenericStoreConnector: StoreConnector {
     let store: Store = .generic
 
     private let loader: StorePageLoader
+    private let priceLoader: WebPriceLoader
     private let defaultRegion: String
     private let rendersDynamicPages: Bool
 
     init(
-        session: URLSession = .shared,
+        session: URLSession = PublicWebSession.shared,
         defaultRegion: String = "ES",
         rendersDynamicPages: Bool = true
     ) {
         loader = StorePageLoader(session: session)
+        priceLoader = WebPriceLoader(session: session)
         self.defaultRegion = defaultRegion
         self.rendersDynamicPages = rendersDynamicPages
     }
@@ -71,9 +73,7 @@ struct GenericStoreConnector: StoreConnector {
     }
 
     func fetch(_ item: Item) async throws -> FetchResult {
-        throw ConnectorError.notSupported(
-            "Este enlace se guarda con la información disponible al añadirlo, sin seguimiento automático de precio."
-        )
+        try await priceLoader.fetch(item)
     }
 
     private static func normalized(_ url: URL) -> URL {

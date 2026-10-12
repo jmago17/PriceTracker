@@ -31,6 +31,14 @@ private struct SuccessfulFallbackConnector: StoreConnector {
 }
 
 struct ConnectorRegistryTests {
+    @Test func everySavedStoreHasACommonRefreshConnector() {
+        let registry = ConnectorRegistry()
+        for store in Store.allCases {
+            #expect(Store.refreshableStores.contains(store))
+            #expect(registry.connectorToFetch(store: store) != nil)
+        }
+    }
+
     @Test func fallsBackWhenSpecificConnectorCannotExtractThePage() async throws {
         let registry = ConnectorRegistry(
             resolvers: [FailingSpecificConnector(), SuccessfulFallbackConnector()]

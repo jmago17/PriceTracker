@@ -1,16 +1,17 @@
 import Foundation
 
-/// Amazon items are never scraped periodically: Keepa already provides that
-/// service. On add, the connector makes one best-effort metadata request so the
-/// saved link can still include the title, image and visible price.
+/// Resolves Amazon metadata and checks the public price of the saved ASIN.
+/// Blocked or ambiguous pages fail without replacing the last successful price.
 struct AmazonConnector: StoreConnector {
     let store: Store = .amazon
 
     private let loader: StorePageLoader
+    private let priceLoader: WebPriceLoader
     private let rendersDynamicPages: Bool
 
-    init(session: URLSession = .shared, rendersDynamicPages: Bool = true) {
+    init(session: URLSession = PublicWebSession.shared, rendersDynamicPages: Bool = true) {
         loader = StorePageLoader(session: session)
+        priceLoader = WebPriceLoader(session: session)
         self.rendersDynamicPages = rendersDynamicPages
     }
 
@@ -60,9 +61,7 @@ struct AmazonConnector: StoreConnector {
     }
 
     func fetch(_ item: Item) async throws -> FetchResult {
-        throw ConnectorError.notSupported(
-            "El seguimiento de precio de Amazon no está implementado (decisión de arquitectura: no se scrapea). Usa el enlace a Keepa."
-        )
+        try await priceLoader.fetch(item)
     }
 
     static func extractASIN(from url: URL) -> String? {

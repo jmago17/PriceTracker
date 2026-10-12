@@ -128,10 +128,9 @@ struct Item: Identifiable, Codable, Hashable, Sendable {
 }
 
 extension Store {
-    /// Stores for which we have a working price-fetch connector today.
-    /// Generic and Amazon links capture metadata only when added. They are not
-    /// periodically scraped, so they stay outside this set.
-    static var refreshableStores: Set<Store> { [.appStore, .appleStore, .appleBooks, .appleMusic] }
+    /// Web connectors attempt public, verifiable prices; unsupported pages report
+    /// per-item errors instead of silently skipping entire storefronts.
+    static var refreshableStores: Set<Store> { Set(Store.allCases) }
 }
 
 
