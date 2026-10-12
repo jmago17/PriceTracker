@@ -36,6 +36,7 @@
 		2FA65E02297F91DF03F76DD2 /* SetTargetPriceIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36860A58564943073FC3A0DE /* SetTargetPriceIntent.swift */; };
 		304EC3F7F32CFB1100B2C146 /* RefreshItemIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C26240AF37519032AB7B7B /* RefreshItemIntent.swift */; };
 		36A46ED11B16C5B950542E36 /* ShareAndInsightTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E113659CAF4619697F4BD64 /* ShareAndInsightTests.swift */; };
+		439E069FB35742896D5D8398 /* RefreshFeedbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA94F771A118C4030F08941C /* RefreshFeedbackTests.swift */; };
 		44B79353300C59F5E3E9CA0A /* ShowPriceDropsIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63EA031A361C4F59FBCA7B5F /* ShowPriceDropsIntent.swift */; };
 		518F32C7CED5BD6B6833DA11 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A870D5B3A3CB2311D185B47 /* AppGroup.swift */; };
 		525E39DAA5E9DC72415B9A55 /* AlertNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 696936ECA115522DFB3832DA /* AlertNotifier.swift */; };
@@ -243,6 +244,7 @@
 		E56089249C8AE6D456CD8E57 /* CloudRecordIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudRecordIdentityTests.swift; sourceTree = "<group>"; };
 		E6D200CEBA0ACC608C8DD55B /* AppleStoreConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleStoreConnector.swift; sourceTree = "<group>"; };
 		E9275479EA49A61BF8DEF508 /* CloudRecordCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudRecordCodec.swift; sourceTree = "<group>"; };
+		EA94F771A118C4030F08941C /* RefreshFeedbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshFeedbackTests.swift; sourceTree = "<group>"; };
 		EAB4DB9D0AA132E50FAEDEBC /* PageCapture.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = PageCapture.js; sourceTree = "<group>"; };
 		ED13BB435EA03AC8A3281F26 /* CatalogPriceCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogPriceCheckTests.swift; sourceTree = "<group>"; };
 		F10E15ED2FBBD928421B3577 /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = System/Library/Frameworks/CloudKit.framework; sourceTree = SDKROOT; };
@@ -512,6 +514,7 @@
 				C58F737A508B6F23EA669FE1 /* JSONFileItemStoreTests.swift */,
 				2DD43EDEE2C4D24FAC4D5350 /* MoneyFormatterTests.swift */,
 				B3EF9F6831373A85EDA3D1CA /* PriceDropDetectorTests.swift */,
+				EA94F771A118C4030F08941C /* RefreshFeedbackTests.swift */,
 				2BD74527296F72E7DC60CDBE /* RenderedPageCaptureLoaderTests.swift */,
 				7E113659CAF4619697F4BD64 /* ShareAndInsightTests.swift */,
 				A710F0C9A614146C953B7E8F /* SharedURLInboxTests.swift */,
@@ -786,6 +789,7 @@
 				B80516C492BB51475FD89602 /* JSONFileItemStoreTests.swift in Sources */,
 				186F4C4E4857D0E51FBEA45F /* MoneyFormatterTests.swift in Sources */,
 				8BB3A1914CC580EA745D8347 /* PriceDropDetectorTests.swift in Sources */,
+				439E069FB35742896D5D8398 /* RefreshFeedbackTests.swift in Sources */,
 				079AA079267604EEF151C7ED /* RenderedPageCaptureLoaderTests.swift in Sources */,
 				15ADBC663EECAEE69EBC61C2 /* SQLiteItemStoreTests.swift in Sources */,
 				36A46ED11B16C5B950542E36 /* ShareAndInsightTests.swift in Sources */,

@@ -82,7 +82,15 @@ struct CatalogView: View {
             } message: {
                 Text(viewModel.lastErrorMessage ?? "")
             }
-            .refreshable { await viewModel.load() }
+            .alert("Resultado de la comprobación", isPresented: Binding(
+                get: { viewModel.lastRefreshMessage != nil },
+                set: { if !$0 { viewModel.lastRefreshMessage = nil } }
+            )) {
+                Button("OK") { viewModel.lastRefreshMessage = nil }
+            } message: {
+                Text(viewModel.lastRefreshMessage ?? "")
+            }
+            .refreshable { await viewModel.refreshCatalog() }
             .onChange(of: viewModel.filteredItems.map(\.id)) { _, visible in
                 // Never share something the user can no longer see.
                 selection.formIntersection(visible)

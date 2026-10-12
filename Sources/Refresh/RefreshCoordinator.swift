@@ -11,6 +11,21 @@ struct RefreshSummary: Equatable, Sendable {
     var dropped: Int = 0
     var failed: Int = 0
     var skipped: Int = 0
+    var skippedStores: Set<Store> = []
+    var cancelled = false
+
+    var completionMessage: String {
+        var parts = [cancelled ? "Comprobación cancelada." : "Comprobación finalizada.",
+                     "Actualizados: \(max(0, checked - failed)). Errores: \(failed)."]
+        if skipped > 0 {
+            let stores = skippedStores.map(\.displayName).sorted().joined(separator: ", ")
+            parts.append("Sin comprobar: \(skipped)" + (stores.isEmpty ? "." : " (\(stores))."))
+            parts.append("Estas tiendas no tienen seguimiento de precios disponible; su fecha no se actualiza.")
+        }
+        if checked == 0 && skipped == 0 && !cancelled { parts.append("No hay artículos activos que comprobar.") }
+        if failed > 0 { parts.append("Los artículos con error conservan la fecha de su última comprobación correcta.") }
+        return parts.joined(separator: " ")
+    }
 }
 
 /// Shared by foreground, background and App Intents in the app process.
@@ -90,11 +105,12 @@ actor RefreshCoordinator {
         var summary = RefreshSummary()
         let total = items.count
         for (index, item) in items.enumerated() {
-            if Task.isCancelled { break }
+            if Task.isCancelled { summary.cancelled = true; break }
             await onProgress?(RefreshProgress(completed: index, total: total, currentTitle: item.title))
 
             guard Store.refreshableStores.contains(item.store) else {
                 summary.skipped += 1
+                summary.skippedStores.insert(item.store)
                 continue
             }
 
@@ -103,7 +119,8 @@ actor RefreshCoordinator {
             if result.error != nil { summary.failed += 1 }
             else if result.dropped { summary.dropped += 1 }
         }
-        await onProgress?(RefreshProgress(completed: total, total: total, currentTitle: nil))
+        summary.cancelled = summary.cancelled || Task.isCancelled
+        await onProgress?(RefreshProgress(completed: summary.checked + summary.skipped, total: total, currentTitle: nil))
         return summary
     }
 

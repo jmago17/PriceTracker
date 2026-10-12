@@ -27,6 +27,7 @@ final class ItemListViewModel {
     private(set) var isRefreshingCatalog = false
     private(set) var refreshProgress: RefreshProgress?
     var lastErrorMessage: String?
+    var lastRefreshMessage: String?
     /// Items whose Apple Intelligence summary is being generated right now.
     private(set) var summarizingIDs: Set<UUID> = []
     private(set) var summaryErrors: [UUID: String] = [:]
@@ -149,13 +150,11 @@ final class ItemListViewModel {
     }
 
     func refreshSingle(_ item: Item) async {
-        do {
-            _ = try await environment.refreshCoordinator.refreshItem(id: item.id)
-            await load()
-            await loadHistory(for: item)
-        } catch {
-            lastErrorMessage = error.localizedDescription
-        }
+        lastErrorMessage = nil
+        let result = await environment.refreshCoordinator.refreshResult(id: item.id)
+        await load()
+        await loadHistory(for: item)
+        if let error = result.error { lastErrorMessage = error }
     }
 
     func loadHistory(for item: Item) async {
@@ -191,8 +190,9 @@ final class ItemListViewModel {
     func refreshCategory(_ category: String?) {
         Task {
             do {
-                _ = try await environment.refreshCoordinator.refreshCategory(category)
+                let summary = try await environment.refreshCoordinator.refreshCategory(category)
                 await load()
+                lastRefreshMessage = summary.completionMessage
             } catch {
                 lastErrorMessage = error.localizedDescription
             }
@@ -206,20 +206,30 @@ final class ItemListViewModel {
         isRefreshingCatalog = true
         refreshProgress = nil
         lastErrorMessage = nil
+        lastRefreshMessage = nil
         refreshTask = Task {
+            var completionMessage: String?
             do {
-                _ = try await environment.refreshCoordinator.refreshCatalog { progress in
+                let summary = try await environment.refreshCoordinator.refreshCatalog { progress in
                     self.refreshProgress = progress
                 }
+                completionMessage = summary.completionMessage
             } catch is CancellationError {
                 // user-initiated cancel — not an error worth surfacing
             } catch {
                 lastErrorMessage = error.localizedDescription
             }
+            await load()
             isRefreshingCatalog = false
             refreshTask = nil
-            await load()
+            lastRefreshMessage = completionMessage
         }
+    }
+
+    /// Pull-to-refresh uses the same network operation and awaits its completion.
+    func refreshCatalog() async {
+        startRefreshCatalog()
+        await refreshTask?.value
     }
 
     func cancelRefreshCatalog() {
