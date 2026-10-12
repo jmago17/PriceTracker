@@ -49,6 +49,9 @@ final class AppEnvironment: Sendable {
             #endif
             return connectors.connectorToFetch(store: store)
         }, didRefresh: {
+            // Reuse RootView's catalog revision observer for background/Shortcuts
+            // checks too, including when the app already remains in the foreground.
+            await syncStatusStore.catalogDidChange()
             _ = try? await notifier.notifyPendingDrops()
         })
     }

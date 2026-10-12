@@ -38,6 +38,11 @@ final class ItemListViewModel {
         self.environment = environment
     }
 
+    /// Independent of the active category, search and paused-items filter.
+    var lastSuccessfulPriceCheck: Date? {
+        CatalogPriceCheck.latestSuccess(in: items)
+    }
+
     var categories: [String] {
         ItemFilterEngine.categoryNames(in: items)
     }

@@ -11,6 +11,9 @@ struct CatalogView: View {
     @AppStorage("compactCatalogMuralEnabled") private var compactCatalogMuralEnabled = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.locale) private var locale
+    @Environment(\.calendar) private var calendar
+    @Environment(\.timeZone) private var timeZone
     @ScaledMetric(relativeTo: .body) private var regularColumnWidth: CGFloat = 240
     @ScaledMetric(relativeTo: .body) private var compactColumnWidth: CGFloat = 156
     @State private var compactSearchRequest = 0
@@ -190,13 +193,14 @@ struct CatalogView: View {
         // mural instead: a custom indicator + a Button that toggles `selection`
         // while isSelecting, a plain NavigationLink otherwise.
         List {
-            if !viewModel.items.isEmpty && !isSelecting {
-                Section {
+            Section {
+                lastPriceCheckLine
+                if !viewModel.items.isEmpty && !isSelecting {
                     summaryAndSearchHeader
                 }
-                .listRowBackground(Color.clear)
-                .listSectionSeparator(.hidden)
             }
+            .listRowBackground(Color.clear)
+            .listSectionSeparator(.hidden)
 
             refreshProgressSection
 
@@ -307,6 +311,21 @@ struct CatalogView: View {
     /// keep their text aligned with the rest of the list.
     private static let headerHorizontalInset: CGFloat = 20
 
+    private var lastPriceCheckLine: some View {
+        Group {
+            if let date = viewModel.lastSuccessfulPriceCheck {
+                Text("Último precio comprobado: \(CatalogPriceCheck.formatted(date, locale: locale, calendar: calendar, timeZone: timeZone))")
+            } else {
+                Text("Último precio comprobado: sin datos")
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("catalog-last-price-check")
+        .accessibilityHint("Comprobación correcta más reciente de un artículo; no indica que se haya actualizado todo el catálogo.")
+    }
+
     private func summaryText(_ summary: (total: Int, discounted: Int, unchecked: Int)) -> String {
         var parts = ["\(summary.total) producto\(summary.total == 1 ? "" : "s")"]
         if summary.discounted > 0 { parts.append("\(summary.discounted) por debajo del precio inicial") }
@@ -369,6 +388,7 @@ struct CatalogView: View {
                 VStack(alignment: .leading, spacing: isRegular ? 18 : 14) {
                     muralSearchField
                         .id("mural-search-header")
+                    lastPriceCheckLine
                     muralChips
 
                     if let progress = viewModel.refreshProgress, viewModel.isRefreshingCatalog {
