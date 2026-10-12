@@ -218,7 +218,8 @@ struct CatalogView: View {
                     }
                 } header: {
                     HStack(alignment: .firstTextBaseline) {
-                        Text(section.title)
+                        Text(CategoryLabel.displayName(section.category, among: viewModel.categories))
+                            .accessibilityLabel(section.title)
                             .font(.system(.title3, design: .serif, weight: .semibold))
                             .foregroundStyle(.primary)
                         Spacer()
@@ -249,6 +250,7 @@ struct CatalogView: View {
     private func compactRow(_ item: Item) -> some View {
         let card = CompactMuralCardView(
             item: item,
+            categoryLabel: CategoryLabel.displayName(item.category, among: viewModel.categories),
             isSelecting: isSelecting,
             isSelected: selection.contains(item.id),
             isSummarizing: viewModel.summarizingIDs.contains(item.id),
@@ -360,7 +362,9 @@ struct CatalogView: View {
                         Label("Todas", systemImage: "square.grid.2x2")
                             .tag(ItemCategoryFilter.all)
                         ForEach(viewModel.categories, id: \.self) { category in
-                            Text(category)
+                            Text(CategoryLabel.displayName(category, among: viewModel.categories))
+                                .accessibilityLabel(category)
+                                .help(category)
                                 .tag(ItemCategoryFilter.category(category))
                         }
                         if viewModel.hasUncategorizedItems {
@@ -370,7 +374,7 @@ struct CatalogView: View {
                     }
                 } label: {
                     FilterChip(
-                        title: viewModel.isCategoryFilterActive ? viewModel.categoryFilter.displayName : "Categoría",
+                        title: viewModel.isCategoryFilterActive ? CategoryLabel.displayName(viewModel.categoryFilter.displayName, among: viewModel.categories) : "Categoría",
                         isSelected: viewModel.isCategoryFilterActive,
                         showsCheckmark: false,
                         showsChevron: true,
@@ -460,6 +464,7 @@ struct CatalogView: View {
     private func muralCard(_ item: Item) -> some View {
         let card = CompactMuralCardView(
             item: item,
+            categoryLabel: CategoryLabel.displayName(item.category, among: viewModel.categories),
             isSelecting: isSelecting,
             isSelected: selection.contains(item.id),
             isSummarizing: viewModel.summarizingIDs.contains(item.id)
@@ -527,12 +532,14 @@ struct CatalogView: View {
                 }
                 ForEach(viewModel.categories, id: \.self) { category in
                     MuralChip(
-                        title: category,
+                        title: CategoryLabel.displayName(category, among: viewModel.categories),
                         count: categoryCount(category),
                         isSelected: viewModel.categoryFilter == .category(category)
                     ) {
                         viewModel.categoryFilter = .category(category)
                     }
+                    .accessibilityLabel(category)
+                    .help(category)
                 }
                 if viewModel.hasUncategorizedItems {
                     MuralChip(

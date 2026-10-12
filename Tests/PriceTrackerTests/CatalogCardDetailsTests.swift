@@ -22,9 +22,9 @@ struct CatalogCardDetailsTests {
         #expect(CatalogCardDetails.metadata(for: value) == value.store.displayName)
         value.category = "Libros"
         value.subtitle = "  libros ·  \n "
-        #expect(CatalogCardDetails.metadata(for: value) == "\(value.store.displayName) · Libros")
+        #expect(CatalogCardDetails.metadata(for: value) == value.store.displayName)
         value.subtitle = "Autor diferente"
-        #expect(CatalogCardDetails.metadata(for: value).hasSuffix("Libros · Autor diferente"))
+        #expect(CatalogCardDetails.metadata(for: value).hasSuffix(" · Autor diferente"))
     }
 
     @Test func targetSurvivesDiscountAndUsesActualCurrencyIncludingZero() {

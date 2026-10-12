@@ -34,6 +34,8 @@ let package = Package(
         "Sources/Models/Item.swift",
         "Sources/Models/CatalogPriceCheck.swift",
         "Sources/Models/CatalogCardDetails.swift",
+        "Sources/Models/CategoryLabel.swift",
+        "Sources/AppIntents/ItemFilterEngine.swift",
         "Sources/Views/MoneyFormatter.swift",
         "Sources/Alerts/PriceDropDetector.swift",
         "Sources/Models/Store.swift",
@@ -47,11 +49,12 @@ let package = Package(
     (source / "ResolvedItem.swift").write_text(resolved)
     shutil.copy2(root / "Tests/PriceTrackerTests/CatalogPriceCheckTests.swift", tests)
     shutil.copy2(root / "Tests/PriceTrackerTests/CatalogCardDetailsTests.swift", tests)
+    shutil.copy2(root / "Tests/PriceTrackerTests/CategoryLabelTests.swift", tests)
     test_source = (root / "Tests/PriceTrackerTests/DisplayTitleCacheTests.swift").read_text()
     pure_tests, marker, _ = test_source.partition("\n@MainActor\nstruct CatalogTitleLayoutTests")
     assert marker, "UI test boundary changed; update the host harness"
     pure_tests = pure_tests.replace("import SwiftUI\n", "").replace("import UIKit\n", "")
     (tests / "DisplayTitleCacheTests.swift").write_text(pure_tests)
     environment = dict(os.environ, DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer")
-    subprocess.run(["xcrun", "swift", "test", "--package-path", str(package)],
+    subprocess.run(["xcrun", "swift", "test", "--jobs", "2", "--package-path", str(package)],
                    env=environment, check=True)

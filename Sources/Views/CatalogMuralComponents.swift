@@ -82,6 +82,7 @@ struct CatalogItemTitle: View {
 /// iPhone and iPad share this presentation and the original accessible name.
 struct CompactMuralCardView: View {
     let item: Item
+    var categoryLabel: String? = nil
     var isSelecting = false
     var isSelected = false
     var isSummarizing = false
@@ -94,7 +95,7 @@ struct CompactMuralCardView: View {
     private let cornerRadius: CGFloat = 32
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 10) {
             if imageOnTrailingSide {
                 HStack(alignment: .top, spacing: 12) {
                     textContent
@@ -112,6 +113,9 @@ struct CompactMuralCardView: View {
                     }
                 }
             }
+            summaryContent
+                .frame(maxWidth: .infinity, alignment: .leading)
+            footer
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -127,21 +131,50 @@ struct CompactMuralCardView: View {
         .accessibilityIdentifier("item-card")
     }
 
+    @ViewBuilder
+    private var summaryContent: some View {
+        if isSummarizing {
+            Label("Resumiendo…", systemImage: "sparkles")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .symbolEffect(.pulse, isActive: !reduceMotion)
+        } else if let summary = item.summary?.trimmedNonEmpty {
+            Text(summary)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 5)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+
+    private var footer: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(item.lastSuccessAt.map { "Comprobado \($0.relativeSpanish)" } ?? "Sin comprobar")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel(item.lastSuccessAt.map { "Última comprobación correcta: \($0.relativeSpanish)" } ?? "Sin comprobación correcta")
+            Spacer(minLength: 0)
+            Text(categoryLabel ?? CategoryLabel.displayName(item.category))
+                .font(.caption.weight(.medium))
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color(.tertiarySystemFill), in: Capsule())
+                .accessibilityLabel("Categoría: \(item.category?.trimmedNonEmpty ?? "Sin categoría")")
+                .help(item.category?.trimmedNonEmpty ?? "Sin categoría")
+        }
+    }
+
     private var textContent: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 6) {
-                Text(item.lastSuccessAt?.relativeSpanish ?? "Sin comprobar")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel(item.lastSuccessAt.map { "Comprobado \($0.relativeSpanish)" } ?? "Sin comprobación correcta")
-                if isSelecting {
-                    Spacer(minLength: 0)
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.title3)
-                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                        .accessibilityHidden(true)
-                }
+            if isSelecting {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                    .accessibilityHidden(true)
             }
             CatalogItemTitle(item: item)
                 .font(.title3.weight(.bold))
@@ -167,18 +200,6 @@ struct CompactMuralCardView: View {
                 Text("↓ \(MoneyFormatter.string(cents: reduction, currency: item.currency)) desde el inicio")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if isSummarizing {
-                Label("Resumiendo…", systemImage: "sparkles")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .symbolEffect(.pulse, isActive: !reduceMotion)
-            } else if let summary = item.summary?.trimmedNonEmpty {
-                Text(summary)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 5)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if item.lastError != nil {

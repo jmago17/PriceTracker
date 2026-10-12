@@ -39,7 +39,7 @@ enum PriceDropDetector {
             updated.lastAlertedPriceCents = nil
             updated.currency = newCurrency
             updated.onSaleUntil = fetch.saleEndsAt
-            if let genre = fetch.storeGenre, updated.category == nil, updated.categorySource != .manual {
+            if let genre = CategoryLabel.suggestion(fetch.storeGenre), updated.category == nil, updated.categorySource != .manual {
                 updated.category = genre
                 updated.categorySource = .mapped
             }
@@ -59,7 +59,7 @@ enum PriceDropDetector {
         updated.priceCurrentCents = newPrice
         updated.currency = newCurrency
         updated.onSaleUntil = fetch.saleEndsAt
-        if let genre = fetch.storeGenre, updated.category == nil, updated.categorySource != .manual {
+        if let genre = CategoryLabel.suggestion(fetch.storeGenre), updated.category == nil, updated.categorySource != .manual {
             updated.category = genre
             updated.categorySource = .mapped
         }

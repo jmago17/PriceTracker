@@ -32,6 +32,11 @@ struct EditItemView: View {
             Form {
                 Section("Categoría") {
                     TextField("Categoría", text: $category)
+                    if !CategoryLabel.allowsEdit(category, original: item.category) {
+                        Text("Usa una o dos palabras para la nueva categoría.")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
                     if item.categorySource == .mapped {
                         Text("Sugerida por la tienda (\(item.storeGenre ?? "")) — se puede sobrescribir.")
                             .font(.caption)
@@ -78,6 +83,7 @@ struct EditItemView: View {
                         save()
                         dismiss()
                     }
+                    .disabled(!CategoryLabel.allowsEdit(category, original: item.category))
                 }
             }
         }

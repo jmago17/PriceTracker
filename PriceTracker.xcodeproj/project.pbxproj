@@ -24,6 +24,7 @@
 		1F34FC68EEE51E0DB473DAA2 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C011D7F5D054C7534388153 /* ShareViewController.swift */; };
 		21A96127298445FD6A6185D0 /* SearchCatalogIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BD438A92323AE91C3048D93 /* SearchCatalogIntent.swift */; };
 		25A7146F84FB6661E463F877 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B7FD4A4C320A92F785C5DCE4 /* Assets.xcassets */; };
+		272C15FC9F7592DDC0555F19 /* CategoryLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1625CCEF0D51916B71BDC8A4 /* CategoryLabel.swift */; };
 		2847729385A35024888BCE77 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2A27B39A0645C00F45A1A325 /* WebKit.framework */; };
 		2C558B449BED7A34811DD9E1 /* LegacyImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 565EF4D389D3224614FB0DF0 /* LegacyImport.swift */; };
 		2C7475749DDFF200908EE9D3 /* MoneyFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCF35DEBDDF5060CFC8F03BD /* MoneyFormatter.swift */; };
@@ -96,6 +97,7 @@
 		D7D0E4DC7F60C1BD15D1A9E4 /* RefreshCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F41F166AFD7754B4E097DFC0 /* RefreshCoordinator.swift */; };
 		D92D3845ABA2F0158BE413F8 /* PriceTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46426E104289A29B24DDAD88 /* PriceTrackerApp.swift */; };
 		DA56AD62D86A5AAD175CD481 /* DailyRefreshSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5226F897246AAA4C4650DB24 /* DailyRefreshSettings.swift */; };
+		DD88003DCAAB4E0614EFC303 /* CategoryLabelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37809FBD7B28AA9191DEC1BF /* CategoryLabelTests.swift */; };
 		DE77F7D9DDE47A654713A774 /* ImportExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7DF267B444BA7390FFF69E /* ImportExportView.swift */; };
 		E0CBDE2321EC58B08AB46E82 /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D02178192F3B892E86770DFD /* ScreenshotTests.swift */; };
 		EC13B4B80DEC55DE6607BEA6 /* ConnectorRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 208A25D3C0FF43BB570687B4 /* ConnectorRegistry.swift */; };
@@ -154,6 +156,7 @@
 		12446C7AB1B16B07338E8E14 /* NotifyPriceDropsIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifyPriceDropsIntent.swift; sourceTree = "<group>"; };
 		12A60E576F8A1DC3EBE4C666 /* AppleStorefrontRegionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleStorefrontRegionProvider.swift; sourceTree = "<group>"; };
 		14BD07EFABA497468EF75A37 /* DisplayTitleCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTitleCacheTests.swift; sourceTree = "<group>"; };
+		1625CCEF0D51916B71BDC8A4 /* CategoryLabel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryLabel.swift; sourceTree = "<group>"; };
 		1A349F6E555863F56E30DC47 /* ItemFilterEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemFilterEngineTests.swift; sourceTree = "<group>"; };
 		1AF7C23B00FC46BD6F061ADB /* ItemShareFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemShareFormatter.swift; sourceTree = "<group>"; };
 		208A25D3C0FF43BB570687B4 /* ConnectorRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectorRegistry.swift; sourceTree = "<group>"; };
@@ -166,6 +169,7 @@
 		361968C9EDE719EA1AE2D356 /* CatalogCardDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogCardDetails.swift; sourceTree = "<group>"; };
 		36860A58564943073FC3A0DE /* SetTargetPriceIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetTargetPriceIntent.swift; sourceTree = "<group>"; };
 		36F2877A242B4BCAE149005E /* DisplayTitleCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTitleCache.swift; sourceTree = "<group>"; };
+		37809FBD7B28AA9191DEC1BF /* CategoryLabelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryLabelTests.swift; sourceTree = "<group>"; };
 		3A870D5B3A3CB2311D185B47 /* AppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroup.swift; sourceTree = "<group>"; };
 		3C011D7F5D054C7534388153 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		3C8F5EF03AED462A62C25F4F /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
@@ -495,6 +499,7 @@
 				65E7A136F1149E5B16D3B70E /* AutomationTests.swift */,
 				B8CFA87B1C6E878DF207B442 /* CatalogCardDetailsTests.swift */,
 				ED13BB435EA03AC8A3281F26 /* CatalogPriceCheckTests.swift */,
+				37809FBD7B28AA9191DEC1BF /* CategoryLabelTests.swift */,
 				E56089249C8AE6D456CD8E57 /* CloudRecordIdentityTests.swift */,
 				41EE6A199360D70C24723D3F /* CloudRecordMergerTests.swift */,
 				F9F61B3ECC1457E7A5435904 /* ConnectorRegistryTests.swift */,
@@ -522,6 +527,7 @@
 			children = (
 				361968C9EDE719EA1AE2D356 /* CatalogCardDetails.swift */,
 				E1D35EAF8AD8C452A833CADA /* CatalogPriceCheck.swift */,
+				1625CCEF0D51916B71BDC8A4 /* CategoryLabel.swift */,
 				960A1EE602900E5C8DCBCF5F /* Item.swift */,
 				27899BDA6EB78D6B26F7CBA6 /* ItemStatus.swift */,
 				D58418AFC8B2E82EA09B2234 /* PriceObservation.swift */,
@@ -700,6 +706,7 @@
 				2D3B794F63A85E30EDE5C796 /* CatalogMuralComponents.swift in Sources */,
 				55294FD8A458897E8C1EA5E6 /* CatalogPriceCheck.swift in Sources */,
 				ADE527365EC52E014722BEF2 /* CatalogView.swift in Sources */,
+				272C15FC9F7592DDC0555F19 /* CategoryLabel.swift in Sources */,
 				6FDFB54D9BB7AAD53DF3073D /* CloudBackedItemStore.swift in Sources */,
 				59BF15F288675DF6B5DFBC3C /* CloudRecordCodec.swift in Sources */,
 				FF2A252AB62D57E4748A56EA /* CloudRecordIdentity.swift in Sources */,
@@ -766,6 +773,7 @@
 				A44CE2BA0C396AC18BFC6E3F /* AutomationTests.swift in Sources */,
 				EE5D87F734BA2B566DE0F946 /* CatalogCardDetailsTests.swift in Sources */,
 				D21E6F7392010FCAE0636BDD /* CatalogPriceCheckTests.swift in Sources */,
+				DD88003DCAAB4E0614EFC303 /* CategoryLabelTests.swift in Sources */,
 				064E02C4949ED2EF3D2B8D14 /* CloudRecordIdentityTests.swift in Sources */,
 				642CD4D349D7CA3C922FD989 /* CloudRecordMergerTests.swift in Sources */,
 				5938E2CB1A340767C4ADBD6C /* ConnectorRegistryTests.swift in Sources */,
