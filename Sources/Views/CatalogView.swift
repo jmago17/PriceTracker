@@ -208,6 +208,9 @@ struct CatalogView: View {
                 Section {
                     ForEach(section.items) { item in
                         compactRow(item)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 7, leading: 0, bottom: 7, trailing: 0))
                     }
                     .onDelete { offsets in
                         guard !isSelecting else { return }
@@ -244,6 +247,12 @@ struct CatalogView: View {
 
     @ViewBuilder
     private func compactRow(_ item: Item) -> some View {
+        let card = CompactMuralCardView(
+            item: item,
+            isSelecting: isSelecting,
+            isSelected: selection.contains(item.id),
+            isSummarizing: viewModel.summarizingIDs.contains(item.id)
+        )
         if isSelecting {
             Button {
                 if selection.contains(item.id) {
@@ -252,17 +261,17 @@ struct CatalogView: View {
                     selection.insert(item.id)
                 }
             } label: {
-                HStack(spacing: 12) {
-                    SelectionIndicator(isSelected: selection.contains(item.id))
-                    ItemRowView(item: item)
-                }
+                card
             }
             .buttonStyle(.plain)
             .accessibilityAddTraits(selection.contains(item.id) ? .isSelected : [])
+            .accessibilityIdentifier("item-row")
         } else {
             NavigationLink(value: item.id) {
-                ItemRowView(item: item)
+                card
             }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("item-row")
             .contextMenu {
                 ItemContextMenu(item: item, viewModel: viewModel) {
                     beginSelection(with: item)
@@ -744,27 +753,5 @@ private struct FilterChip: View {
         .background(isSelected ? Color.accentColor : Color(.tertiarySystemFill))
         .clipShape(Capsule())
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
-/// Leading selection circle for the iPhone list — the mural uses its own
-/// (`ItemCardView.leadingBadge`) since it overlays the card instead of sitting
-/// inline before it.
-private struct SelectionIndicator: View {
-    let isSelected: Bool
-
-    var body: some View {
-        ZStack {
-            Circle().fill(isSelected ? Color.accentColor : Color(.tertiarySystemFill))
-            if isSelected {
-                Image(systemName: "checkmark")
-                    .font(.caption.weight(.heavy))
-                    .foregroundStyle(.white)
-            } else {
-                Circle().strokeBorder(Color.secondary, lineWidth: 1.5)
-            }
-        }
-        .frame(width: 24, height: 24)
-        .accessibilityHidden(true)
     }
 }
