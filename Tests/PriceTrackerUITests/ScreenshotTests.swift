@@ -166,6 +166,39 @@ final class ScreenshotTests: XCTestCase {
         capture(app, "mural_portrait")
     }
 
+    func testAdaptiveMuralLargeTextControlsAndLastCard() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo-catalog", "-compactCatalogMuralEnabled", "YES",
+                               "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        let regular = app.scrollViews["catalog-mural-regular"]
+        let compact = app.scrollViews["catalog-mural-compact"]
+        XCTAssertTrue(regular.waitForExistence(timeout: 3) || compact.waitForExistence(timeout: 3))
+        let scroll = regular.exists ? regular : compact
+        let cards = app.descendants(matching: .any).matching(identifier: "item-card")
+        guard cards.firstMatch.waitForExistence(timeout: 5) else {
+            XCTFail(app.debugDescription)
+            return
+        }
+        let frames = uniqueCardFrames(cards)
+        for frame in frames { XCTAssertEqual(frame.minX, frames[0].minX, accuracy: 2) }
+        for _ in 0..<16 { scroll.swipeUp() }
+        let searchButton = app.buttons["mural-search-button"]
+        let last = try XCTUnwrap(uniqueCardFrames(cards).max(by: { $0.maxY < $1.maxY }))
+        XCTAssertLessThanOrEqual(last.maxY, searchButton.frame.minY)
+        searchButton.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        app.textFields["mural-search-field"].typeText("Camiseta")
+        app.buttons["dismiss-mural-keyboard-button"].tap()
+        XCTAssertTrue(cards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(cards.firstMatch.label.contains("Camiseta básica"))
+        XCTAssertTrue(cards.firstMatch.label.contains("12,99"))
+        XCTAssertTrue(cards.firstMatch.label.contains("Verde oliva"))
+        XCTAssertTrue(app.buttons["mural-status-filter-menu"].isHittable)
+        capture(app, "adaptive_mural_accessibility")
+    }
+
     func testCompactMuralOptInAndNavigation() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()

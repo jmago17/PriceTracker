@@ -22,9 +22,8 @@ struct ItemRowView: View {
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.title)
+                CatalogItemTitle(item: item)
                     .font(.system(.body, weight: .semibold))
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 Text(subtitleText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)

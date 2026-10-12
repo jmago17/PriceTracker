@@ -31,6 +31,7 @@
 		2EA9BBAF38921B756A5F8FCB /* ItemFilterEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A349F6E555863F56E30DC47 /* ItemFilterEngineTests.swift */; };
 		2F08982851E93414FE7134D8 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10E15ED2FBBD928421B3577 /* CloudKit.framework */; };
 		2F0E44464CD742D8DEF27947 /* SharedInboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F94B11B1DA1B42CE2519DCF /* SharedInboxView.swift */; };
+		2F3C8456701AFB778191C4C2 /* DisplayTitleCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36F2877A242B4BCAE149005E /* DisplayTitleCache.swift */; };
 		2FA65E02297F91DF03F76DD2 /* SetTargetPriceIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36860A58564943073FC3A0DE /* SetTargetPriceIntent.swift */; };
 		304EC3F7F32CFB1100B2C146 /* RefreshItemIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C26240AF37519032AB7B7B /* RefreshItemIntent.swift */; };
 		36A46ED11B16C5B950542E36 /* ShareAndInsightTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E113659CAF4619697F4BD64 /* ShareAndInsightTests.swift */; };
@@ -50,6 +51,7 @@
 		642CD4D349D7CA3C922FD989 /* CloudRecordMergerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41EE6A199360D70C24723D3F /* CloudRecordMergerTests.swift */; };
 		6555F0953939C00DFC281872 /* DateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C3EC8FA85C629696AB9BED8 /* DateFormatting.swift */; };
 		6680A6C654D78A23F9E60AD7 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = E122E3902D45AC03172310A0 /* Store.swift */; };
+		6CB6A6A6A48F06768ED3B32D /* ShortcutBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81C803ACE7C7F278673D9E54 /* ShortcutBridgeTests.swift */; };
 		6EAE70B6A308177E77F6B716 /* Item.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960A1EE602900E5C8DCBCF5F /* Item.swift */; };
 		6FDFB54D9BB7AAD53DF3073D /* CloudBackedItemStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60AE5D3EBA4EABB8D61A15CF /* CloudBackedItemStore.swift */; };
 		76D7B6BB9BF88B6170289673 /* GetItemPriceIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC57FDFBBEE310FA66C8361 /* GetItemPriceIntent.swift */; };
@@ -62,6 +64,7 @@
 		9184B23386643CB73202F5A4 /* RenderedPageCaptureLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F567E548AD3DB42514AED9B1 /* RenderedPageCaptureLoader.swift */; };
 		98E858833B14E5E625C5E12F /* ItemListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEC123AC651FEA9420141DB6 /* ItemListViewModel.swift */; };
 		9A224CC7B210D47698588B02 /* EditItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F56A6DA35DCA062B3BA5A2C5 /* EditItemView.swift */; };
+		9E969D48AC11F5E70DA1FD12 /* DisplayTitleCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14BD07EFABA497468EF75A37 /* DisplayTitleCacheTests.swift */; };
 		9F00541C0DF4BDF536EAB91E /* SyncViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40E83730322301845E897BD6 /* SyncViewModel.swift */; };
 		9FA25EC2D50DBE7EE6E0EFD1 /* AmazonConnectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CCE1B48B43F6D6273C8588 /* AmazonConnectorTests.swift */; };
 		A37BB4C030DF1FDA5B831C1E /* GenericStoreConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF9EED51E4F856ED1E33CBA2 /* GenericStoreConnector.swift */; };
@@ -81,6 +84,7 @@
 		BD1C922399AEE5AC6707E545 /* StoreConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1CC6BBAA4BD56387E5F47AB /* StoreConnector.swift */; };
 		C346E26B7EC731BDACEF4010 /* ItemShareFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AF7C23B00FC46BD6F061ADB /* ItemShareFormatter.swift */; };
 		C5A0392313D9AA9DD639FCCA /* ItemStoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = E397C87C42B69BC2C07208FB /* ItemStoring.swift */; };
+		C5A1FCE28C0BB6545C9E677B /* ShortcutBridgeSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08229F10EE93187FF28A9472 /* ShortcutBridgeSettings.swift */; };
 		C6A9AE00B893F79208BA6175 /* CloudRecordMerger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A08D78BAF12C25DE6B029C /* CloudRecordMerger.swift */; };
 		C73BD661347ADAD622D75688 /* AmazonConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92FA789D1AA2C7B84939AADF /* AmazonConnector.swift */; };
 		C8867863D696C8C4F59EEA24 /* ProductInsightGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A98CFAFEEB36DA7EEC8F79D /* ProductInsightGenerator.swift */; };
@@ -99,8 +103,6 @@
 		F9ABEF7EAC560DBC89FB56DF /* ItemRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C0908BD5E7076146315000 /* ItemRowView.swift */; };
 		FC4E65D51AEEFE3264D5F7C8 /* SiriIntentLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 995AA2AC7C87FA223627C746 /* SiriIntentLogicTests.swift */; };
 		FF2A252AB62D57E4748A56EA /* CloudRecordIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F1B728BFFB5DD6B9B817E16 /* CloudRecordIdentity.swift */; };
-		AC7100000000000000000001 /* ShortcutBridgeSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7100000000000000000002 /* ShortcutBridgeSettings.swift */; };
-		AC7100000000000000000003 /* ShortcutBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7100000000000000000004 /* ShortcutBridgeTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -142,10 +144,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		08229F10EE93187FF28A9472 /* ShortcutBridgeSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBridgeSettings.swift; sourceTree = "<group>"; };
 		0EAAE31837A8756E74696CAA /* AppleStoreConnectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleStoreConnectorTests.swift; sourceTree = "<group>"; };
 		0ECACF9FC955FCD08F44AE70 /* PriceTrackerShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceTrackerShortcuts.swift; sourceTree = "<group>"; };
 		12446C7AB1B16B07338E8E14 /* NotifyPriceDropsIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifyPriceDropsIntent.swift; sourceTree = "<group>"; };
 		12A60E576F8A1DC3EBE4C666 /* AppleStorefrontRegionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleStorefrontRegionProvider.swift; sourceTree = "<group>"; };
+		14BD07EFABA497468EF75A37 /* DisplayTitleCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTitleCacheTests.swift; sourceTree = "<group>"; };
 		1A349F6E555863F56E30DC47 /* ItemFilterEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemFilterEngineTests.swift; sourceTree = "<group>"; };
 		1AF7C23B00FC46BD6F061ADB /* ItemShareFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemShareFormatter.swift; sourceTree = "<group>"; };
 		208A25D3C0FF43BB570687B4 /* ConnectorRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectorRegistry.swift; sourceTree = "<group>"; };
@@ -156,6 +160,7 @@
 		2E8E3AB5CAE3F93E48829E8D /* CloudSyncStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncStatus.swift; sourceTree = "<group>"; };
 		31C26240AF37519032AB7B7B /* RefreshItemIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshItemIntent.swift; sourceTree = "<group>"; };
 		36860A58564943073FC3A0DE /* SetTargetPriceIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetTargetPriceIntent.swift; sourceTree = "<group>"; };
+		36F2877A242B4BCAE149005E /* DisplayTitleCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTitleCache.swift; sourceTree = "<group>"; };
 		3A870D5B3A3CB2311D185B47 /* AppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroup.swift; sourceTree = "<group>"; };
 		3C011D7F5D054C7534388153 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		3C8F5EF03AED462A62C25F4F /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
@@ -187,8 +192,9 @@
 		79C0908BD5E7076146315000 /* ItemRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemRowView.swift; sourceTree = "<group>"; };
 		7A98CFAFEEB36DA7EEC8F79D /* ProductInsightGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductInsightGenerator.swift; sourceTree = "<group>"; };
 		7BB4404890FAF52027ECE191 /* ItemQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemQuery.swift; sourceTree = "<group>"; };
-		7E113659CAF4619697F4BD64 /* ShareAndInsightTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareAndInsightTests.swift; sourceTree = "<group>"; };
 		7BD438A92323AE91C3048D93 /* SearchCatalogIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchCatalogIntent.swift; sourceTree = "<group>"; };
+		7E113659CAF4619697F4BD64 /* ShareAndInsightTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareAndInsightTests.swift; sourceTree = "<group>"; };
+		81C803ACE7C7F278673D9E54 /* ShortcutBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBridgeTests.swift; sourceTree = "<group>"; };
 		8414352C60EB71983C543EC1 /* ItemFilterEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemFilterEngine.swift; sourceTree = "<group>"; };
 		8AE45DEDE6A2C09CD0FD9DD5 /* SyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncView.swift; sourceTree = "<group>"; };
 		8E75140F7D5E204EE342ACB8 /* PriceTrackerTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = PriceTrackerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -235,8 +241,6 @@
 		F56A6DA35DCA062B3BA5A2C5 /* EditItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditItemView.swift; sourceTree = "<group>"; };
 		F9F61B3ECC1457E7A5435904 /* ConnectorRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectorRegistryTests.swift; sourceTree = "<group>"; };
 		FCF35DEBDDF5060CFC8F03BD /* MoneyFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyFormatter.swift; sourceTree = "<group>"; };
-		AC7100000000000000000002 /* ShortcutBridgeSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBridgeSettings.swift; sourceTree = "<group>"; };
-		AC7100000000000000000004 /* ShortcutBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBridgeTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -274,6 +278,7 @@
 		13B491B858317E4FFED5D527 /* Intelligence */ = {
 			isa = PBXGroup;
 			children = (
+				36F2877A242B4BCAE149005E /* DisplayTitleCache.swift */,
 				7A98CFAFEEB36DA7EEC8F79D /* ProductInsightGenerator.swift */,
 			);
 			path = Intelligence;
@@ -439,8 +444,8 @@
 			isa = PBXGroup;
 			children = (
 				5226F897246AAA4C4650DB24 /* DailyRefreshSettings.swift */,
-				AC7100000000000000000002 /* ShortcutBridgeSettings.swift */,
 				F41F166AFD7754B4E097DFC0 /* RefreshCoordinator.swift */,
+				08229F10EE93187FF28A9472 /* ShortcutBridgeSettings.swift */,
 			);
 			path = Refresh;
 			sourceTree = "<group>";
@@ -480,10 +485,10 @@
 				C8CCE1B48B43F6D6273C8588 /* AmazonConnectorTests.swift */,
 				0EAAE31837A8756E74696CAA /* AppleStoreConnectorTests.swift */,
 				65E7A136F1149E5B16D3B70E /* AutomationTests.swift */,
-				AC7100000000000000000004 /* ShortcutBridgeTests.swift */,
 				E56089249C8AE6D456CD8E57 /* CloudRecordIdentityTests.swift */,
 				41EE6A199360D70C24723D3F /* CloudRecordMergerTests.swift */,
 				F9F61B3ECC1457E7A5435904 /* ConnectorRegistryTests.swift */,
+				14BD07EFABA497468EF75A37 /* DisplayTitleCacheTests.swift */,
 				A48F840352C5ED9F75860198 /* GenericStoreConnectorTests.swift */,
 				67AB6C0B1F1D26C84026820A /* ISOCountryCodesTests.swift */,
 				1A349F6E555863F56E30DC47 /* ItemFilterEngineTests.swift */,
@@ -495,6 +500,7 @@
 				2BD74527296F72E7DC60CDBE /* RenderedPageCaptureLoaderTests.swift */,
 				7E113659CAF4619697F4BD64 /* ShareAndInsightTests.swift */,
 				A710F0C9A614146C953B7E8F /* SharedURLInboxTests.swift */,
+				81C803ACE7C7F278673D9E54 /* ShortcutBridgeTests.swift */,
 				995AA2AC7C87FA223627C746 /* SiriIntentLogicTests.swift */,
 				70C42D27B5A4F4E9C3DFC5D9 /* SQLiteItemStoreTests.swift */,
 			);
@@ -688,8 +694,8 @@
 				B23E3D49A8522188CD35B78E /* CloudSyncStatus.swift in Sources */,
 				EC13B4B80DEC55DE6607BEA6 /* ConnectorRegistry.swift in Sources */,
 				DA56AD62D86A5AAD175CD481 /* DailyRefreshSettings.swift in Sources */,
-				AC7100000000000000000001 /* ShortcutBridgeSettings.swift in Sources */,
 				6555F0953939C00DFC281872 /* DateFormatting.swift in Sources */,
+				2F3C8456701AFB778191C4C2 /* DisplayTitleCache.swift in Sources */,
 				9A224CC7B210D47698588B02 /* EditItemView.swift in Sources */,
 				A37BB4C030DF1FDA5B831C1E /* GenericStoreConnector.swift in Sources */,
 				76D7B6BB9BF88B6170289673 /* GetItemPriceIntent.swift in Sources */,
@@ -726,6 +732,7 @@
 				012478E61403D339A4316D01 /* SettingsView.swift in Sources */,
 				2F0E44464CD742D8DEF27947 /* SharedInboxView.swift in Sources */,
 				A810BF33C3EB9B481D938B34 /* SharedInboxViewModel.swift in Sources */,
+				C5A1FCE28C0BB6545C9E677B /* ShortcutBridgeSettings.swift in Sources */,
 				44B79353300C59F5E3E9CA0A /* ShowPriceDropsIntent.swift in Sources */,
 				6680A6C654D78A23F9E60AD7 /* Store.swift in Sources */,
 				BD1C922399AEE5AC6707E545 /* StoreConnector.swift in Sources */,
@@ -743,10 +750,10 @@
 				9FA25EC2D50DBE7EE6E0EFD1 /* AmazonConnectorTests.swift in Sources */,
 				A80AE00A744CC373DA37E67C /* AppleStoreConnectorTests.swift in Sources */,
 				A44CE2BA0C396AC18BFC6E3F /* AutomationTests.swift in Sources */,
-				AC7100000000000000000003 /* ShortcutBridgeTests.swift in Sources */,
 				064E02C4949ED2EF3D2B8D14 /* CloudRecordIdentityTests.swift in Sources */,
 				642CD4D349D7CA3C922FD989 /* CloudRecordMergerTests.swift in Sources */,
 				5938E2CB1A340767C4ADBD6C /* ConnectorRegistryTests.swift in Sources */,
+				9E969D48AC11F5E70DA1FD12 /* DisplayTitleCacheTests.swift in Sources */,
 				1D12DE66C8C46C174E2E06FA /* GenericStoreConnectorTests.swift in Sources */,
 				7E34FC3A1167084DFD9E860B /* ISOCountryCodesTests.swift in Sources */,
 				B96FC5A200D65A2806BC29C5 /* ITunesConnectorTests.swift in Sources */,
@@ -759,6 +766,7 @@
 				15ADBC663EECAEE69EBC61C2 /* SQLiteItemStoreTests.swift in Sources */,
 				36A46ED11B16C5B950542E36 /* ShareAndInsightTests.swift in Sources */,
 				CD15068245467733AF28EDF8 /* SharedURLInboxTests.swift in Sources */,
+				6CB6A6A6A48F06768ED3B32D /* ShortcutBridgeTests.swift in Sources */,
 				FC4E65D51AEEFE3264D5F7C8 /* SiriIntentLogicTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

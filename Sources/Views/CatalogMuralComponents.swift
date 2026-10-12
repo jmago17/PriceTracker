@@ -50,11 +50,36 @@ struct MasonryLayout: Layout {
     }
 }
 
+/// Derivation is keyed by the complete source; stale state can never replace a
+/// newly edited title, even before SwiftUI cancels the previous task.
+struct CatalogItemTitle: View {
+    let item: Item
+    @State private var resolvedTitle: (request: DisplayTitleRequest, title: String)?
+    private var titleRequest: DisplayTitleRequest { DisplayTitleRequest(item: item) }
+    private var displayTitle: String {
+        guard let resolvedTitle, resolvedTitle.request == titleRequest else { return item.title }
+        return resolvedTitle.title
+    }
+
+    var body: some View {
+        Text(displayTitle)
+            .lineLimit(3)
+            .truncationMode(.tail)
+            .accessibilityLabel(item.title)
+            .task(id: titleRequest) {
+                let request = titleRequest
+                let title = await DisplayTitleCache.shared.title(for: request)
+                guard !Task.isCancelled, request == titleRequest else { return }
+                resolvedTitle = title.map { (request, $0) }
+            }
+    }
+}
+
 // MARK: - Compact editorial card
 
-/// The iPhone mural has one continuous, rounded surface per item. Content
+/// The adaptive mural has one continuous, rounded surface per item. Content
 /// determines its height; no random spacers or invented dates/categories.
-/// The existing ItemCardView below remains the regular-width presentation.
+/// iPhone and iPad share this presentation and the original accessible name.
 struct CompactMuralCardView: View {
     let item: Item
     var isSelecting = false
@@ -83,10 +108,9 @@ struct CompactMuralCardView: View {
                         .accessibilityHidden(true)
                 }
             }
-            Text(item.title)
+            CatalogItemTitle(item: item)
                 .font(.title3.weight(.bold))
                 .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
             Text(priceText)
                 .font(.headline.weight(.bold))
                 .monospacedDigit()

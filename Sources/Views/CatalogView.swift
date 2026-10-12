@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// iPhone defaults to an inset-grouped list, with an optional gray masonry
-/// mural. Regular width keeps the existing mural. All presentations share
+/// mural. iPad uses the same cards and controls. All presentations share
 /// selection, sharing, sheets and navigation.
 struct CatalogView: View {
     @Bindable var viewModel: ItemListViewModel
@@ -11,7 +11,8 @@ struct CatalogView: View {
     @AppStorage("compactCatalogMuralEnabled") private var compactCatalogMuralEnabled = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .largeTitle) private var muralSearchSize: CGFloat = 56
+    @ScaledMetric(relativeTo: .body) private var regularColumnWidth: CGFloat = 240
+    @ScaledMetric(relativeTo: .body) private var compactColumnWidth: CGFloat = 156
     @State private var compactSearchRequest = 0
 
     @State private var showingAddItem = false
@@ -22,7 +23,7 @@ struct CatalogView: View {
     @FocusState private var muralSearchFocused: Bool
 
     private var isRegular: Bool { horizontalSizeClass == .regular }
-    private var usesMural: Bool { isRegular || compactCatalogMuralEnabled }
+    private var usesMural: Bool { UIDevice.current.userInterfaceIdiom == .pad || isRegular || compactCatalogMuralEnabled }
 
     var body: some View {
         NavigationStack {
@@ -45,11 +46,8 @@ struct CatalogView: View {
                 if isSelecting {
                     SelectionShareBar(items: viewModel.items(withIDs: selection))
                 } else if usesMural && !muralSearchFocused {
-                    if isRegular {
-                        muralBottomControls
-                    } else {
-                        compactMuralBottomControls
-                    }
+                    compactMuralBottomControls
+                        .frame(maxWidth: 600)
                 }
             }
             .sheet(isPresented: $showingAddItem) {
@@ -371,7 +369,6 @@ struct CatalogView: View {
                 VStack(alignment: .leading, spacing: isRegular ? 18 : 14) {
                     muralSearchField
                         .id("mural-search-header")
-                    if isRegular { Divider() }
                     muralChips
 
                     if let progress = viewModel.refreshProgress, viewModel.isRefreshingCatalog {
@@ -387,7 +384,7 @@ struct CatalogView: View {
                     if viewModel.filteredItems.isEmpty {
                         emptyState
                     } else if isRegular {
-                        MasonryLayout(minColumnWidth: 220, spacing: 22) {
+                        MasonryLayout(minColumnWidth: regularColumnWidth, spacing: 22, maximumColumns: dynamicTypeSize.isAccessibilitySize ? 1 : nil, initialColumnOffset: dynamicTypeSize.isAccessibilitySize ? 0 : 52) {
                             ForEach(viewModel.filteredItems) { item in
                                 muralCard(item)
                             }
@@ -398,7 +395,7 @@ struct CatalogView: View {
                         // of content width or at accessibility sizes. The second
                         // column starts lower; measured content determines heights.
                         MasonryLayout(
-                            minColumnWidth: 156,
+                            minColumnWidth: compactColumnWidth,
                             spacing: 14,
                             maximumColumns: dynamicTypeSize.isAccessibilitySize ? 1 : 2,
                             initialColumnOffset: 52
@@ -407,7 +404,6 @@ struct CatalogView: View {
                                 muralCard(item)
                             }
                         }
-                        .accessibilityIdentifier("compact-masonry")
                         .padding(.top, 4)
                     }
                 }
@@ -420,7 +416,7 @@ struct CatalogView: View {
             // Scroll-content margin also clears iPhone's floating tab bar.
             .contentMargins(.bottom, isRegular ? 0 : 80, for: .scrollContent)
             .toolbar(removing: .title)
-            .background(isRegular ? Color(.systemBackground) : Color(.systemGroupedBackground))
+            .background(Color(.systemGroupedBackground))
             .onChange(of: compactSearchRequest) { _, _ in
                 // Scroll and focus even when invoked from the end of the mural.
                 // No animated jump, including when Reduce Motion is enabled.
@@ -432,23 +428,12 @@ struct CatalogView: View {
 
     @ViewBuilder
     private func muralCard(_ item: Item) -> some View {
-        let card = Group {
-            if isRegular {
-                ItemCardView(
-                    item: item,
-                    isSelecting: isSelecting,
-                    isSelected: selection.contains(item.id),
-                    isSummarizing: viewModel.summarizingIDs.contains(item.id)
-                )
-            } else {
-                CompactMuralCardView(
-                    item: item,
-                    isSelecting: isSelecting,
-                    isSelected: selection.contains(item.id),
-                    isSummarizing: viewModel.summarizingIDs.contains(item.id)
-                )
-            }
-        }
+        let card = CompactMuralCardView(
+            item: item,
+            isSelecting: isSelecting,
+            isSelected: selection.contains(item.id),
+            isSummarizing: viewModel.summarizingIDs.contains(item.id)
+        )
         if isSelecting {
             Button {
                 if selection.contains(item.id) {
@@ -460,11 +445,13 @@ struct CatalogView: View {
                 card
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("item-card")
         } else {
             NavigationLink(value: item.id) {
                 card
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("item-card")
             .contextMenu {
                 ItemContextMenu(item: item, viewModel: viewModel) {
                     beginSelection(with: item)
@@ -476,7 +463,7 @@ struct CatalogView: View {
     private var muralSearchField: some View {
         HStack(alignment: .center, spacing: 12) {
             TextField("Busca en tus precios…", text: $viewModel.searchText)
-                .font(isRegular ? .system(size: muralSearchSize, weight: .regular, design: .serif).italic() : .subheadline)
+                .font(.subheadline)
                 .textFieldStyle(.plain)
                 .submitLabel(.search)
                 .autocorrectionDisabled()
@@ -497,9 +484,9 @@ struct CatalogView: View {
                 .accessibilityLabel("Borrar búsqueda")
             }
         }
-        .padding(.horizontal, isRegular ? 0 : 14)
-        .frame(minHeight: isRegular ? 0 : 44)
-        .background(isRegular ? Color.clear : Color(.secondarySystemGroupedBackground), in: Capsule())
+        .padding(.horizontal, 14)
+        .frame(minHeight: 44)
+        .background(Color(.secondarySystemGroupedBackground), in: Capsule())
     }
 
     private var muralChips: some View {
@@ -623,65 +610,6 @@ struct CatalogView: View {
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .padding(.bottom, 12)
-    }
-
-    private var muralBottomControls: some View {
-        HStack(alignment: .center) {
-            Button {
-                if viewModel.isRefreshingCatalog {
-                    viewModel.cancelRefreshCatalog()
-                } else {
-                    viewModel.startRefreshCatalog()
-                }
-            } label: {
-                Image(systemName: viewModel.isRefreshingCatalog ? "xmark" : "arrow.clockwise")
-                    .font(.title3.weight(.semibold))
-                    .frame(width: 56, height: 56)
-            }
-            .buttonStyle(.plain)
-            .glassEffect(.regular.interactive(), in: .circle)
-            .accessibilityLabel(viewModel.isRefreshingCatalog ? "Cancelar actualización" : "Actualizar precios")
-
-            Spacer()
-
-            HStack(spacing: 4) {
-                ForEach(ItemStatusFilter.allCases, id: \.self) { filter in
-                    let isSelected = viewModel.statusFilter == filter
-                    Button {
-                        viewModel.statusFilter = filter
-                    } label: {
-                        Text(filter.shortName)
-                            .font(.body.weight(.semibold))
-                            .padding(.horizontal, 20)
-                            .frame(height: 44)
-                            .foregroundStyle(isSelected ? Color(.systemBackground) : Color.primary)
-                            .background(isSelected ? Color.accentColor : Color.clear, in: Capsule())
-                            .contentShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(isSelected ? .isSelected : [])
-                }
-            }
-            .padding(5)
-            .glassEffect(.regular, in: .capsule)
-
-            Spacer()
-
-            Button {
-                showingAddItem = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(Color(.systemBackground))
-                    .frame(width: 56, height: 56)
-                    .background(Color.accentColor, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("add-item-button")
-            .accessibilityLabel("Añadir artículo")
-        }
-        .padding(.horizontal, 32)
-        .padding(.bottom, 16)
     }
 
     // MARK: Empty state
