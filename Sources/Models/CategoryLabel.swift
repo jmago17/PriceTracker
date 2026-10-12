@@ -15,24 +15,21 @@ enum CategoryLabel {
     ]
 
     static func displayName(_ category: String?) -> String {
-        guard let category = category?.trimmedNonEmpty else { return "Sin categoría" }
-        let normalized = category.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
-        return aliases[normalized.lowercased()] ?? normalized
+        guard let label = semanticLabel(category) else { return "Sin categoría" }
+        let words = label.split(whereSeparator: { $0.isWhitespace })
+        return words.count <= 2 ? label : words.prefix(2).joined(separator: " ") + "…"
     }
 
-    static func displayName(_ category: String?, among categories: [String]) -> String {
-        let label = displayName(category)
-        if categories.contains(where: { $0 != category && displayName($0) == label }) {
-            return category?.trimmedNonEmpty ?? label
-        }
+    /// Ellipsis is presentation only, never a suggested canonical name.
+    static func suggestion(_ category: String?) -> String? {
+        guard let label = semanticLabel(category), wordCount(label) <= 2 else { return nil }
         return label
     }
 
-    /// Do not invent an ambiguous category by taking its first two words.
-    static func suggestion(_ category: String?) -> String? {
-        guard category?.trimmedNonEmpty != nil else { return nil }
-        let label = displayName(category)
-        return wordCount(label) <= 2 ? label : nil
+    private static func semanticLabel(_ category: String?) -> String? {
+        guard let category = category?.trimmedNonEmpty else { return nil }
+        let normalized = category.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        return aliases[normalized.lowercased()] ?? normalized
     }
 
     static func wordCount(_ value: String) -> Int {

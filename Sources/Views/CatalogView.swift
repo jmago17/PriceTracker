@@ -218,7 +218,7 @@ struct CatalogView: View {
                     }
                 } header: {
                     HStack(alignment: .firstTextBaseline) {
-                        Text(CategoryLabel.displayName(section.category, among: viewModel.categories))
+                        Text(CategoryLabel.displayName(section.category))
                             .accessibilityLabel(section.title)
                             .font(.system(.title3, design: .serif, weight: .semibold))
                             .foregroundStyle(.primary)
@@ -250,7 +250,7 @@ struct CatalogView: View {
     private func compactRow(_ item: Item) -> some View {
         let card = CompactMuralCardView(
             item: item,
-            categoryLabel: CategoryLabel.displayName(item.category, among: viewModel.categories),
+            categoryLabel: CategoryLabel.displayName(item.category),
             isSelecting: isSelecting,
             isSelected: selection.contains(item.id),
             isSummarizing: viewModel.summarizingIDs.contains(item.id),
@@ -362,7 +362,7 @@ struct CatalogView: View {
                         Label("Todas", systemImage: "square.grid.2x2")
                             .tag(ItemCategoryFilter.all)
                         ForEach(viewModel.categories, id: \.self) { category in
-                            Text(CategoryLabel.displayName(category, among: viewModel.categories))
+                            Text(CategoryLabel.displayName(category))
                                 .accessibilityLabel(category)
                                 .help(category)
                                 .tag(ItemCategoryFilter.category(category))
@@ -374,7 +374,7 @@ struct CatalogView: View {
                     }
                 } label: {
                     FilterChip(
-                        title: viewModel.isCategoryFilterActive ? CategoryLabel.displayName(viewModel.categoryFilter.displayName, among: viewModel.categories) : "Categoría",
+                        title: viewModel.isCategoryFilterActive ? CategoryLabel.displayName(viewModel.categoryFilter.displayName) : "Categoría",
                         isSelected: viewModel.isCategoryFilterActive,
                         showsCheckmark: false,
                         showsChevron: true,
@@ -382,6 +382,8 @@ struct CatalogView: View {
                     )
                 }
                 .accessibilityIdentifier("category-filter-menu")
+                .accessibilityLabel(viewModel.isCategoryFilterActive ? "Categoría: \(viewModel.categoryFilter.displayName)" : "Categoría")
+                .help(viewModel.categoryFilter.displayName)
             }
             // Inset the chips themselves, not the scroll view, so the first and
             // last chip align with the list rows yet can scroll to the edge.
@@ -464,7 +466,7 @@ struct CatalogView: View {
     private func muralCard(_ item: Item) -> some View {
         let card = CompactMuralCardView(
             item: item,
-            categoryLabel: CategoryLabel.displayName(item.category, among: viewModel.categories),
+            categoryLabel: CategoryLabel.displayName(item.category),
             isSelecting: isSelecting,
             isSelected: selection.contains(item.id),
             isSummarizing: viewModel.summarizingIDs.contains(item.id)
@@ -532,7 +534,7 @@ struct CatalogView: View {
                 }
                 ForEach(viewModel.categories, id: \.self) { category in
                     MuralChip(
-                        title: CategoryLabel.displayName(category, among: viewModel.categories),
+                        title: CategoryLabel.displayName(category),
                         count: categoryCount(category),
                         isSelected: viewModel.categoryFilter == .category(category)
                     ) {

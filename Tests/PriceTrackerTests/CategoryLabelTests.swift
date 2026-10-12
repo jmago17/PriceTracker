@@ -15,7 +15,7 @@ struct CategoryLabelTests {
 
     @Test func oldNamesRemainEditableWithoutDestructiveTruncation() {
         let original = "Accesorios especiales para cámaras de cine"
-        #expect(CategoryLabel.displayName(original) == original)
+        #expect(CategoryLabel.displayName(original) == "Accesorios especiales…")
         #expect(CategoryLabel.allowsEdit(original, original: original))
         #expect(!CategoryLabel.allowsEdit("Nueva categoría demasiado larga", original: original))
         #expect(CategoryLabel.allowsEdit("Cine profesional", original: original))
@@ -25,8 +25,8 @@ struct CategoryLabelTests {
         let first = Item(store: .generic, storeItemID: "1", canonicalURL: URL(string: "https://example.com/1")!, title: "Uno", category: "Hogar y cocina")
         let second = Item(store: .generic, storeItemID: "2", canonicalURL: URL(string: "https://example.com/2")!, title: "Dos", category: "Hogar/Cocina")
         #expect(CategoryLabel.displayName(first.category) == CategoryLabel.displayName(second.category))
-        let names = [first.category!, second.category!]
-        #expect(CategoryLabel.displayName(first.category, among: names) != CategoryLabel.displayName(second.category, among: names))
+        #expect(CategoryLabel.wordCount(CategoryLabel.displayName(first.category)) <= 2)
+        #expect(CategoryLabel.wordCount(CategoryLabel.displayName(second.category)) <= 2)
         #expect(ItemFilterEngine.sections(in: [first, second]).count == 2)
         #expect(ItemFilterEngine.filter([first, second], by: .category(first.category!)).map(\.id) == [first.id])
         #expect(first.category == "Hogar y cocina")
@@ -46,6 +46,22 @@ struct CategoryLabelTests {
         let fetch = FetchResult(priceCents: 1000, currency: "EUR", isOnSale: false, availability: "available", storeGenre: "Hogar y cocina")
         #expect(PriceDropDetector.evaluate(item: existing, fetch: fetch).updatedItem.category == raw)
         #expect(PriceDropDetector.evaluate(item: imported, fetch: fetch).updatedItem.category == "Hogar/Cocina")
+    }
+
+    @Test func longLabelsNormalizeWhitespaceAndKeepCollidingIdentities() {
+        let names = ["Accesorios especiales para cámaras", "Accesorios especiales para relojes"]
+        let items = names.enumerated().map { index, name in
+            Item(store: .generic, storeItemID: String(index), canonicalURL: URL(string: "https://example.com/\(index)")!, title: name, category: name)
+        }
+        #expect(CategoryLabel.displayName("  Accesorios \n especiales   para cámaras  ") == "Accesorios especiales…")
+        #expect(Set(names.map { CategoryLabel.displayName($0) }).count == 1)
+        #expect(ItemFilterEngine.sections(in: items).count == 2)
+        for item in items {
+            #expect(CategoryLabel.wordCount(CategoryLabel.displayName(item.category)) == 2)
+            #expect(ItemFilterEngine.filter(items, by: .category(item.category!)).map(\.id) == [item.id])
+            #expect(CategoryLabel.suggestion(item.category) == nil)
+        }
+        #expect(CategoryLabel.displayName("Cuidado personal") == "Cuidado personal")
     }
 
 }

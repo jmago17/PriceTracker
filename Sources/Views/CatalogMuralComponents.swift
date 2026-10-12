@@ -131,22 +131,29 @@ struct CompactMuralCardView: View {
         .accessibilityIdentifier("item-card")
     }
 
-    @ViewBuilder
     private var summaryContent: some View {
-        if isSummarizing {
-            Label("Resumiendo…", systemImage: "sparkles")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .symbolEffect(.pulse, isActive: !reduceMotion)
-        } else if let summary = item.summary?.trimmedNonEmpty {
-            Text(summary)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 5)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 10) {
+            if let subtitle = CatalogCardDetails.subtitle(for: item) {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 5)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if isSummarizing {
+                Label("Resumiendo…", systemImage: "sparkles")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .symbolEffect(.pulse, isActive: !reduceMotion)
+            } else if let summary = item.summary?.trimmedNonEmpty {
+                Text(summary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 5)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
-
 
     private var footer: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
