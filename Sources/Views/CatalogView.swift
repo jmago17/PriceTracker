@@ -251,7 +251,8 @@ struct CatalogView: View {
             item: item,
             isSelecting: isSelecting,
             isSelected: selection.contains(item.id),
-            isSummarizing: viewModel.summarizingIDs.contains(item.id)
+            isSummarizing: viewModel.summarizingIDs.contains(item.id),
+            imageOnTrailingSide: UIDevice.current.userInterfaceIdiom == .phone
         )
         if isSelecting {
             Button {

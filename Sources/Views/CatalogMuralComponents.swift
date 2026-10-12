@@ -85,6 +85,7 @@ struct CompactMuralCardView: View {
     var isSelecting = false
     var isSelected = false
     var isSummarizing = false
+    var imageOnTrailingSide = false
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -93,6 +94,40 @@ struct CompactMuralCardView: View {
     private let cornerRadius: CGFloat = 32
 
     var body: some View {
+        Group {
+            if imageOnTrailingSide {
+                HStack(alignment: .top, spacing: 12) {
+                    textContent
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if item.imageURL != nil {
+                        imageContent
+                            .frame(width: dynamicTypeSize.isAccessibilitySize ? 56 : 88)
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    textContent
+                    if item.imageURL != nil {
+                        imageContent.padding(.top, 4)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(isSelected ? Color.accentColor : Color(.separator).opacity(0.35), lineWidth: isSelected ? 2 : 0.5)
+        }
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.2 : 0.045), radius: 10, y: 5)
+        .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("item-card")
+    }
+
+    private var textContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 6) {
                 Text(item.lastSuccessAt?.relativeSpanish ?? "Sin comprobar")
@@ -152,34 +187,25 @@ struct CompactMuralCardView: View {
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if let imageURL = item.imageURL {
-                Color(.tertiarySystemGroupedBackground)
-                    .aspectRatio(1.05, contentMode: .fit)
-                    .overlay {
-                        AsyncImage(url: imageURL) { image in
-                            image.resizable().scaledToFit().padding(8)
-                        } placeholder: {
-                            Image(systemName: "photo")
-                                .foregroundStyle(.tertiary)
-                        }
+        }
+    }
+
+    @ViewBuilder
+    private var imageContent: some View {
+        if let imageURL = item.imageURL {
+            Color(.tertiarySystemGroupedBackground)
+                .aspectRatio(1.05, contentMode: .fit)
+                .overlay {
+                    AsyncImage(url: imageURL) { image in
+                        image.resizable().scaledToFit().padding(8)
+                    } placeholder: {
+                        Image(systemName: "photo")
+                            .foregroundStyle(.tertiary)
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .accessibilityHidden(true)
-                    .padding(.top, 4)
-            }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .accessibilityHidden(true)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(isSelected ? Color.accentColor : Color(.separator).opacity(0.35), lineWidth: isSelected ? 2 : 0.5)
-        }
-        .shadow(color: .black.opacity(colorScheme == .dark ? 0.2 : 0.045), radius: 10, y: 5)
-        .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityIdentifier("item-card")
     }
 
     private var priceText: String {
