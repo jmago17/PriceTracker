@@ -119,4 +119,30 @@ struct WebPriceRefreshTests {
         #expect(await store.history.count == 1)
     }
 
+    @Test func reviewedPriceHolesNeverPersistANewSuccessOrObservation() async throws {
+        let meta = "<meta property='og:type' content='product'><meta property='og:url' content='https://shop.example/product'><meta property='product:price:amount' content='10'><meta property='product:price:currency' content='EUR'>"
+        let fixtures: [(Store, String)] = [
+            (.generic, meta + "<meta property='og:price:amount' content='100'><meta property='og:price:currency' content='EUR'>"),
+            (.generic, meta + "<meta property='product:availability' content='out of stock'>"),
+            (.generic, html.replacingOccurrences(of: "\"@type\":\"Offer\"", with: "\"@type\":\"Offer\",\"validFrom\":\"2099-01-01\"")),
+            (.generic, html.replacingOccurrences(of: "\"@type\":\"Offer\"", with: "\"@type\":\"Offer\",\"priceValidUntil\":\"unknown\""))
+        ] + ["3 pagos de", "al mes", "con Prime", "for Prime members"].map { condition in
+            (.amazon, "<input id='ASIN' value='B012345678'><span id='productTitle'>Cámara Demo</span><div id='corePrice_feature_div'>\(condition)<span class='a-price'><span class='a-offscreen'>19,99 €</span></span></div>")
+        }
+        for (kind, body) in fixtures {
+            let original = item(kind), store = WebFixtureStore(item(kind)), fresh = Date(timeIntervalSince1970: 1_701_209_600)
+            let network = session(html: body)
+            let connector: any StoreConnector = kind == .amazon
+                ? AmazonConnector(session: network, rendersDynamicPages: false)
+                : GenericStoreConnector(session: network, rendersDynamicPages: false)
+            let coordinator = RefreshCoordinator(itemStore: store, alertStore: WebFixtureAlerts(), connectorToFetch: { _ in connector }, now: { fresh })
+            let summary = try await coordinator.refreshCatalog()
+            let stored = try #require(await store.loadAll().first)
+            #expect(summary.failed == 1)
+            #expect(stored.priceCurrentCents == original.priceCurrentCents && stored.lastSuccessAt == original.lastSuccessAt)
+            #expect(stored.lastCheckedAt == fresh && stored.lastError != nil)
+            #expect(await store.history.isEmpty)
+        }
+    }
+
 }

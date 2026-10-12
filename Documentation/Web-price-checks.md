@@ -56,3 +56,23 @@ Amazon account or authenticated website was used for these tests.
 - https://schema.org/UnitPriceSpecification
 - https://developers.google.com/search/docs/appearance/structured-data/product-variants
 - https://developer.apple.com/documentation/foundation/urlsessionconfiguration/ephemeral
+
+## Additional conservative rejection rules
+
+Every product/OG price and currency field is compared, including against structured
+prices when page metadata identifies the same product. Out-of-stock or unknown
+availability metadata fails. Offer validFrom, validThrough and priceValidUntil are
+all enforced using one injectable instant; a present unparseable value fails.
+Date-only bounds use UTC calendar days (end dates include the entire day).
+DateTime bounds require a timezone and retain fractional seconds.
+
+Amazon rejection patterns also inspect price-area labels split across DOM nodes
+and accessible annotations for installments, recurring payments and membership.
+These are extra conservative rejection signals, not a universal guarantee that
+unrecognized wording is unconditional; legitimate pages can be rejected if their
+price area mixes a total price with financing or membership promotions. The
+regressions use synthetic fixtures, not evidence of current Amazon markup.
+
+- https://schema.org/validFrom
+- https://schema.org/validThrough
+- https://schema.org/priceValidUntil

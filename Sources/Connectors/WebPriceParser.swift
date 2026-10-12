@@ -4,7 +4,7 @@ import CoreFoundation
 /// Strict refresh extraction. The permissive add-time parser is never trusted
 /// to choose a price: related products, ranges and unverified variants fail closed.
 enum WebPriceParser {
-    static func parse(data: Data, finalURL: URL, item: Item) throws -> FetchResult {
+    static func parse(data: Data, finalURL: URL, item: Item, now: Date = Date()) throws -> FetchResult {
         guard let html = String(data: data, encoding: .utf8), html.count <= 2_000_000 else { throw WebPriceError.missing }
         let document = PriceHTML.parse(html)
         let visible = document.text.lowercased()
@@ -21,6 +21,7 @@ enum WebPriceParser {
             .flatMap { absolute($0.attributes["href"], base: finalURL) }
         guard matches(finalURL, item: item) || canonical.map({ matches($0, item: item) }) == true else { throw WebPriceError.identity }
 
+        let pagePrice = try metadataPrice(document, base: finalURL, item: item)
         let scripts = document.nodes.filter { $0.tag == "script" && $0.attributes["type"]?.lowercased() == "application/ld+json" }
         var products: [[String: Any]] = []
         var graph: [String: [String: Any]] = [:]
@@ -41,10 +42,10 @@ enum WebPriceParser {
                     asinBound: item.store == .amazon && (string(product["sku"]) == item.storeItemID || absolute(string(product["url"]), base: finalURL).map { matches($0, item: item) } == true))
                 let offers = dictionaries(product["offers"]).map { resolve($0, graph: graph) }
                 guard !offers.isEmpty else { throw WebPriceError.missing }
-                let prices = try offers.map { try offer($0, base: finalURL, item: item) }
+                let prices = try offers.map { try offer($0, base: finalURL, item: item, now: now) }
                 return try unique(prices)
             }
-            return try unique(results)
+            return try reconcile(unique(results), with: pagePrice)
         }
 
         let microProducts = document.nodes.filter { schemaType($0.attributes["itemtype"]) == "Product" }
@@ -59,33 +60,55 @@ enum WebPriceParser {
             try validateVariant(size: values["size"]?.first, color: values["color"]?.first, item: item, asinBound: false)
             let offers = product.nodes.filter { schemaType($0.attributes["itemtype"]) == "Offer" && nearestProduct($0) === product }
             guard !offers.isEmpty else { throw WebPriceError.missing }
-            return try unique(offers.map { node in
+            let result = try unique(offers.map { node in
                 let props = properties(node)
                 guard props["price"]?.count == 1, props["priceCurrency"]?.count == 1,
+                      ["validFrom", "validThrough", "priceValidUntil"].allSatisfy({ Set(props[$0] ?? []).count <= 1 }),
                       !node.nodes.contains(where: {
                           schemaType($0.attributes["itemtype"]) == "UnitPriceSpecification"
                               || ["eligibleQuantity", "eligibleTransactionVolume", "eligibleCustomerType", "validForMemberTier", "priceSpecification"].contains($0.attributes["itemprop"] ?? "")
                       }) else { throw WebPriceError.ambiguous }
                 var dictionary: [String: Any] = [:]
                 for (key, value) in props { if let first = value.first { dictionary[key] = first } }
-                return try offer(dictionary, base: finalURL, item: item)
+                return try offer(dictionary, base: finalURL, item: item, now: now)
             })
+            return try reconcile(result, with: pagePrice)
         }
 
-        if item.store == .amazon { return try amazon(document, item: item) }
-        // Page-level metadata is admissible only when explicitly bound to this
-        // product URL, with no unresolved variant and no structured products.
-        let meta = metadata(document)
-        guard meta["og:type"] == ["product"],
-              let url = absolute(meta["og:url"]?.first, base: finalURL), matches(url, item: item) else { throw WebPriceError.missing }
+        if item.store == .amazon { return try reconcile(amazon(document, item: item), with: pagePrice) }
+        guard let pagePrice else { throw WebPriceError.missing }
         try validateVariant(size: nil, color: nil, item: item, asinBound: false)
-        let amounts = meta["product:price:amount"] ?? meta["og:price:amount"] ?? []
-        let currencies = meta["product:price:currency"] ?? meta["og:price:currency"] ?? []
-        guard Set(amounts).count == 1, Set(currencies).count == 1, let amount = amounts.first, let currency = currencies.first else { throw WebPriceError.ambiguous }
-        return try result(amount: amount, currency: currency, item: item)
+        return pagePrice
     }
 
-    private static func offer(_ offer: [String: Any], base: URL, item: Item) throws -> FetchResult {
+    /// Compare every present price/currency namespace, never prefer one by order.
+    /// These page-level values must be explicitly bound to the saved product.
+    private static func metadataPrice(_ document: PriceHTML, base: URL, item: Item) throws -> FetchResult? {
+        let meta = metadata(document)
+        let states = (meta["product:availability"] ?? []) + (meta["og:availability"] ?? [])
+        for state in states {
+            let value = (schemaType(state) ?? state).lowercased().filter { $0.isLetter }
+            guard ["instock", "available", "limitedavailability", "preorder", "backorder", "onlineonly"].contains(value) else { throw WebPriceError.missing }
+        }
+        guard let types = meta["og:type"], !types.isEmpty, types.allSatisfy({ $0.lowercased() == "product" }),
+              let urls = meta["og:url"], !urls.isEmpty else { return nil }
+        guard urls.allSatisfy({ absolute($0, base: base).map { matches($0, item: item) } == true }) else { throw WebPriceError.identity }
+        let amounts = (meta["product:price:amount"] ?? []) + (meta["og:price:amount"] ?? [])
+        let currencies = (meta["product:price:currency"] ?? []) + (meta["og:price:currency"] ?? [])
+        if amounts.isEmpty && currencies.isEmpty { return nil }
+        guard !amounts.isEmpty, !currencies.isEmpty else { throw WebPriceError.ambiguous }
+        // Checking each currency also rejects a conflicting namespace even when
+        // it omits its own amount. Numeric equivalents such as 10 and 10.00 agree.
+        for currency in currencies { _ = try result(amount: amounts[0], currency: currency, item: item) }
+        return try unique(amounts.map { try result(amount: $0, currency: currencies[0], item: item) })
+    }
+
+    private static func reconcile(_ value: FetchResult, with pagePrice: FetchResult?) throws -> FetchResult {
+        if let pagePrice { _ = try unique([value, pagePrice]) }
+        return value
+    }
+
+    private static func offer(_ offer: [String: Any], base: URL, item: Item, now: Date) throws -> FetchResult {
         let types = (offer["@type"] as? [String] ?? [string(offer["@type"]) ?? "Offer"]).compactMap(schemaType)
         guard types.contains("Offer"), !types.contains("AggregateOffer"), offer["lowPrice"] == nil, offer["highPrice"] == nil,
               offer["priceSpecification"] == nil,
@@ -97,12 +120,47 @@ enum WebPriceParser {
         if let function = string(offer["businessFunction"]), schemaType(function) != "Sell" { throw WebPriceError.ambiguous }
         if let condition = string(offer["itemCondition"]), schemaType(condition) != "NewCondition" { throw WebPriceError.ambiguous }
         if let availability = string(offer["availability"]), !["InStock", "LimitedAvailability", "PreOrder", "BackOrder", "OnlineOnly"].contains(schemaType(availability) ?? "") { throw WebPriceError.missing }
-        if let end = string(offer["priceValidUntil"]), let date = ISO8601DateFormatter().date(from: end.count == 10 ? end + "T23:59:59Z" : end), date < Date() { throw WebPriceError.missing }
+        try validateValidity(offer, now: now)
         if let url = absolute(string(offer["url"]), base: base), !matches(url, item: item) { throw WebPriceError.variant }
         guard let amount = string(offer["price"]), let currency = string(offer["priceCurrency"]) else { throw WebPriceError.missing }
         var value = try result(amount: amount, currency: currency, item: item)
         value.availability = string(offer["availability"]).flatMap(schemaType) ?? "unknown"
         return value
+    }
+
+    private static func validateValidity(_ offer: [String: Any], now: Date) throws {
+        for field in ["validFrom", "validThrough", "priceValidUntil"] {
+            guard let raw = offer[field] else { continue }
+            guard let text = raw as? String else { throw WebPriceError.ambiguous }
+            let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let isStart = field == "validFrom"
+            let dateOnly = value.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil
+            let day = String(value.prefix(10))
+            let dayFormatter = DateFormatter()
+            dayFormatter.calendar = Calendar(identifier: .gregorian)
+            dayFormatter.locale = Locale(identifier: "en_US_POSIX")
+            dayFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+            dayFormatter.dateFormat = "yyyy-MM-dd"
+            dayFormatter.isLenient = false
+            guard let parsedDay = dayFormatter.date(from: day), dayFormatter.string(from: parsedDay) == day else { throw WebPriceError.ambiguous }
+            let date: Date
+            if dateOnly {
+                // Date-only bounds use UTC calendar days; an end date includes
+                // that entire day, without rounding away fractional seconds.
+                date = isStart ? parsedDay : parsedDay.addingTimeInterval(86_400)
+            } else {
+                guard value.range(of: #"^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$"#, options: .regularExpression) != nil else { throw WebPriceError.ambiguous }
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = value.contains(".") ? [.withInternetDateTime, .withFractionalSeconds] : [.withInternetDateTime]
+                guard let parsed = formatter.date(from: value) else { throw WebPriceError.ambiguous }
+                date = parsed
+            }
+            if isStart {
+                guard now >= date else { throw WebPriceError.missing }
+            } else {
+                guard dateOnly ? now < date : now <= date else { throw WebPriceError.missing }
+            }
+        }
     }
 
     private static func result(amount: String, currency: String, item: Item) throws -> FetchResult {
@@ -156,8 +214,7 @@ enum WebPriceParser {
         let blocks = document.nodes.filter { blockIDs.contains($0.attributes["id"] ?? "") }
         var amounts: [String] = []
         for block in blocks {
-            let conditions = ["prime exclusive", "precio exclusivo", "subscribe & save", "suscríbete", "compra recurrente", "cuotas", "installments", "mensual", "per month", "/mes"]
-            if conditions.contains(where: block.text.lowercased().contains) { throw WebPriceError.ambiguous }
+            if hasConditionalPrice(in: block) { throw WebPriceError.ambiguous }
             let prices = block.nodes.filter { $0.classes.contains("a-price") && !$0.classes.contains("a-text-price") }
             for price in prices {
                 guard !price.text.lowercased().contains("/"),
@@ -187,6 +244,25 @@ enum WebPriceParser {
             return try result(amount: amount, currency: item.currency, item: item)
         }
         return try unique(results)
+    }
+
+    /// Additional rejection signals inside the price area, not proof that any
+    /// unrecognized wording is unconditional. Unknown page layouts can still fail.
+    private static func hasConditionalPrice(in block: PriceHTML) -> Bool {
+        let annotations = block.nodes.flatMap { node in
+            ["aria-label", "title", "alt", "class", "id"].compactMap { node.attributes[$0] }
+        }
+        let text = normalized(([block.text] + annotations).joined(separator: " "))
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "es_ES"))
+        let patterns = [
+            #"\b(?:\d+|tres|three)\s*(?:pagos?|cuotas?|payments?|instalments?|installments?)\b"#,
+            #"\b(?:al|por|per|a)\s+(?:mes|month|semana|week|ano|year)\b"#,
+            #"(?:/|\bper\s+)(?:mes|mo|month|week|ano|year)\b"#,
+            #"\b(?:prime|miembros?|members?|socios?|cuotas?|mensual|monthly|installments?|instalments?|financing|subscription|membership)\b"#,
+            #"subscribe|suscrib|precio exclusivo|compra recurrente|prime[-_ ]?(?:exclusive|member|price)"#,
+            #"\b\d+\s*[x×]\s*(?:[€£$]|\d)|\bpaga(?:r)?\s+en\s+\d+\b"#
+        ]
+        return patterns.contains { text.range(of: $0, options: .regularExpression) != nil }
     }
 
     private static func collect(_ value: Any, products: inout [[String: Any]], graph: inout [String: [String: Any]]) {
@@ -299,7 +375,13 @@ private final class PriceHTML {
                 if tag == "script", let start = token.firstIndex(of: ">"), let end = token.range(of: "</script", options: .caseInsensitive)?.lowerBound {
                     node.rawText = String(token[token.index(after: start)..<end])
                 } else if !voidTags.contains(tag) && !token.hasSuffix("/>") && stack.count < 128 { stack.append(node) }
-            } else { stack.last?.rawText += token }
+            } else {
+                // Keep text in DOM order, including labels split across spans.
+                let text = PriceHTML("#text")
+                text.rawText = token
+                text.parent = stack.last
+                stack.last?.children.append(text)
+            }
         }
         return root
     }

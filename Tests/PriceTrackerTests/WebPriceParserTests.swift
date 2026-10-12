@@ -8,9 +8,9 @@ struct WebPriceParserTests {
              canonicalURL: URL(string: url)!, title: "Cámara Demo", priceCurrentCents: 1999,
              priceAtAddCents: 1999, lastSuccessAt: Date(timeIntervalSince1970: 1_700_000_000))
     }
-    private func parse(_ html: String, item: Item? = nil, finalURL: URL? = nil) throws -> FetchResult {
+    private func parse(_ html: String, item: Item? = nil, finalURL: URL? = nil, now: Date? = nil) throws -> FetchResult {
         let item = item ?? self.item()
-        return try WebPriceParser.parse(data: Data(html.utf8), finalURL: finalURL ?? item.canonicalURL, item: item)
+        return try WebPriceParser.parse(data: Data(html.utf8), finalURL: finalURL ?? item.canonicalURL, item: item, now: now ?? ISO8601DateFormatter().date(from: "2026-10-12T12:00:00Z")!)
     }
     private func json(_ body: String) -> String { "<script type='application/ld+json'>\(body)</script>" }
     private func product(_ offers: String, extra: String = "") -> String {
@@ -139,6 +139,63 @@ struct WebPriceParserTests {
         #expect(throws: (any Error).self) { try parse(html) }
         let regular = product(#"{"price":"10","priceCurrency":"EUR"}"#)
         #expect(throws: (any Error).self) { try parse(regular, item: item("https://shop.example/product?ref=blue")) }
+    }
+
+    @Test func conflictingMetadataAndOutOfStockCannotReturnAPrice() {
+        let base = "<meta property='og:type' content='product'><meta property='og:url' content='https://shop.example/product'><meta property='product:price:amount' content='10'><meta property='product:price:currency' content='EUR'>"
+        for extra in ["<meta property='og:price:amount' content='100'><meta property='og:price:currency' content='EUR'>", "<meta property='og:price:amount' content='10'><meta property='og:price:currency' content='USD'>", "<meta property='product:availability' content='out of stock'>"] {
+            #expect(throws: (any Error).self) { try parse(base + extra) }
+        }
+    }
+
+    @Test func futureExpiredAndMalformedOfferValidityFails() {
+        for interval in [#","validFrom":"2099-01-01""#, #","validThrough":"2000-01-01""#, #","validFrom":"not a date""#] {
+            let offer = #"{"price":"10","priceCurrency":"EUR""# + interval + "}"
+            #expect(throws: (any Error).self) { try parse(product(offer)) }
+        }
+    }
+
+    @Test func amazonInstallmentsAndMembershipAreNotTheTotalPrice() {
+        let selected = item("https://www.amazon.es/dp/B012345678", store: .amazon)
+        for condition in ["3 pagos de", "al mes", "con Prime", "for Prime members"] {
+            let html = "<input id='ASIN' value='B012345678'><span id='productTitle'>Cámara Demo</span><div id='corePrice_feature_div'>\(condition)<span class='a-price'><span class='a-offscreen'>19,99 €</span></span></div>"
+            #expect(throws: (any Error).self) { try parse(html, item: selected) }
+        }
+    }
+
+    @Test func matchingMetadataAgreesNumericallyButCannotContradictStructuredOffer() throws {
+        let meta = "<meta property='og:type' content='product'><meta property='og:url' content='https://shop.example/product'><meta property='product:price:amount' content='10'><meta property='product:price:currency' content='eur'><meta property='og:price:amount' content='10.00'><meta property='og:price:currency' content='EUR'><meta property='product:availability' content='in stock'>"
+        #expect(try parse(meta).priceCents == 1000)
+        #expect(throws: (any Error).self) { try parse(meta + product(#"{"price":"100","priceCurrency":"EUR"}"#)) }
+    }
+
+    @Test func offerValidityUsesInjectedClockForBoundariesAndRejectsEveryMalformedField() throws {
+        let clock = ISO8601DateFormatter().date(from: "2026-10-12T12:00:00Z")!
+        func page(_ fields: [String: Any]) throws -> String {
+            var offer: [String: Any] = ["price": "10", "priceCurrency": "EUR"]
+            offer.merge(fields) { _, new in new }
+            return product(String(decoding: try JSONSerialization.data(withJSONObject: offer), as: UTF8.self))
+        }
+        let valid = try page(["validFrom": "2026-10-12T14:00:00+02:00", "validThrough": "2026-10-12T12:00:00.500Z", "priceValidUntil": "2026-10-12"])
+        #expect(try parse(valid, now: clock).priceCents == 1000)
+        #expect(throws: (any Error).self) { try parse(valid, now: clock.addingTimeInterval(-0.001)) }
+        #expect(throws: (any Error).self) { try parse(valid, now: clock.addingTimeInterval(0.501)) }
+        #expect(try parse(page(["validFrom": "2026-10-12", "validThrough": "2026-10-12"]), now: clock).priceCents == 1000)
+        #expect(throws: (any Error).self) { try parse(page(["priceValidUntil": "2026-10-11", "validThrough": "2099-01-01"]), now: clock) }
+        for field in ["validFrom", "validThrough", "priceValidUntil"] {
+            let malformed: [Any] = ["", "not a date", "2026-02-30", "2026-02-30T12:00:00Z", "2026-10-12T12:00:00", "2026-10-12T99:00:00Z", NSNull(), 42, ["2026-10-12"]]
+            for value in malformed {
+                #expect(throws: (any Error).self) { try parse(page([field: value]), now: clock) }
+            }
+        }
+    }
+
+    @Test func amazonConditionLabelsRetainDOMOrderAndAccessibleAnnotations() {
+        let selected = item("https://www.amazon.es/dp/B012345678", store: .amazon)
+        for condition in ["3 <span>pagos</span> de", "al&nbsp;<span>mes</span>", "<img alt='for Prime members'>", "<span aria-label='con Prime'></span>", "3 x "] {
+            let html = "<input id='ASIN' value='B012345678'><span id='productTitle'>Cámara Demo</span><div id='corePrice_feature_div'>\(condition)<span class='a-price'><span class='a-offscreen'>19,99 €</span></span></div>"
+            #expect(throws: (any Error).self) { try parse(html, item: selected) }
+        }
     }
 
 }
