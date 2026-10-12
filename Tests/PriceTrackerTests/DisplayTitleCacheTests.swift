@@ -23,6 +23,55 @@ struct DisplayTitleCacheTests {
         #expect(DisplayTitleGenerator.validated("Marca auriculares inalámbricos 256 GB Azul", for: model) == nil)
     }
 
+    @Test func fullmosaScreenshotTitleCanOmitCompatibilityListsWithoutInventingAVariant() {
+        let title = "Fullmosa Correa Magnética Para Apple Watch 44mm 46mm 45mm 49mm,Negro Milanesa Pulsera de Repuesto Acero Inoxidable Loop para Ultra3/2/1 Series 11 10 9 8 7 6 5 4 3 2 1 SE3/2/1 para Mujer Hombre"
+        let source = Item(store: .generic, storeItemID: "fullmosa", canonicalURL: URL(string: "https://example.com/fullmosa")!, title: title)
+        let request = DisplayTitleRequest(item: source)
+        let short = "Fullmosa Correa Magnética Para Apple Watch Negro"
+        #expect(title.count > 160)
+        #expect(DisplayTitleGenerator.validated(short, for: request) == short)
+        #expect(request.version == 2)
+        for invalid in [
+            "Fullmosa Correa Magnética Para Apple Watch Blanco",
+            "Fullmosa Correa Magnética Para Apple Watch",
+            "Fullmosa Correa Magnética Para Apple Watch 49mm Negro",
+            "Fullmosa Correa Magnética Para Apple Watch Negro Series 11",
+            "Fullmosa Correa Magnética Para Apple Watch Negro Series 12",
+            "Fullmosa Correa Magnética Para Apple Watch Negro Ultra3",
+            "Fullmosa Correa Magnética Negro"
+        ] {
+            #expect(DisplayTitleGenerator.validated(invalid, for: request) == nil)
+        }
+        var selected = source
+        selected.size = "44 mm"
+        let selectedRequest = DisplayTitleRequest(item: selected)
+        let selectedShort = "Fullmosa Correa Magnética Para Apple Watch 44mm Negro"
+        #expect(DisplayTitleGenerator.validated(selectedShort, for: selectedRequest) == selectedShort)
+        #expect(DisplayTitleGenerator.validated(short, for: selectedRequest) == nil)
+        #expect(source.title == title)
+    }
+
+    @Test func soleCompatibilitySizeIsPreservedWithoutStructuredVariant() {
+        let title = "Fullmosa Correa Magnética Para Apple Watch 49mm Negro Milanesa Pulsera de Repuesto Acero Inoxidable"
+        let source = Item(store: .generic, storeItemID: "single-size", canonicalURL: URL(string: "https://example.com/single")!, title: title)
+        let request = DisplayTitleRequest(item: source)
+        let short = "Fullmosa Correa Magnética Para Apple Watch 49mm Negro"
+        #expect(DisplayTitleGenerator.validated(short, for: request) == short)
+        #expect(DisplayTitleGenerator.validated("Fullmosa Correa Magnética Para Apple Watch Negro", for: request) == nil)
+    }
+
+    @Test func actualWatchAndHeadphoneModelsAreNotCompatibilityAlternatives() {
+        for (title, invalid) in [
+            ("Apple Watch Ultra 3 49mm Negro con Acabado Premium y Excelente Calidad para Uso Diario", "Apple Watch Ultra 49mm Negro"),
+            ("Sony Auriculares Inalámbricos WH-1000XM5 Negro con Cancelación de Ruido Premium", "Sony Auriculares Inalámbricos Negro"),
+            ("Marca Auriculares Inalámbricos modelo Momentum Negro con Sonido Premium", "Marca Auriculares Inalámbricos Negro"),
+            ("Marca Tablet Profesional 256 GB Azul marino con Pantalla de Alta Calidad", "Marca Tablet Profesional 256 GB Azul")
+        ] {
+            let request = DisplayTitleRequest(item: item(title: title))
+            #expect(DisplayTitleGenerator.validated(invalid, for: request) == nil)
+        }
+    }
+
     @Test func persistsWithoutChangingCanonicalTitle() async throws {
         let directory = URL.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -116,7 +165,7 @@ struct DisplayTitleCacheTests {
         let writer = DisplayTitleCache(fileURL: file) { _ in value }
         #expect(await writer.title(for: request) == value)
         let data = try Data(contentsOf: file)
-        let outdated = String(decoding: data, as: UTF8.self).replacingOccurrences(of: "\"version\":1", with: "\"version\":0")
+        let outdated = String(decoding: data, as: UTF8.self).replacingOccurrences(of: "\"version\":2", with: "\"version\":1")
         try Data(outdated.utf8).write(to: file)
         let reader = DisplayTitleCache(fileURL: file) { _ in nil }
         #expect(await reader.title(for: request) == nil)
