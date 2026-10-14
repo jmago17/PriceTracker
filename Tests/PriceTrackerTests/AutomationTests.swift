@@ -112,11 +112,11 @@ struct AutomationTests {
         let item = automationItem(), log = alerts(), sink = DeliveryLog()
         let store = MemoryCatalog([item])
         try await log.append(PriceAlert(itemID: item.id, kind: .drop, priceFromCents: 1000, priceToCents: 500))
-        let disabled = AlertNotifier(alertStore: log, itemStore: store, enabled: { false }, authorized: { true }, deliver: { id, _, _ in await sink.add(id) })
+        let disabled = AlertNotifier(alertStore: log, itemStore: store, enabled: { false }, authorized: { true }, deliver: { id, _, _, _ in await sink.add(id) })
         #expect(try await disabled.notifyPendingDrops() == 0)
-        let denied = AlertNotifier(alertStore: log, itemStore: store, enabled: { true }, authorized: { false }, deliver: { id, _, _ in await sink.add(id) })
+        let denied = AlertNotifier(alertStore: log, itemStore: store, enabled: { true }, authorized: { false }, deliver: { id, _, _, _ in await sink.add(id) })
         #expect(try await denied.notifyPendingDrops() == 0)
-        let notifier = AlertNotifier(alertStore: log, itemStore: store, enabled: { true }, authorized: { true }, deliver: { id, _, _ in await sink.add(id); await Task.yield() })
+        let notifier = AlertNotifier(alertStore: log, itemStore: store, enabled: { true }, authorized: { true }, deliver: { id, _, _, _ in await sink.add(id); await Task.yield() })
         async let a = notifier.notifyPendingDrops()
         async let b = notifier.notifyPendingDrops()
         let counts = try await [a, b]
@@ -231,7 +231,7 @@ extension AutomationTests {
         let item = automationItem(), store = MemoryCatalog([automationItem()])
         // Use the same persistent item instance for the coordinator lookup.
         try await store.save([item])
-        let log = alerts(), connector = RecordingConnector(price: 1500)
+        let log = alerts(), connector = RecordingConnector(price: 2500)
         let coordinator = RefreshCoordinator(itemStore: store, alertStore: log, connectorToFetch: { _ in connector })
         let result = await coordinator.refreshResult(id: item.id)
         #expect(result.changed && !result.dropped && result.error == nil)
@@ -300,5 +300,77 @@ extension AutomationTests {
         #expect(!result.success && result.error != nil && !result.changed)
         #expect(result.itemID == item.id.uuidString)
         #expect(await connector.calls == 0)
+    }
+}
+
+extension AutomationTests {
+    @Test func sharedRefreshRoutesPersistRiseDedupAndResetWithoutHistoryPoint() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("catalog.sqlite")
+        let store = SQLiteItemStore(databaseURL: url)
+        let item = automationItem()
+        try await store.upsert(item)
+        let log = alerts(), connector = RecordingConnector(price: 2500)
+        let coordinator = RefreshCoordinator(itemStore: store, alertStore: log, connectorToFetch: { _ in connector })
+        _ = await coordinator.refreshResult(id: item.id)
+        let reopened = SQLiteItemStore(databaseURL: url)
+        let restarted = RefreshCoordinator(itemStore: reopened, alertStore: log, connectorToFetch: { _ in connector })
+        _ = try await restarted.refreshCatalog()
+        #expect(try await log.loadAll().filter { $0.kind == .priceChange }.count == 1)
+        let saved = try #require(try await reopened.item(id: item.id))
+        var reset = saved
+        let didReset1 = reset.useCurrentPriceAsInitial()
+        #expect(didReset1)
+        try await reopened.commitRefresh(reset, expected: saved, observation: nil)
+        #expect(try await reopened.observations(for: item.identityKey).count == 2)
+        _ = await restarted.refreshResult(id: item.id)
+        #expect(try await log.loadAll().filter { $0.kind == .priceChange }.count == 1)
+    }
+}
+
+extension AutomationTests {
+    @Test func resetDiscardsPendingRiseAndInvalidFetchDoesNotAddHistory() async throws {
+        let item = automationItem(), store = MemoryCatalog([automationItem()])
+        try await store.save([item])
+        let log = alerts(), sink = DeliveryLog(), connector = RecordingConnector(price: 2500)
+        let coordinator = RefreshCoordinator(itemStore: store, alertStore: log, connectorToFetch: { _ in connector })
+        _ = await coordinator.refreshResult(id: item.id)
+        var saved = try #require(try await store.item(id: item.id))
+        saved.useCurrentPriceAsInitial()
+        try await store.upsert(saved)
+        let notifier = AlertNotifier(alertStore: log, itemStore: store, enabled: { true }, authorized: { true },
+                                     deliver: { id, _, _, _ in await sink.add(id) })
+        #expect(try await notifier.notifyPendingDrops() == 0)
+        #expect(await sink.ids.isEmpty)
+        let invalid = RecordingConnector(price: -1)
+        let invalidCoordinator = RefreshCoordinator(itemStore: store, alertStore: log, connectorToFetch: { _ in invalid })
+        let outcome = await invalidCoordinator.refreshResult(id: item.id)
+        #expect(outcome.error != nil)
+        #expect(try await store.item(id: item.id)?.priceCurrentCents == 2500)
+    }
+}
+
+private actor PriorityDeliveryLog {
+    var levels: [Bool] = []
+    func add(_ level: Bool) { levels.append(level) }
+}
+
+extension AutomationTests {
+    @Test func highPriorityDealDoesNotElevateOtherItemsAndDeliveryDoesNotRepeat() async throws {
+        let end = Date(timeIntervalSinceReferenceDate: 1_234_567_890.1234567)
+        var high = automationItem("high", price: 500)
+        high.priority = .high; high.onSaleUntil = end
+        let normal = automationItem("normal", price: 500)
+        let store = MemoryCatalog([high, normal]), log = alerts(), sink = PriorityDeliveryLog()
+        try await log.append(PriceAlert(itemID: high.id, kind: .drop, priceFromCents: 1000, priceToCents: 500, confirmedSaleEndsAt: end, currency: "EUR"))
+        try await log.append(PriceAlert(itemID: normal.id, kind: .drop, priceFromCents: 1000, priceToCents: 500, currency: "EUR"))
+        let notifier = AlertNotifier(alertStore: log, itemStore: store, enabled: { true }, timeSensitiveEnabled: { true }, authorized: { true },
+                                     deliver: { _, _, _, level in await sink.add(level) })
+        #expect(try await notifier.notifyPendingDrops() == 2)
+        let deliveredLevels = await sink.levels
+        #expect(deliveredLevels == [false, true])
+        #expect(try await notifier.notifyPendingDrops() == 0)
+        #expect(await sink.levels.count == 2)
     }
 }

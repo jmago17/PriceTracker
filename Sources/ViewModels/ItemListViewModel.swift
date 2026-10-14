@@ -166,6 +166,31 @@ final class ItemListViewModel {
         }
     }
 
+    func setPriority(_ priority: ItemPriority, for item: Item) async {
+        do {
+            guard let current = try await environment.itemStore.item(id: item.id) else { return }
+            var updated = current
+            updated.priority = priority
+            updated.updatedAt = Date()
+            _ = try await environment.itemStore.commitRefresh(updated, expected: current, observation: nil)
+            await load()
+        } catch {
+            lastErrorMessage = error.localizedDescription
+        }
+    }
+
+    func useCurrentPriceAsInitial(_ item: Item) async {
+        do {
+            guard let current = try await environment.itemStore.item(id: item.id) else { return }
+            var updated = current
+            guard updated.useCurrentPriceAsInitial() else { return }
+            _ = try await environment.itemStore.commitRefresh(updated, expected: current, observation: nil)
+            await load()
+        } catch {
+            lastErrorMessage = error.localizedDescription
+        }
+    }
+
     func save(_ item: Item) {
         Task {
             do {

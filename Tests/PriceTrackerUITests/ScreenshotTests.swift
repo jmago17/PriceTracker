@@ -5,6 +5,33 @@ final class ScreenshotTests: XCTestCase {
         continueAfterFailure = false
     }
 
+    func testInitialPriceAndPriorityInSpanishAndEnglish() throws {
+        for (language, locale, resetTitle, highTitle) in [
+            ("es", "es_ES", "Usar precio actual como inicial", "Alta"),
+            ("en", "en_US", "Use current price as initial", "High")
+        ] {
+            let app = XCUIApplication()
+            app.launchArguments = ["--demo-catalog", "-compactCatalogMuralEnabled", "NO",
+                                   "-AppleLanguages", "(\(language))", "-AppleLocale", locale]
+            app.launch()
+            let item = firstItemElement(app)
+            XCTAssertTrue(item.waitForExistence(timeout: 10))
+            item.tap()
+            let reset = app.buttons["reset-initial-price"]
+            for _ in 0..<4 where !reset.isHittable { app.swipeUp() }
+            XCTAssertTrue(reset.exists)
+            XCTAssertEqual(reset.label, resetTitle)
+            XCTAssertTrue(reset.isEnabled)
+            let priority = app.buttons["item-priority"]
+            XCTAssertTrue(priority.exists)
+            priority.tap()
+            app.buttons[highTitle].tap()
+            reset.tap()
+            capture(app, "initial_priority_\(language)")
+            app.terminate()
+        }
+    }
+
     func testSyntheticCatalogAndDetail() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--demo-catalog", "-compactCatalogMuralEnabled", "NO"]

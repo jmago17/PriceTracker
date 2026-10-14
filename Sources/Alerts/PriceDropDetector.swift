@@ -4,6 +4,7 @@ struct PendingAlertDraft: Equatable, Sendable {
     var kind: AlertKind
     var fromCents: Int?
     var toCents: Int
+    var confirmedSaleEndsAt: Date? = nil
 }
 
 struct PriceEvaluation: Equatable, Sendable {
@@ -15,13 +16,16 @@ struct PriceEvaluation: Equatable, Sendable {
 /// store/clock dependency so it is trivial to unit test (see
 /// Tests/PriceTrackerTests/PriceDropDetectorTests.swift).
 ///
-/// Dedup rule from the architecture: an alert fires once per (item, price level);
+/// Drops/targets: an alert fires once per (item, price level);
 /// it re-arms only once the price rises back above the level it last fired at.
 /// That state lives on `Item.lastAlertedPriceCents`, not in the alert log itself —
-/// the log is only a delivery record.
+/// the log is only a delivery record. Rises instead fire once per initial-price
+/// generation, persisted and synced in Item metadata; only an explicit reset or
+/// currency baseline change creates a new generation.
 enum PriceDropDetector {
     static func evaluate(item: Item, fetch: FetchResult, now: Date = Date()) -> PriceEvaluation {
         var updated = item
+        guard fetch.priceCents >= 0 else { return PriceEvaluation(alerts: [], updatedItem: item) }
         let newPrice = fetch.priceCents
         let newCurrency = fetch.currency.uppercased()
         let currencyChanged = item.currency.caseInsensitiveCompare(newCurrency) != .orderedSame
@@ -32,6 +36,7 @@ enum PriceDropDetector {
         if currencyChanged {
             updated.priceCurrentCents = newPrice
             updated.priceAtAddCents = newPrice
+            updated.renewInitialPriceGeneration()
             updated.priceReferenceCents = nil
             updated.priceLowCents = newPrice
             updated.priceLowAt = now
@@ -101,8 +106,23 @@ enum PriceDropDetector {
             }
         }
 
-        if let previousPrice, newPrice > previousPrice {
-            alerts.append(PendingAlertDraft(kind: .priceChange, fromCents: previousPrice, toCents: newPrice))
+        if let initial = item.priceAtAddCents, initial >= 0,
+           newPrice > initial, !item.hasAlertedInitialPriceRise {
+            alerts.append(PendingAlertDraft(kind: .priceChange, fromCents: initial, toCents: newPrice))
+            updated.markInitialPriceRiseAlerted()
+        }
+        // A historical reduction alone is not proof of a time-limited offer.
+        if fetch.isOnSale, let end = fetch.saleEndsAt, end > now,
+           let previousPrice, newPrice < previousPrice, item.priority == .high {
+            let offerKey = "PriceTracker.urgentOffer.\(newCurrency)|\(Int64(end.timeIntervalSince1970.rounded()))"
+            if updated.externalIDs[offerKey] != "true", !alerts.isEmpty {
+                for index in alerts.indices where alerts[index].kind != .priceChange {
+                    alerts[index].confirmedSaleEndsAt = end
+                }
+                if alerts.contains(where: { $0.confirmedSaleEndsAt != nil }) {
+                    updated.externalIDs[offerKey] = "true"
+                }
+            }
         }
         return PriceEvaluation(alerts: alerts, updatedItem: updated)
     }

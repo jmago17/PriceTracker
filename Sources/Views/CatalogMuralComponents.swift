@@ -62,16 +62,19 @@ struct CatalogItemTitle: View {
     }
 
     var body: some View {
-        Text(displayTitle)
-            .lineLimit(3)
-            .truncationMode(.tail)
-            .accessibilityLabel(item.title)
-            .task(id: titleRequest) {
-                let request = titleRequest
-                let title = await DisplayTitleCache.shared.title(for: request)
-                guard !Task.isCancelled, request == titleRequest else { return }
-                resolvedTitle = title.map { (request, $0) }
-            }
+        VStack(alignment: .leading, spacing: 3) {
+            ItemPriorityBadge(item: item)
+            Text(displayTitle)
+                .lineLimit(3)
+                .truncationMode(.tail)
+                .accessibilityLabel(item.title)
+                .task(id: titleRequest) {
+                    let request = titleRequest
+                    let title = await DisplayTitleCache.shared.title(for: request)
+                    guard !Task.isCancelled, request == titleRequest else { return }
+                    resolvedTitle = title.map { (request, $0) }
+                }
+        }
     }
 }
 
@@ -199,6 +202,7 @@ struct CompactMuralCardView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityLabel("Precio objetivo: \(MoneyFormatter.string(cents: cents, currency: item.currency))")
             }
+            ItemPriorityBadge(item: item)
             Text(metaText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -321,6 +325,7 @@ struct ItemCardView: View {
                 Spacer(minLength: 8)
                 leadingBadge
             }
+            ItemPriorityBadge(item: item)
             Text(item.title)
                 .font(.system(.title2, design: .serif))
                 .lineLimit(isCompact && dynamicTypeSize.isAccessibilitySize ? nil : 4)
@@ -352,6 +357,7 @@ struct ItemCardView: View {
                         .monospacedDigit()
                 }
             }
+            ItemPriorityBadge(item: item)
             Text(metaText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -541,6 +547,19 @@ struct ItemContextMenu: View {
         Divider()
         Button("Eliminar", systemImage: "trash", role: .destructive) {
             viewModel.delete(item)
+        }
+    }
+}
+
+
+struct ItemPriorityBadge: View {
+    let item: Item
+    var body: some View {
+        if item.priority != .normal {
+            Label(item.priority.title, systemImage: item.priority.symbol)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("\(CatalogLanguage.isSpanish ? "Prioridad" : "Priority"): \(item.priority.title)")
         }
     }
 }

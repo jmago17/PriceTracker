@@ -188,3 +188,72 @@ extension String {
         return trimmed.isEmpty ? nil : trimmed
     }
 }
+
+// Namespaced metadata uses the existing synced dictionary, so this feature does
+// not require adding fields to the production CloudKit schema. Tokens distinguish
+// explicit resets even when the user selects the same initial amount again.
+extension Item {
+    private static let baselineKey = "PriceTracker.initialPriceGeneration"
+    private static let riseKey = "PriceTracker.alertedInitialPrice"
+
+    var initialPriceAlertKey: String? {
+        guard let initial = priceAtAddCents, initial >= 0 else { return nil }
+        return "\(currency.uppercased())|\(initial)|\(externalIDs[Self.baselineKey] ?? "original")"
+    }
+
+    var hasAlertedInitialPriceRise: Bool {
+        guard let key = initialPriceAlertKey else { return false }
+        return externalIDs[Self.riseKey + "." + key] == "true"
+    }
+
+    mutating func markInitialPriceRiseAlerted() {
+        guard let key = initialPriceAlertKey else { return }
+        externalIDs[Self.riseKey + "." + key] = "true"
+    }
+
+    var canUseCurrentPriceAsInitial: Bool {
+        guard let current = priceCurrentCents else { return false }
+        return current >= 0 && lastError == nil && consecutiveFailures == 0
+    }
+
+    @discardableResult
+    mutating func useCurrentPriceAsInitial(now: Date = Date()) -> Bool {
+        guard canUseCurrentPriceAsInitial else { return false }
+        priceAtAddCents = priceCurrentCents
+        renewInitialPriceGeneration()
+        updatedAt = now
+        return true
+    }
+
+    mutating func renewInitialPriceGeneration() {
+        externalIDs[Self.baselineKey] = UUID().uuidString
+        // Keep the old marker: it cannot match this generation, and retaining it
+        // makes dictionary merges with a delayed device harmless for this reset.
+    }
+}
+
+
+enum ItemPriority: String, CaseIterable, Sendable {
+    case low, normal, high
+    var title: String {
+        let es = CatalogLanguage.isSpanish
+        switch self {
+        case .low: return es ? "Baja" : "Low"
+        case .normal: return "Normal"
+        case .high: return es ? "Alta" : "High"
+        }
+    }
+    var symbol: String { self == .high ? "flag.fill" : "flag" }
+}
+
+extension Item {
+    var priority: ItemPriority {
+        get { externalIDs["PriceTracker.priority"].flatMap(ItemPriority.init(rawValue:)) ?? .normal }
+        set { externalIDs["PriceTracker.priority"] = newValue.rawValue }
+    }
+}
+
+
+enum CatalogLanguage {
+    static var isSpanish: Bool { Locale.preferredLanguages.first?.hasPrefix("es") == true }
+}

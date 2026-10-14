@@ -108,3 +108,43 @@ struct CloudRecordMergerTests {
         #expect(decoded.consecutiveFailures == 2)
     }
 }
+
+extension CloudRecordMergerTests {
+    @Test func priorityAndRiseStateRoundTripThroughExistingCloudSchema() throws {
+        var item = codecItem(storeItemID: "priority", title: "Priority")
+        item.priceAtAddCents = 1000
+        item.priceCurrentCents = 1500
+        item.priority = .high
+        item.markInitialPriceRiseAlerted()
+        let local = LocalItemRecord(recordName: "item_priority", identityKey: item.identityKey,
+                                    item: item, isTombstone: false, isDirty: true, systemFields: nil)
+        let record = try CloudRecordCodec.makeRecord(from: local, zoneID: mergeZoneID)
+        var received = try CloudRecordCodec.item(from: record, preservingDeviceFieldsFrom: nil)
+        #expect(received.priority == .high && received.hasAlertedInitialPriceRise)
+        let didReset1 = received.useCurrentPriceAsInitial()
+        #expect(didReset1)
+        let reset = LocalItemRecord(recordName: "item_priority", identityKey: item.identityKey,
+                                    item: received, isTombstone: false, isDirty: true, systemFields: nil)
+        let resetRecord = try CloudRecordCodec.makeRecord(from: reset, zoneID: mergeZoneID)
+        let synced = try CloudRecordCodec.item(from: resetRecord, preservingDeviceFieldsFrom: item)
+        #expect(synced.priceAtAddCents == 1500 && !synced.hasAlertedInitialPriceRise)
+        #expect(synced.priority == .high)
+    }
+}
+
+extension CloudRecordMergerTests {
+    @Test func priorityEditSurvivesConcurrentRiseMetadata() throws {
+        let ancestor = mergeRecord(title: "Item", notes: nil)
+        ancestor[CloudRecordFields.externalIDs] = try JSONEncoder().encode(["PriceTracker.priority": "normal"]) as CKRecordValue
+        let client = try CloudRecordCodec.copy(ancestor)
+        client[CloudRecordFields.externalIDs] = try JSONEncoder().encode(["PriceTracker.priority": "high"]) as CKRecordValue
+        let server = try CloudRecordCodec.copy(ancestor)
+        server[CloudRecordFields.externalIDs] = try JSONEncoder().encode([
+            "PriceTracker.priority": "normal", "PriceTracker.alertedInitialPrice.EUR|1000|original": "true"
+        ]) as CKRecordValue
+        let result = try CloudRecordMerger.merge(ancestor: ancestor, client: client, server: server)
+        let values = try JSONDecoder().decode([String: String].self, from: #require(result[CloudRecordFields.externalIDs] as? Data))
+        #expect(values["PriceTracker.priority"] == "high")
+        #expect(values["PriceTracker.alertedInitialPrice.EUR|1000|original"] == "true")
+    }
+}

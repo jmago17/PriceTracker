@@ -7,26 +7,31 @@ actor AlertNotifier {
     private let itemStore: any ItemStoring
     private var delivering = false
     private let enabled: @Sendable () -> Bool
+    private let timeSensitiveEnabled: @Sendable () -> Bool
     private let authorized: @Sendable () async -> Bool
-    private let deliver: @Sendable (String, String, String) async throws -> Void
+    private let deliver: @Sendable (String, String, String, Bool) async throws -> Void
 
     init(alertStore: any AlertStoring, itemStore: any ItemStoring,
          enabled: @escaping @Sendable () -> Bool = { UserDefaults.standard.bool(forKey: "notifyPriceChanges") },
+         timeSensitiveEnabled: @escaping @Sendable () -> Bool = { UserDefaults.standard.bool(forKey: "timeSensitivePriceDeals") },
          authorized: @escaping @Sendable () async -> Bool = {
              let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
              return status == .authorized || status == .provisional
          },
-         deliver: @escaping @Sendable (String, String, String) async throws -> Void = { id, title, body in
+         deliver: @escaping @Sendable (String, String, String, Bool) async throws -> Void = { id, title, body, timeSensitive in
              let content = UNMutableNotificationContent()
              content.title = title
              content.body = body
              content.sound = .default
+             let settings = await UNUserNotificationCenter.current().notificationSettings()
+             content.interruptionLevel = AlertNotifier.interruptionLevel(timeSensitive: timeSensitive, allowed: settings.timeSensitiveSetting == .enabled)
              try await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
          }) {
         self.alertStore = alertStore
         self.itemStore = itemStore
         self.enabled = enabled
         self.authorized = authorized
+        self.timeSensitiveEnabled = timeSensitiveEnabled
         self.deliver = deliver
     }
 
@@ -45,25 +50,53 @@ actor AlertNotifier {
         let itemsByID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
 
         let latest = Dictionary(grouping: pending, by: \.itemID).values.compactMap { $0.last }
-            .filter { itemsByID[$0.itemID] != nil }
+            .filter { alert in
+                guard let item = itemsByID[alert.itemID] else { return false }
+                if let currency = alert.currency, currency.caseInsensitiveCompare(item.currency) != .orderedSame { return false }
+                if alert.kind == .priceChange {
+                    return alert.initialPriceAlertKey == item.initialPriceAlertKey && alert.initialPriceAlertKey != nil
+                }
+                return true
+            }
             .sorted { $0.id.uuidString < $1.id.uuidString }
-        let lines = latest.prefix(6).compactMap { alert -> String? in
-            guard let item = itemsByID[alert.itemID] else { return nil }
-            return Self.line(for: alert, item: item)
-        }
-
         guard enabled() else { return 0 }
-        guard !latest.isEmpty else {
-            try await alertStore.markSent(ids: Set(pending.map(\.id)))
-            return 0
+        let optedIn = timeSensitiveEnabled()
+        let groups = Dictionary(grouping: latest) { alert in
+            Self.qualifiesForTimeSensitive(alert, item: itemsByID[alert.itemID]!, optedIn: optedIn)
         }
-        let title = latest.count == 1 ? "1 artículo con cambios de precio" : "\(latest.count) artículos con cambios de precio"
-        // Stable for a retry if delivery succeeds but persisting sentAt fails.
-        let identifier = "price-changes-" + pending.map { $0.id.uuidString }.sorted().joined(separator: "-")
-        try await deliver(identifier, title, lines.joined(separator: "\n"))
-
+        // Do not elevate unrelated articles in a mixed summary.
+        for timeSensitive in [false, true] {
+            guard let group = groups[timeSensitive], !group.isEmpty else { continue }
+            let lines = group.prefix(6).map { Self.line(for: $0, item: itemsByID[$0.itemID]!) }
+            let es = CatalogLanguage.isSpanish
+            let title: String
+            if es {
+                title = group.count == 1 ? "1 artículo con cambios de precio" : "\(group.count) artículos con cambios de precio"
+            } else {
+                title = group.count == 1 ? "1 item with price changes" : "\(group.count) items with price changes"
+            }
+            // Stable for retries, even if a prior group was already delivered.
+            let identifier = "price-changes-" + group.map { $0.id.uuidString }.sorted().joined(separator: "-")
+            try await deliver(identifier, title, lines.joined(separator: "\n"), timeSensitive)
+            let deliveredItems = Set(group.map(\.itemID))
+            try await alertStore.markSent(ids: Set(pending.filter { deliveredItems.contains($0.itemID) }.map(\.id)))
+        }
         try await alertStore.markSent(ids: Set(pending.map(\.id)))
         return latest.count
+    }
+
+    static func interruptionLevel(timeSensitive: Bool, allowed: Bool) -> UNNotificationInterruptionLevel {
+        timeSensitive && allowed ? .timeSensitive : .active
+    }
+
+    static func qualifiesForTimeSensitive(_ alert: PriceAlert, item: Item, optedIn: Bool, now: Date = Date()) -> Bool {
+        guard optedIn, item.priority == .high, item.status == .active,
+              item.lastError == nil, let end = alert.confirmedSaleEndsAt, end > now,
+              let observedEnd = item.onSaleUntil,
+              // JSON's Unix-epoch conversion can lose sub-microsecond Date precision.
+              abs(observedEnd.timeIntervalSince(end)) < 0.001, let from = alert.priceFromCents,
+              let to = alert.priceToCents, to < from, item.priceCurrentCents == to else { return false }
+        return alert.kind == .drop || alert.kind == .targetHit || alert.kind == .lowRecord
     }
 
     private static func line(for alert: PriceAlert, item: Item) -> String {

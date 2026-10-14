@@ -58,6 +58,7 @@ targets:
           - CloudKit
         com.apple.developer.icloud-container-environment: $(ICLOUD_CONTAINER_ENVIRONMENT)
         aps-environment: $(APS_ENVIRONMENT)
+        com.apple.developer.usernotifications.time-sensitive: true
     info:
       path: PriceTracker-Info.plist
       properties:

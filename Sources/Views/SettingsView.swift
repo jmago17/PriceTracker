@@ -9,6 +9,7 @@ struct SettingsView: View {
 
     @State private var automation = DailyRefreshSettings.shared
     @State private var bridge = ShortcutBridgeSettings.shared
+    @AppStorage("timeSensitivePriceDeals") private var timeSensitivePriceDeals = false
     @AppStorage("compactCatalogMuralEnabled") private var compactCatalogMuralEnabled = false
 
     var body: some View {
@@ -21,6 +22,15 @@ struct SettingsView: View {
                         get: { automation.notificationsEnabled },
                         set: { value in Task { await automation.setNotificationsEnabled(value) } }))
                         .disabled(automation.requestingPermission)
+                    Toggle(CatalogLanguage.isSpanish
+                           ? "Avisos sensibles al tiempo para ofertas prioritarias"
+                           : "Time Sensitive alerts for high-priority deals", isOn: $timeSensitivePriceDeals)
+                    Text(CatalogLanguage.isSpanish
+                         ? "Solo ofertas confirmadas con vencimiento de artículos de prioridad alta. Requiere permiso en Ajustes de notificaciones de iOS; no evita el modo silencio. Si no está permitido, se envía un aviso normal."
+                         : "Only confirmed, expiring offers for high-priority items. Requires permission in iOS Notification Settings; does not override silent mode. Otherwise a normal alert is sent.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Link(CatalogLanguage.isSpanish ? "Ajustes de notificaciones" : "Notification Settings",
+                         destination: URL(string: UIApplication.openNotificationSettingsURLString)!)
                     if let message = automation.message {
                         Text(message).font(.caption).foregroundStyle(.secondary)
                     }

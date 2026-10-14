@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import UserNotifications
 @testable import PriceTracker
 
 private func makeItem(priceCurrentCents: Int?, targetPriceCents: Int? = nil, priceLowCents: Int? = nil, lastAlertedPriceCents: Int? = nil) -> Item {
@@ -196,7 +197,7 @@ struct PriceHistoryRefreshTests {
 }
 
 extension PriceHistoryRefreshTests {
-    @Test func catalogRefreshRecordsEqualPriceAndSkipsUnrefreshableLinks() async throws {
+    @Test func catalogRefreshRecordsEqualPriceForAppsAndSupportedWebLinks() async throws {
         let store = SQLiteItemStore(databaseURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("catalog.sqlite"))
         let app = Item(store: .appStore, storeItemID: "catalog-app", canonicalURL: URL(string: "https://apps.apple.com/us/app/id1")!, title: "App", priceCurrentCents: 100)
         let link = Item(store: .generic, storeItemID: "link", canonicalURL: URL(string: "https://example.com")!, title: "Link", priceCurrentCents: 100)
@@ -205,12 +206,129 @@ extension PriceHistoryRefreshTests {
         let connector = HistoryTestConnector(result: .success(FetchResult(priceCents: 100, currency: "EUR", isOnSale: false, availability: "available")))
         let coordinator = RefreshCoordinator(itemStore: store, alertStore: HistoryTestAlerts(), connectorToFetch: { _ in connector }, now: { date })
         let summary = try await coordinator.refreshCatalog()
-        #expect(summary.checked == 1)
+        #expect(summary.checked == 2)
         #expect(summary.failed == 0)
-        #expect(summary.skipped == 1)
+        #expect(summary.skipped == 0)
         #expect(try await store.item(id: app.id)?.lastSuccessAt == date)
         #expect(try await store.observations(for: app.identityKey).count == 1)
-        #expect(try await store.observations(for: link.identityKey).isEmpty)
-        #expect(try await store.item(id: link.id)?.lastSuccessAt == nil)
+        #expect(try await store.observations(for: link.identityKey).count == 1)
+        #expect(try await store.item(id: link.id)?.lastSuccessAt == date)
+    }
+}
+
+extension PriceDropDetectorTests {
+    @Test func riseIsOncePerInitialPriceAcrossReloadsAndFluctuations() throws {
+        var item = makeItem(priceCurrentCents: 1000, priceLowCents: 1000)
+        item.priceAtAddCents = 1000
+        let first = PriceDropDetector.evaluate(item: item, fetch: fetch(1200))
+        #expect(first.alerts.filter { $0.kind == .priceChange }.count == 1)
+        #expect(first.alerts.first?.fromCents == 1000)
+        item = try JSONDecoder().decode(Item.self, from: JSONEncoder().encode(first.updatedItem))
+        for price in [1200, 1400, 900, 1600] {
+            let result = PriceDropDetector.evaluate(item: item, fetch: fetch(price))
+            #expect(!result.alerts.contains { $0.kind == .priceChange })
+            item = result.updatedItem
+        }
+    }
+
+    @Test func recoveryBelowInitialDoesNotCountAsRise() {
+        var item = makeItem(priceCurrentCents: 500, priceLowCents: 500)
+        item.priceAtAddCents = 1000
+        #expect(PriceDropDetector.evaluate(item: item, fetch: fetch(800)).alerts.isEmpty)
+        #expect(PriceDropDetector.evaluate(item: item, fetch: fetch(1000)).alerts.isEmpty)
+    }
+
+    @Test func resetRearmsOnlyFutureRiseAndPreservesRealHistoryFields() {
+        var item = makeItem(priceCurrentCents: 1000, targetPriceCents: 500, priceLowCents: 700, lastAlertedPriceCents: 800)
+        item.priceAtAddCents = 1000
+        item.priceReferenceCents = 2000
+        item = PriceDropDetector.evaluate(item: item, fetch: fetch(1200)).updatedItem
+        let lowDate = item.priceLowAt, created = item.createdAt
+        let didReset1 = item.useCurrentPriceAsInitial()
+        #expect(didReset1)
+        #expect(item.priceAtAddCents == 1200)
+        #expect(item.priceReferenceCents == 2000 && item.priceLowCents == 700)
+        #expect(item.priceLowAt == lowDate && item.createdAt == created && item.targetPriceCents == 500)
+        #expect(PriceDropDetector.evaluate(item: item, fetch: fetch(1200)).alerts.isEmpty)
+        #expect(PriceDropDetector.evaluate(item: item, fetch: fetch(1300)).alerts.contains { $0.kind == .priceChange })
+        let key = item.initialPriceAlertKey
+        let didReset2 = item.useCurrentPriceAsInitial()
+        #expect(didReset2)
+        #expect(item.initialPriceAlertKey != key)
+    }
+
+    @Test func failureInvalidPriceAndCurrencyDoNotTriggerRise() {
+        var item = makeItem(priceCurrentCents: 1000)
+        item.priceAtAddCents = 1000
+        let failed = PriceDropDetector.applyFailure(to: item, error: ConnectorError.network("offline"))
+        #expect(!failed.hasAlertedInitialPriceRise && !failed.canUseCurrentPriceAsInitial)
+        #expect(PriceDropDetector.evaluate(item: item, fetch: fetch(-1)).alerts.isEmpty)
+        let changed = PriceDropDetector.evaluate(item: item, fetch: FetchResult(priceCents: 2000, currency: "USD", isOnSale: false, availability: "available"))
+        #expect(changed.alerts.isEmpty && changed.updatedItem.priceAtAddCents == 2000)
+        #expect(!changed.updatedItem.hasAlertedInitialPriceRise)
+    }
+
+    @Test func prioritiesDefaultRoundTripAndUnknownValue() throws {
+        var item = makeItem(priceCurrentCents: 1000)
+        #expect(item.priority == .normal)
+        item.priority = .high
+        let reloaded = try JSONDecoder().decode(Item.self, from: JSONEncoder().encode(item))
+        #expect(reloaded.priority == .high)
+        item.externalIDs["PriceTracker.priority"] = "future"
+        #expect(item.priority == .normal)
+        item.priority = .low
+        #expect(item.priority == .low)
+    }
+
+    @Test func timeSensitiveRequiresOptInPriorityAndConfirmedUnexpiredDiscount() {
+        let now = Date(), end = Date().addingTimeInterval(300)
+        var item = makeItem(priceCurrentCents: 1000, priceLowCents: 1000)
+        item.priority = .high
+        let result = PriceDropDetector.evaluate(item: item, fetch: FetchResult(priceCents: 800, currency: "EUR", isOnSale: true, saleEndsAt: end, availability: "available"), now: now)
+        let draft = result.alerts.first!
+        var alert = PriceAlert(itemID: item.id, kind: draft.kind, priceFromCents: draft.fromCents, priceToCents: draft.toCents, confirmedSaleEndsAt: draft.confirmedSaleEndsAt)
+        item = result.updatedItem
+        #expect(AlertNotifier.qualifiesForTimeSensitive(alert, item: item, optedIn: true, now: now))
+        #expect(!AlertNotifier.qualifiesForTimeSensitive(alert, item: item, optedIn: false, now: now))
+        #expect(!AlertNotifier.qualifiesForTimeSensitive(alert, item: item, optedIn: true, now: end))
+        item.priority = .normal
+        #expect(!AlertNotifier.qualifiesForTimeSensitive(alert, item: item, optedIn: true, now: now))
+        item.priority = .high
+        alert.kind = .priceChange
+        #expect(!AlertNotifier.qualifiesForTimeSensitive(alert, item: item, optedIn: true, now: now))
+        alert.kind = .drop; alert.confirmedSaleEndsAt = nil
+        #expect(!AlertNotifier.qualifiesForTimeSensitive(alert, item: item, optedIn: true, now: now))
+        let repeatCheck = PriceDropDetector.evaluate(item: item, fetch: FetchResult(priceCents: 800, currency: "EUR", isOnSale: true, saleEndsAt: end, availability: "available"))
+        #expect(repeatCheck.alerts.isEmpty)
+    }
+}
+
+
+extension PriceDropDetectorTests {
+    @Test func sameOfferDoesNotBecomeTimeSensitiveAgainAfterRebound() {
+        let end = Date().addingTimeInterval(600)
+        var item = makeItem(priceCurrentCents: 1000, priceLowCents: 1000)
+        item.priority = .high
+        let offer = FetchResult(priceCents: 800, currency: "EUR", isOnSale: true, saleEndsAt: end, availability: "available")
+        let first = PriceDropDetector.evaluate(item: item, fetch: offer)
+        #expect(first.alerts.contains { $0.confirmedSaleEndsAt == end })
+        item = PriceDropDetector.evaluate(item: first.updatedItem, fetch: fetch(1000)).updatedItem
+        let repeated = PriceDropDetector.evaluate(item: item, fetch: offer)
+        #expect(!repeated.alerts.isEmpty) // Existing normal drop policy remains.
+        #expect(repeated.alerts.allSatisfy { $0.confirmedSaleEndsAt == nil })
+        #expect(AlertNotifier.interruptionLevel(timeSensitive: true, allowed: true) == .timeSensitive)
+        #expect(AlertNotifier.interruptionLevel(timeSensitive: true, allowed: false) == .active)
+        #expect(AlertNotifier.interruptionLevel(timeSensitive: false, allowed: true) == .active)
+    }
+}
+
+
+extension PriceDropDetectorTests {
+    @Test func savedInitialPriceIsEnoughEvenIfImportedCurrentPriceIsMissing() {
+        var item = makeItem(priceCurrentCents: nil)
+        item.priceAtAddCents = 1000
+        let result = PriceDropDetector.evaluate(item: item, fetch: fetch(1200))
+        #expect(result.alerts.filter { $0.kind == .priceChange }.count == 1)
+        #expect(result.updatedItem.hasAlertedInitialPriceRise)
     }
 }

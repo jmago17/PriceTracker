@@ -30,6 +30,7 @@ enum CloudRecordMerger {
             } else if clientChanged && serverChanged {
                 _ = mergeCollectionField(
                     key: key,
+                    ancestorValue: ancestorValue,
                     clientValue: clientValue,
                     serverValue: serverValue,
                     into: merged
@@ -44,6 +45,7 @@ enum CloudRecordMerger {
 
     private static func mergeCollectionField(
         key: String,
+        ancestorValue: Any?,
         clientValue: Any?,
         serverValue: Any?,
         into record: CKRecord
@@ -62,7 +64,17 @@ enum CloudRecordMerger {
         if key == CloudRecordFields.externalIDs,
            let client = try? JSONDecoder().decode([String: String].self, from: clientData),
            let server = try? JSONDecoder().decode([String: String].self, from: serverData) {
-            let combined = client.merging(server) { _, serverValue in serverValue }
+            let ancestor = (ancestorValue as? Data).flatMap {
+                try? JSONDecoder().decode([String: String].self, from: $0)
+            } ?? [:]
+            var combined = client.merging(server) { _, serverValue in serverValue }
+            // App metadata is independent per key: an unrelated remote refresh
+            // must not undo a local priority or baseline-generation edit.
+            for key in Set(client.keys).union(server.keys) where key.hasPrefix("PriceTracker.") {
+                if client[key] != ancestor[key], server[key] == ancestor[key] {
+                    combined[key] = client[key]
+                }
+            }
             if let data = try? JSONEncoder().encode(combined) {
                 record[key] = data as CKRecordValue
                 return true

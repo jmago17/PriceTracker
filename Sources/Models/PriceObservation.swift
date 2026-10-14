@@ -23,6 +23,9 @@ struct PriceAlert: Identifiable, Codable, Hashable, Sendable {
     var priceToCents: Int?
     var createdAt: Date = Date()
     var sentAt: Date?
+    var confirmedSaleEndsAt: Date? = nil
+    var initialPriceAlertKey: String? = nil
+    var currency: String? = nil
 }
 
 /// Only connect the latest uninterrupted currency segment. A currency switch

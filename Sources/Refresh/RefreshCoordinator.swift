@@ -73,7 +73,7 @@ actor RefreshCoordinator {
             guard let item = try await itemStore.item(id: id) else { throw RefreshError.itemNotFound }
             let (updated, alerts) = try await refresh(item)
             for alert in alerts {
-                try await alertStore.append(PriceAlert(itemID: id, kind: alert.kind, priceFromCents: alert.fromCents, priceToCents: alert.toCents))
+                try await alertStore.append(PriceAlert(itemID: id, kind: alert.kind, priceFromCents: alert.fromCents, priceToCents: alert.toCents, confirmedSaleEndsAt: alert.confirmedSaleEndsAt, initialPriceAlertKey: alert.kind == .priceChange ? updated.initialPriceAlertKey : nil, currency: updated.currency))
             }
             await didRefresh()
             return ItemRefreshOutcome(itemID: id, priceCents: updated.priceCurrentCents,
@@ -135,6 +135,7 @@ actor RefreshCoordinator {
         let result: FetchResult
         do {
             result = try await connector.fetch(item)
+            guard result.priceCents >= 0 else { throw ConnectorError.decoding("Precio negativo") }
         } catch {
             try Task.checkCancellation()
             guard let latest = try await itemStore.item(id: item.id) else { throw RefreshError.itemNotFound }

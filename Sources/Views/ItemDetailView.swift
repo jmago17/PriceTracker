@@ -286,47 +286,80 @@ struct ItemDetailView: View {
         guard ItemListViewModel.isDiscounted(item),
               let current = item.priceCurrentCents,
               let atAdd = item.priceAtAddCents else { return nil }
-        return "\(format(atAdd - current)) menos que al añadirlo"
+        return CatalogLanguage.isSpanish
+            ? "\(format(atAdd - current)) menos que el precio inicial"
+            : "\(format(atAdd - current)) below the initial price"
     }
 
     // MARK: Comparison
 
     @ViewBuilder
     private var comparisonCard: some View {
-        if item.priceReferenceCents != nil || item.priceAtAddCents != nil || item.priceLowCents != nil || item.targetPriceCents != nil {
-            VStack(spacing: 0) {
-                if let atAdd = item.priceAtAddCents {
-                    comparisonRow(label: "Al añadirlo", value: format(atAdd))
-                }
-                if let reference = item.priceReferenceCents {
-                    comparisonRow(label: "Referencia capturada", value: format(reference))
-                }
-                if let low = item.priceLowCents {
-                    comparisonRow(label: "Mínimo observado", value: format(low))
-                }
-                if let target = item.targetPriceCents {
-                    VStack(alignment: .leading, spacing: 6) {
-                        comparisonRow(label: "Precio objetivo", value: format(target), showDivider: false)
-                        if let current = item.priceCurrentCents {
-                            // How much of the gap from "current" down to "target" is
-                            // already closed — 100% only once current <= target, not
-                            // whenever current is merely nonzero.
-                            let progress = current > 0 ? min(1, Double(target) / Double(current)) : 1
-                            ProgressView(value: max(0, min(1, progress)))
-                                .tint(.orange)
-                            let remaining = current - target
-                            Text(remaining > 0 ? "faltan \(format(remaining))" : "objetivo alcanzado")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.vertical, 12)
-                }
+        VStack(spacing: 0) {
+            if let atAdd = item.priceAtAddCents {
+                comparisonRow(label: CatalogLanguage.isSpanish ? "Precio inicial" : "Initial price", value: format(atAdd))
             }
-            .padding(.horizontal, 14)
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            HStack {
+                Text(CatalogLanguage.isSpanish ? "Prioridad" : "Priority")
+                Spacer()
+                Picker(CatalogLanguage.isSpanish ? "Prioridad" : "Priority",
+                       selection: Binding(get: { item.priority }, set: { priority in
+                    Task { await viewModel.setPriority(priority, for: item) }
+                })) {
+                    ForEach(ItemPriority.allCases, id: \.self) { priority in
+                        Text(priority.title).tag(priority)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .accessibilityIdentifier("item-priority")
+            }
+            .padding(.vertical, 12)
+            Button {
+                Task { await viewModel.useCurrentPriceAsInitial(item) }
+            } label: {
+                Label(CatalogLanguage.isSpanish
+                      ? "Usar precio actual como inicial" : "Use current price as initial",
+                      systemImage: "arrow.counterclockwise")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.vertical, 12)
+            .disabled(!item.canUseCurrentPriceAsInitial)
+            .accessibilityIdentifier("reset-initial-price")
+            Text(CatalogLanguage.isSpanish
+                 ? "Cambia la comparación inicial y permite un nuevo aviso de subida. Conserva el historial y el mínimo observado."
+                 : "Changes the initial comparison and allows a new rise alert. Keeps history and the observed low.")
+                .font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 12)
+            if let reference = item.priceReferenceCents {
+                comparisonRow(label: "Referencia capturada", value: format(reference))
+            }
+            if let low = item.priceLowCents {
+                comparisonRow(label: "Mínimo observado", value: format(low))
+            }
+            if let target = item.targetPriceCents {
+                VStack(alignment: .leading, spacing: 6) {
+                    comparisonRow(label: "Precio objetivo", value: format(target), showDivider: false)
+                    if let current = item.priceCurrentCents {
+                        // How much of the gap from "current" down to "target" is
+                        // already closed — 100% only once current <= target, not
+                        // whenever current is merely nonzero.
+                        let progress = current > 0 ? min(1, Double(target) / Double(current)) : 1
+                        ProgressView(value: max(0, min(1, progress)))
+                            .tint(.orange)
+                        let remaining = current - target
+                        Text(remaining > 0 ? "faltan \(format(remaining))" : "objetivo alcanzado")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 12)
+            }
         }
+        .padding(.horizontal, 14)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
     private func comparisonRow(label: String, value: String, showDivider: Bool = true) -> some View {
