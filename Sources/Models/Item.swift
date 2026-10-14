@@ -193,12 +193,12 @@ extension String {
 // not require adding fields to the production CloudKit schema. Tokens distinguish
 // explicit resets even when the user selects the same initial amount again.
 extension Item {
-    private static let baselineKey = "PriceTracker.initialPriceGeneration"
+    static let initialPriceGenerationKey = "PriceTracker.initialPriceGeneration"
     private static let riseKey = "PriceTracker.alertedInitialPrice"
 
     var initialPriceAlertKey: String? {
         guard let initial = priceAtAddCents, initial >= 0 else { return nil }
-        return "\(currency.uppercased())|\(initial)|\(externalIDs[Self.baselineKey] ?? "original")"
+        return "\(currency.uppercased())|\(initial)|\(externalIDs[Self.initialPriceGenerationKey] ?? "original")"
     }
 
     var hasAlertedInitialPriceRise: Bool {
@@ -226,7 +226,7 @@ extension Item {
     }
 
     mutating func renewInitialPriceGeneration() {
-        externalIDs[Self.baselineKey] = UUID().uuidString
+        externalIDs[Self.initialPriceGenerationKey] = UUID().uuidString
         // Keep the old marker: it cannot match this generation, and retaining it
         // makes dictionary merges with a delayed device harmless for this reset.
     }

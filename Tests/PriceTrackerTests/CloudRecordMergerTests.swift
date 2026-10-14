@@ -148,3 +148,67 @@ extension CloudRecordMergerTests {
         #expect(values["PriceTracker.alertedInitialPrice.EUR|1000|original"] == "true")
     }
 }
+
+extension CloudRecordMergerTests {
+    @Test func concurrentResetsKeepServerAmountCurrencyAndGenerationTogether() throws {
+        let ancestor = mergeRecord(title: "Item", notes: nil)
+        ancestor[CloudRecordFields.currency] = "EUR" as CKRecordValue
+        ancestor[CloudRecordFields.priceAtAddCents] = NSNumber(value: 1000)
+        ancestor[CloudRecordFields.externalIDs] = try JSONEncoder().encode([String: String]()) as CKRecordValue
+        let client = try CloudRecordCodec.copy(ancestor)
+        client[CloudRecordFields.priceAtAddCents] = NSNumber(value: 1200)
+        client[CloudRecordFields.externalIDs] = try JSONEncoder().encode([
+            Item.initialPriceGenerationKey: "C", "PriceTracker.priority": "high"
+        ]) as CKRecordValue
+        let server = try CloudRecordCodec.copy(ancestor)
+        server[CloudRecordFields.externalIDs] = try JSONEncoder().encode([
+            Item.initialPriceGenerationKey: "S", "PriceTracker.alertedInitialPrice.EUR|1000|S": "true"
+        ]) as CKRecordValue
+        let merged = try CloudRecordMerger.merge(ancestor: ancestor, client: client, server: server)
+        let metadata = try JSONDecoder().decode([String: String].self, from: #require(merged[CloudRecordFields.externalIDs] as? Data))
+        #expect((merged[CloudRecordFields.priceAtAddCents] as? NSNumber)?.intValue == 1000)
+        #expect(merged[CloudRecordFields.currency] as? String == "EUR")
+        #expect(metadata[Item.initialPriceGenerationKey] == "S")
+        #expect(metadata["PriceTracker.priority"] == "high")
+        #expect(metadata["PriceTracker.alertedInitialPrice.EUR|1000|S"] == "true")
+        // Reversing the contestants also retains the selected server's whole choice.
+        let reversed = try CloudRecordMerger.merge(ancestor: ancestor, client: server, server: client)
+        let reversedMetadata = try JSONDecoder().decode([String: String].self, from: #require(reversed[CloudRecordFields.externalIDs] as? Data))
+        #expect((reversed[CloudRecordFields.priceAtAddCents] as? NSNumber)?.intValue == 1200)
+        #expect(reversedMetadata[Item.initialPriceGenerationKey] == "C")
+    }
+
+    @Test func independentClientResetSurvivesServerPriorityEdit() throws {
+        let ancestor = mergeRecord(title: "Item", notes: nil)
+        ancestor[CloudRecordFields.priceAtAddCents] = NSNumber(value: 1000)
+        ancestor[CloudRecordFields.currency] = "EUR" as CKRecordValue
+        let client = try CloudRecordCodec.copy(ancestor)
+        client[CloudRecordFields.priceAtAddCents] = NSNumber(value: 1200)
+        client[CloudRecordFields.externalIDs] = try JSONEncoder().encode([Item.initialPriceGenerationKey: "C"]) as CKRecordValue
+        let server = try CloudRecordCodec.copy(ancestor)
+        server[CloudRecordFields.externalIDs] = try JSONEncoder().encode(["PriceTracker.priority": "high"]) as CKRecordValue
+        let merged = try CloudRecordMerger.merge(ancestor: ancestor, client: client, server: server)
+        let metadata = try JSONDecoder().decode([String: String].self, from: #require(merged[CloudRecordFields.externalIDs] as? Data))
+        #expect((merged[CloudRecordFields.priceAtAddCents] as? NSNumber)?.intValue == 1200)
+        #expect(metadata[Item.initialPriceGenerationKey] == "C")
+        #expect(metadata["PriceTracker.priority"] == "high")
+    }
+
+    @Test func currencyConflictDoesNotRelabelAnotherCurrencyAmounts() throws {
+        let ancestor = mergeRecord(title: "Item", notes: nil)
+        ancestor[CloudRecordFields.currency] = "EUR" as CKRecordValue
+        ancestor[CloudRecordFields.priceAtAddCents] = NSNumber(value: 1000)
+        ancestor[CloudRecordFields.priceCurrentCents] = NSNumber(value: 1000)
+        let client = try CloudRecordCodec.copy(ancestor)
+        client[CloudRecordFields.priceAtAddCents] = NSNumber(value: 1200)
+        client[CloudRecordFields.priceCurrentCents] = NSNumber(value: 1200)
+        client[CloudRecordFields.externalIDs] = try JSONEncoder().encode([Item.initialPriceGenerationKey: "C"]) as CKRecordValue
+        let server = try CloudRecordCodec.copy(ancestor)
+        server[CloudRecordFields.currency] = "USD" as CKRecordValue
+        server[CloudRecordFields.externalIDs] = try JSONEncoder().encode([Item.initialPriceGenerationKey: "S"]) as CKRecordValue
+        let merged = try CloudRecordMerger.merge(ancestor: ancestor, client: client, server: server)
+        #expect(merged[CloudRecordFields.currency] as? String == "USD")
+        #expect((merged[CloudRecordFields.priceAtAddCents] as? NSNumber)?.intValue == 1000)
+        #expect((merged[CloudRecordFields.priceCurrentCents] as? NSNumber)?.intValue == 1000)
+    }
+}

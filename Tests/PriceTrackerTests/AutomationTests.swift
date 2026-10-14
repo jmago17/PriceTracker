@@ -374,3 +374,27 @@ extension AutomationTests {
         #expect(await sink.levels.count == 2)
     }
 }
+
+extension AutomationTests {
+    @Test func pendingDealFallsBackToNormalAfterSaleIsDisconfirmed() async throws {
+        let now = Date(), end = now.addingTimeInterval(3600)
+        var item = automationItem(price: 2000)
+        item.priority = .high
+        var fetched = FetchResult(priceCents: 1500, currency: "EUR", isOnSale: true, saleEndsAt: end, availability: "available")
+        let first = PriceDropDetector.evaluate(item: item, fetch: fetched, now: now)
+        let draft = try #require(first.alerts.last)
+        let log = alerts(), sink = PriorityDeliveryLog()
+        try await log.append(PriceAlert(itemID: item.id, kind: draft.kind,
+                                       priceFromCents: draft.fromCents, priceToCents: draft.toCents,
+                                       confirmedSaleEndsAt: draft.confirmedSaleEndsAt, currency: "EUR"))
+        fetched.isOnSale = false
+        let next = PriceDropDetector.evaluate(item: first.updatedItem, fetch: fetched, now: now)
+        let store = MemoryCatalog([next.updatedItem])
+        let notifier = AlertNotifier(alertStore: log, itemStore: store, enabled: { true }, timeSensitiveEnabled: { true }, authorized: { true },
+                                     deliver: { _, _, _, level in await sink.add(level) })
+        #expect(try await notifier.notifyPendingDrops() == 1)
+        let levels = await sink.levels
+        #expect(levels == [false])
+        #expect(try await notifier.notifyPendingDrops() == 0)
+    }
+}

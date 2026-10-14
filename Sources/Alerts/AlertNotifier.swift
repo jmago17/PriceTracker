@@ -92,6 +92,7 @@ actor AlertNotifier {
     static func qualifiesForTimeSensitive(_ alert: PriceAlert, item: Item, optedIn: Bool, now: Date = Date()) -> Bool {
         guard optedIn, item.priority == .high, item.status == .active,
               item.lastError == nil, let end = alert.confirmedSaleEndsAt, end > now,
+              // The latest successful fetch clears this if it disconfirms the sale.
               let observedEnd = item.onSaleUntil,
               // JSON's Unix-epoch conversion can lose sub-microsecond Date precision.
               abs(observedEnd.timeIntervalSince(end)) < 0.001, let from = alert.priceFromCents,

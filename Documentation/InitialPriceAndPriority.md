@@ -14,13 +14,13 @@ App metadata is namespaced in the existing `[String: String] externalIDs` contai
 - `PriceTracker.alertedInitialPrice.<currency>|<cents>|<generation>`: append-only `true` marker.
 - `PriceTracker.urgentOffer.<currency>|<expiry timestamp>`: append-only `true` marker.
 
-Append-only markers survive dictionary merges and delayed devices; old markers never match a new generation. Metadata merges compare each reserved key against the ancestor, so a refresh on another device does not undo an independent priority edit. Existing non-app external-ID conflict policy is retained.
+Append-only markers survive dictionary merges and delayed devices; old markers never match a new generation. Metadata merges compare reserved keys against the ancestor, so a refresh on another device does not undo an independent priority edit. Initial amount, currency and generation are then resolved as one unit: the client wins only when it alone changed that unit; concurrent resets select the complete server reference, even if its amount is unchanged. When currencies differ, other monetary values also come from the selected currency side. Existing non-app external-ID conflict policy is retained.
 
 Same-device app/manual/background/Shortcuts paths share `RefreshCoordinator`, atomic SQLite refresh commits and `AlertNotifier`. Markers are committed before creating the pending delivery log, consistent with existing drop dedup. A crash or log-write failure in that small window can lose an alert; no new transactional delivery outbox is introduced. Sync suppresses later repeats once the marker arrives, but simultaneously offline devices can each notify before they exchange state. Old app versions do not implement this new policy.
 
 ## Optional Time Sensitive alerts
 
-Disabled by default under Settings. Only high-priority items with a genuine fetched `isOnSale`, an unexpired explicit `saleEndsAt`, and an actual downward price movement can create a Time Sensitive candidate. The same offer expiry is promoted once; normal drop re-arming remains unchanged. At delivery the item must still be active, healthy, at that discounted price and offer expiry. Ordinary summaries and Time Sensitive candidates are separate, so rises/other items are never promoted accidentally.
+Disabled by default under Settings. Only high-priority items with a genuine fetched `isOnSale`, an unexpired explicit `saleEndsAt`, and an actual downward price movement can create a Time Sensitive candidate. The same offer expiry is promoted once; normal drop re-arming remains unchanged. A successful fetch with `isOnSale = false` clears the item’s confirmed expiry even if it supplies the previous date. At delivery the item must still be active, healthy, at that discounted price and confirmed offer expiry; otherwise the pending drop uses normal delivery. Ordinary summaries and Time Sensitive candidates are separate, so rises/other items are never promoted accidentally.
 
 The main app entitlement declares `com.apple.developer.usernotifications.time-sensitive` (also in `project.yml`). Delivery checks `timeSensitiveSetting == .enabled`; otherwise it uses `.active`. The app opt-in never changes system authorization. No critical entitlement, critical authorization request or critical sound is used. No account, portal or provisioning changes are made by this task; a future signed distribution build must use a profile supporting the declared capability.
 
@@ -45,3 +45,5 @@ Evidence (local, outside the repository):
 - `/tmp/PriceTracker-priority-ipad.xcresult`: iPad ES/EN UI, succeeded.
 - `/tmp/PriceTracker-priority-final-ipad-unit-ui.log`: final Priority label UI passed; exposed the date-precision issue subsequently fixed.
 - `/tmp/PriceTracker-priority-targeted-final.xcresult`: final affected suites, 41 tests, succeeded.
+
+Independent review follow-up: fixed mixed initial-price references in concurrent resets and stale Time Sensitive eligibility after a successful `isOnSale = false` fetch. Five regression tests cover competing resets (including unchanged server amount), independent priority edits, currency/amount coherence, persisted sale disconfirmation and actual normal-notification fallback. Rebuilt the iOS app and passed 46 tests in the three affected suites. Evidence: `/tmp/PriceTracker-review-fixes.xcresult` and `/tmp/PriceTracker-review-fixes.log`.

@@ -332,3 +332,28 @@ extension PriceDropDetectorTests {
         #expect(result.updatedItem.hasAlertedInitialPriceRise)
     }
 }
+
+extension PriceDropDetectorTests {
+    @Test func disconfirmedOfferInvalidatesPendingUrgencyAcrossReload() throws {
+        let now = Date(), end = now.addingTimeInterval(3600)
+        var item = makeItem(priceCurrentCents: 2000, priceLowCents: 2000)
+        item.priority = .high
+        let offer = FetchResult(priceCents: 1500, currency: "EUR", isOnSale: true, saleEndsAt: end, availability: "available")
+        let first = PriceDropDetector.evaluate(item: item, fetch: offer, now: now)
+        let draft = try #require(first.alerts.last)
+        let pending = PriceAlert(itemID: item.id, kind: draft.kind, priceFromCents: draft.fromCents,
+                                 priceToCents: draft.toCents, confirmedSaleEndsAt: draft.confirmedSaleEndsAt)
+        #expect(AlertNotifier.qualifiesForTimeSensitive(pending, item: first.updatedItem, optedIn: true, now: now))
+        var disconfirmed = offer
+        disconfirmed.isOnSale = false
+        let next = PriceDropDetector.evaluate(item: first.updatedItem, fetch: disconfirmed, now: now)
+        let reloaded = try JSONDecoder().decode(Item.self, from: JSONEncoder().encode(next.updatedItem))
+        #expect(reloaded.onSaleUntil == nil)
+        #expect(next.alerts.isEmpty)
+        #expect(!AlertNotifier.qualifiesForTimeSensitive(pending, item: reloaded, optedIn: true, now: now))
+        // Currency changes must also discard an unconfirmed expiry.
+        disconfirmed.currency = "USD"
+        let changed = PriceDropDetector.evaluate(item: first.updatedItem, fetch: disconfirmed, now: now)
+        #expect(changed.updatedItem.onSaleUntil == nil && changed.alerts.isEmpty)
+    }
+}
