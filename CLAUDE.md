@@ -242,3 +242,12 @@ Build y tests, ambos simuladores (iPhone 17 Pro, iPad Pro 11" M5, iOS 27.0, Xcod
 - El límite de `ProductInsightGenerator` (6.000→2.500 caracteres) con una página real por encima de ese umbral — la prueba de Things 3 tenía descripción corta.
 
 **Pendiente antes de Release:** desplegar `summary`/`variantSize`/`variantColor` en `CatalogItem` a Production en CloudKit Dashboard — sigue sin hacerse. Mientras tanto, cualquier build sigue en Development vía `ICLOUD_CONTAINER_ENVIRONMENT` del `project.yml`; no se tocó Production en ningún momento de esta sesión.
+
+## 2026-10-15 — catálogo iPad y resúmenes
+
+- Confirmación del usuario: columnas 1/3 a la misma altura y 2/4 a otra. El mural iPad alterna desplazamientos iniciales 0/52/0/52; conserva reparto por columna más corta y adaptación al ancho. Los otros callers conservan el desplazamiento anterior.
+- Buscar, actualizar/cancelar, filtrar por estado y añadir pasan a la toolbar nativa superior en iPad (también ancho compacto de Split View). Seleccionar queda en Opciones del catálogo. iPhone conserva controles inferiores.
+- Resúmenes en tarjetas: máximo tres líneas y truncamiento final incluso en Dynamic Type de accesibilidad. No se modifica el texto persistido, el generador ni el resumen completo de la ficha; título y subtítulo mantienen su política.
+- Añadidas comprobaciones de tamaño para resúmenes cortos/largos a 180/320/600 pt y tamaño normal/accesibilidad, y UI para controles nativos y columnas alternas en iPad vertical/horizontal.
+- Parse Swift, `git diff --check` y build-for-testing genérico iOS Simulator: correctos (Xcode 27.0, `/tmp/pricetracker-ui-history-build.log`). Revisión independiente de UI sin bloqueos. Pruebas compiladas pero NO ejecutadas ni capturas verificadas: el runner de GeoFix seguía activo. No se han usado simuladores ajenos. Pendiente comprobar toolbar en Split View y render real con Dynamic Type.
+- La captura original no pudo descargarse; la interpretación de alineación quedó resuelta por confirmación explícita del usuario, no por inferencia de su descripción automática.

@@ -58,3 +58,33 @@ struct CatalogCardDetailsTests {
     }
 
 }
+
+#if canImport(UIKit)
+import SwiftUI
+import UIKit
+
+@MainActor
+struct CatalogSummaryLayoutTests {
+    @Test func longSummariesStopAtThreeLinesWithoutReservingSpaceForShortOnes() {
+        for width: CGFloat in [180, 320, 600] {
+            for typeSize: DynamicTypeSize in [.large, .accessibility3] {
+                for trailingImage in [false, true] {
+                    func height(_ summary: String) -> CGFloat {
+                        let item = Item(store: .appStore, storeItemID: "layout",
+                                        canonicalURL: URL(string: "https://example.com/layout")!,
+                                        title: "Artículo", summary: summary)
+                        let card = CompactMuralCardView(item: item, imageOnTrailingSide: trailingImage)
+                            .environment(\.dynamicTypeSize, typeSize)
+                        let host = UIHostingController(rootView: card)
+                        return host.sizeThatFits(in: CGSize(width: width, height: 10_000)).height
+                    }
+                    let three = height("A\nB\nC")
+                    let long = height("A\nB\nC\nD\nE\nF\nG\nH")
+                    #expect(abs(three - long) < 1)
+                    #expect(height("A") < three)
+                }
+            }
+        }
+    }
+}
+#endif

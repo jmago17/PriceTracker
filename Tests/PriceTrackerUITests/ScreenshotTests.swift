@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 final class ScreenshotTests: XCTestCase {
     override func setUpWithError() throws {
@@ -30,6 +31,43 @@ final class ScreenshotTests: XCTestCase {
             capture(app, "initial_priority_\(language)")
             app.terminate()
         }
+    }
+
+    func testIPadCatalogActionsStayInNavigationBar() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo-catalog"]
+        app.launch()
+        guard app.scrollViews["catalog-mural-regular"].waitForExistence(timeout: 5) else {
+            throw XCTSkip("Ejecutar en iPad")
+        }
+        defer { XCUIDevice.shared.orientation = .portrait }
+        for orientation: UIDeviceOrientation in [.portrait, .landscapeLeft] {
+            XCUIDevice.shared.orientation = orientation
+            let bar = app.navigationBars.firstMatch
+            for identifier in ["mural-search-button", "mural-refresh-button", "mural-status-filter-menu", "add-item-button"] {
+                let control = bar.buttons[identifier]
+                XCTAssertTrue(control.waitForExistence(timeout: 5), identifier)
+                XCTAssertTrue(control.isHittable, identifier)
+            }
+            let cards = app.descendants(matching: .any).matching(identifier: "item-card")
+            let frames = uniqueCardFrames(cards)
+            let columns = Dictionary(grouping: frames, by: { Int($0.minX.rounded()) })
+                .sorted { $0.key < $1.key }
+                .compactMap { $0.value.min(by: { $0.minY < $1.minY }) }
+            if columns.count >= 3 {
+                XCTAssertEqual(columns[0].minY, columns[2].minY, accuracy: 2)
+            }
+            if columns.count >= 4 {
+                XCTAssertEqual(columns[1].minY, columns[3].minY, accuracy: 2)
+                XCTAssertEqual(columns[1].minY - columns[0].minY, 52, accuracy: 2)
+            }
+            capture(app, "ipad_native_toolbar_\(orientation.rawValue)")
+        }
+        app.navigationBars.buttons["mural-search-button"].tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        app.buttons["dismiss-mural-keyboard-button"].tap()
+        app.navigationBars.buttons["mural-status-filter-menu"].tap()
+        XCTAssertTrue(app.buttons["Con bajada"].waitForExistence(timeout: 5))
     }
 
     func testSyntheticCatalogAndDetail() throws {
@@ -176,7 +214,7 @@ final class ScreenshotTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--demo-catalog", "-compactCatalogMuralEnabled", "NO"]
         app.launch()
-        guard app.buttons["start-selection-button"].waitForExistence(timeout: 5) else {
+        guard app.scrollViews["catalog-mural-regular"].waitForExistence(timeout: 5) else {
             throw XCTSkip("Mural solo aparece en ancho regular (iPad)")
         }
         XCUIDevice.shared.orientation = .landscapeLeft
@@ -213,7 +251,7 @@ final class ScreenshotTests: XCTestCase {
         for _ in 0..<16 { scroll.swipeUp() }
         let searchButton = app.buttons["mural-search-button"]
         let last = try XCTUnwrap(uniqueCardFrames(cards).max(by: { $0.maxY < $1.maxY }))
-        XCTAssertLessThanOrEqual(last.maxY, searchButton.frame.minY)
+        XCTAssertLessThanOrEqual(last.maxY, regular.exists ? app.frame.maxY : searchButton.frame.minY)
         searchButton.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         app.textFields["mural-search-field"].typeText("Camiseta")

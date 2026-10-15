@@ -12,6 +12,8 @@ struct MasonryLayout: Layout {
     /// at two columns and offsets the second column like the reference.
     var maximumColumns: Int? = nil
     var initialColumnOffset: CGFloat = 0
+    /// iPad alternates high/low starts; other callers retain their offsets.
+    var alternatesColumnOffsets = false
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? 900
@@ -34,7 +36,9 @@ struct MasonryLayout: Layout {
         let fittingColumns = max(1, Int((width + spacing) / (minColumnWidth + spacing)))
         let columns = min(fittingColumns, max(1, maximumColumns ?? fittingColumns))
         let columnWidth = (width - CGFloat(columns - 1) * spacing) / CGFloat(columns)
-        var heights = (0..<columns).map { CGFloat($0) * initialColumnOffset }
+        var heights = (0..<columns).map {
+            CGFloat(alternatesColumnOffsets ? $0 % 2 : $0) * initialColumnOffset
+        }
         return subviews.map { subview in
             let column = heights.indices.min { heights[$0] < heights[$1] } ?? 0
             let size = subview.sizeThatFits(ProposedViewSize(width: columnWidth, height: nil))
@@ -152,7 +156,8 @@ struct CompactMuralCardView: View {
                 Text(summary)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 5)
+                    .lineLimit(3)
+                    .truncationMode(.tail)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -333,7 +338,8 @@ struct ItemCardView: View {
                 Text(summary)
                     .font(.system(.callout, design: .serif))
                     .foregroundStyle(.secondary)
-                    .lineLimit(isCompact && dynamicTypeSize.isAccessibilitySize ? nil : 5)
+                    .lineLimit(3)
+                    .truncationMode(.tail)
             }
             Text(priceText)
                 .font(.system(.title3, design: .rounded, weight: .bold))
@@ -371,7 +377,8 @@ struct ItemCardView: View {
                 Text(summary)
                     .font(.system(.footnote, design: .serif))
                     .foregroundStyle(.secondary)
-                    .lineLimit(isCompact && dynamicTypeSize.isAccessibilitySize ? nil : 3)
+                    .lineLimit(3)
+                    .truncationMode(.tail)
                     .padding(.top, 2)
             }
             if item.lastError != nil {

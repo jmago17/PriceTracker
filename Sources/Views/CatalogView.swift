@@ -25,6 +25,7 @@ struct CatalogView: View {
     @State private var selection = Set<UUID>()
     @FocusState private var muralSearchFocused: Bool
 
+    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
     private var isRegular: Bool { horizontalSizeClass == .regular }
     private var usesMural: Bool { UIDevice.current.userInterfaceIdiom == .pad || isRegular || compactCatalogMuralEnabled }
 
@@ -48,7 +49,7 @@ struct CatalogView: View {
             .safeAreaInset(edge: .bottom) {
                 if isSelecting {
                     SelectionShareBar(items: viewModel.items(withIDs: selection))
-                } else if usesMural && !muralSearchFocused {
+                } else if usesMural && !isPad && !muralSearchFocused {
                     compactMuralBottomControls
                         .frame(maxWidth: 600)
                 }
@@ -118,6 +119,9 @@ struct CatalogView: View {
                     .accessibilityIdentifier("end-selection-button")
             }
         } else {
+            if isPad {
+                ipadCatalogToolbar
+            }
             if !usesMural {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -128,7 +132,7 @@ struct CatalogView: View {
                     .accessibilityIdentifier("add-item-button")
                     .accessibilityLabel("Añadir artículo")
                 }
-            } else if !viewModel.items.isEmpty {
+            } else if !isPad && !viewModel.items.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Seleccionar") { startSelection() }
                         .accessibilityIdentifier("start-selection-button")
@@ -136,8 +140,9 @@ struct CatalogView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    if !usesMural && !viewModel.items.isEmpty {
+                    if (isPad || !usesMural) && !viewModel.items.isEmpty {
                         Button("Seleccionar", systemImage: "checkmark.circle") { startSelection() }
+                            .accessibilityIdentifier("start-selection-button")
                     }
                     if viewModel.isRefreshingCatalog {
                         Button("Cancelar actualización", systemImage: "xmark", role: .destructive) {
@@ -169,6 +174,43 @@ struct CatalogView: View {
                 Button("Listo") { muralSearchFocused = false }
                     .accessibilityIdentifier("dismiss-mural-keyboard-button")
             }
+        }
+    }
+
+    /// Native navigation controls remain reachable in iPad Split View as well
+    /// as full screen; the phone keeps its existing bottom controls.
+    @ToolbarContentBuilder
+    private var ipadCatalogToolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .topBarLeading) {
+            Button("Buscar en el catálogo", systemImage: "magnifyingglass") {
+                compactSearchRequest += 1
+            }
+            .accessibilityIdentifier("mural-search-button")
+            Button(viewModel.isRefreshingCatalog ? "Cancelar actualización" : "Actualizar precios",
+                   systemImage: viewModel.isRefreshingCatalog ? "xmark" : "arrow.clockwise") {
+                if viewModel.isRefreshingCatalog {
+                    viewModel.cancelRefreshCatalog()
+                } else {
+                    viewModel.startRefreshCatalog()
+                }
+            }
+            .accessibilityIdentifier("mural-refresh-button")
+            Menu {
+                Picker("Estado", selection: $viewModel.statusFilter) {
+                    ForEach(ItemStatusFilter.allCases, id: \.self) { filter in
+                        Text(filter.displayName).tag(filter)
+                    }
+                }
+            } label: {
+                Label("Filtrar por estado", systemImage: viewModel.statusFilter == .active
+                      ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
+            }
+            .accessibilityValue(viewModel.statusFilter.displayName)
+            .accessibilityIdentifier("mural-status-filter-menu")
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button("Añadir artículo", systemImage: "plus") { showingAddItem = true }
+                .accessibilityIdentifier("add-item-button")
         }
     }
 
@@ -428,7 +470,7 @@ struct CatalogView: View {
                     if viewModel.filteredItems.isEmpty {
                         emptyState
                     } else if isRegular {
-                        MasonryLayout(minColumnWidth: regularColumnWidth, spacing: 22, maximumColumns: dynamicTypeSize.isAccessibilitySize ? 1 : nil, initialColumnOffset: dynamicTypeSize.isAccessibilitySize ? 0 : 52) {
+                        MasonryLayout(minColumnWidth: regularColumnWidth, spacing: 22, maximumColumns: dynamicTypeSize.isAccessibilitySize ? 1 : nil, initialColumnOffset: dynamicTypeSize.isAccessibilitySize ? 0 : 52, alternatesColumnOffsets: isPad) {
                             ForEach(viewModel.filteredItems) { item in
                                 muralCard(item)
                             }
