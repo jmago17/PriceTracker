@@ -251,3 +251,14 @@ Build y tests, ambos simuladores (iPhone 17 Pro, iPad Pro 11" M5, iOS 27.0, Xcod
 - Añadidas comprobaciones de tamaño para resúmenes cortos/largos a 180/320/600 pt y tamaño normal/accesibilidad, y UI para controles nativos y columnas alternas en iPad vertical/horizontal.
 - Parse Swift, `git diff --check` y build-for-testing genérico iOS Simulator: correctos (Xcode 27.0, `/tmp/pricetracker-ui-history-build.log`). Revisión independiente de UI sin bloqueos. Pruebas compiladas pero NO ejecutadas ni capturas verificadas: el runner de GeoFix seguía activo. No se han usado simuladores ajenos. Pendiente comprobar toolbar en Split View y render real con Dynamic Type.
 - La captura original no pudo descargarse; la interpretación de alineación quedó resuelta por confirmación explícita del usuario, no por inferencia de su descripción automática.
+
+## 2026-10-15 — sincronización de historial (borrador sin publicar)
+
+- Cada observación real se codifica en un registro independiente `PriceObservation`, unido por identidad de artículo y UUID original; SQLite conserva los datos y añade metadatos de sincronización. No se fabrican puntos desde el precio actual.
+- Migración incremental en lotes de 500, consultas puntuales indexadas, unión idempotente y tombstones que conservan las filas locales. Los historiales abiertos se recargan al recibir puntos sin cambios en el artículo.
+- Revisión independiente detectó y corrigió: cursor antiguo que ya ignoró registros nuevos (estado separado `ck-sync-engine-state-history-v2`), conflictos que abortaban lotes (retención durable y manejo por registro), y consultas repetidas de coste cuadrático.
+- `build-for-testing` de app y tests pasó en `/tmp/pricetracker-history-reviewed-build.log`; `git diff --check` correcto. Revisión final sin bloqueos adicionales. Suites añadidas `HistorySyncTests` y `CatalogSummaryLayoutTests` compiladas, todavía NO ejecutadas por ocupación del simulador ajeno GeoFix (PID58442). No se ha usado ni detenido ningún simulador ajeno.
+- El historial NO está commiteado/publicado todavía. Falta ejecutar pruebas, revisar/desplegar el esquema aditivo descrito en `Documentation/PriceHistorySync.md` y comprobar sincronización real entre dispositivos. No se ha desplegado Production ni tocado datos reales.
+- Firma: otro agente confirmó Time Sensitive en el identificador; todavía no se ha actualizado/validado el perfil local ni repetido archive firmado. No confundir build Simulator sin firma con exportación de distribución.
+
+- Revisión estática posterior: nueve comprobaciones SQL sintéticas en memoria correctas (SQLite 3.50.4, 1.001 filas; evidencia `/tmp/pricetracker-history-sql-check.json`). No sustituyen suites Swift/CloudKit. Documento de esquema ampliado con contrato completo, pasos Development/Production y riesgos de migración/rollback; despliegue y ejecución siguen pendientes. No se inició build/simulador ni se modificó firma durante esta revisión.

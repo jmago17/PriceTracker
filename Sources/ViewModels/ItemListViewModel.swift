@@ -95,6 +95,11 @@ final class ItemListViewModel {
         do {
             items = try await environment.itemStore.loadAll()
             reconcileCategoryFilter()
+            // A history-only CloudKit change need not modify the Item payload.
+            // Refresh only histories already requested by an open detail.
+            for item in items where histories[item.identityKey] != nil || historyErrors[item.identityKey] != nil {
+                await loadHistory(for: item)
+            }
         } catch {
             lastErrorMessage = error.localizedDescription
         }

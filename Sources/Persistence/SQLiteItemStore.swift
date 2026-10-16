@@ -37,7 +37,9 @@ enum SQLiteStoreError: Error, LocalizedError {
 /// WAL plus SQLite's process locks make separate app/App Intent processes safe.
 actor SQLiteItemStore: PriceHistoryStoring {
     static let migrationMetadataKey = "items-json-migration-v1"
-    static let syncStateMetadataKey = "ck-sync-engine-state-v1"
+    // New record types require a full bootstrap. A separate key also prevents
+    // downgraded clients from advancing past history records they ignore.
+    static let syncStateMetadataKey = "ck-sync-engine-state-history-v2"
     static let accountMetadataKey = "ck-account-record-name-v1"
     static let lastSuccessfulSyncMetadataKey = "ck-last-successful-sync-v1"
 
@@ -140,16 +142,171 @@ actor SQLiteItemStore: PriceHistoryStoring {
     }
 
     func observations(for identityKey: String) throws -> [PriceObservation] {
-        let statement = try prepare("SELECT payload FROM price_observations WHERE identity_key = ? ORDER BY checked_at, id")
+        let item = try localRecord(named: CloudRecordIdentity.recordName(for: identityKey))
+        if item?.isTombstone == true { return [] }
+        let statement = try prepare("SELECT p.payload FROM price_observations p LEFT JOIN observation_sync s ON s.observation_id = p.id WHERE p.identity_key = ? AND COALESCE(s.tombstone, 0) = 0 ORDER BY p.checked_at, p.id")
         defer { sqlite3_finalize(statement) }
         bind(identityKey, to: 1, in: statement)
         var result: [PriceObservation] = []
         while sqlite3_step(statement) == SQLITE_ROW {
             guard let data = columnData(statement, index: 0) else { throw SQLiteStoreError.corruptRow(identityKey) }
-            result.append(try decoder.decode(PriceObservation.self, from: data))
+            var observation = try decoder.decode(PriceObservation.self, from: data)
+            if let id = item?.item?.id { observation.itemID = id }
+            result.append(observation)
         }
         try checkStatement(statement)
         return result
+    }
+
+    /// Incremental migration also discovers observations written by an older
+    /// app/Shortcut process after this version first opened the database.
+    func prepareObservationSync() throws {
+        // Bound memory and group durable writes; old writers remain discoverable.
+        while true {
+            try execute("BEGIN IMMEDIATE TRANSACTION")
+            do {
+                let query = try prepare("SELECT p.id, p.identity_key FROM price_observations p LEFT JOIN observation_sync s ON s.observation_id = p.id WHERE s.observation_id IS NULL LIMIT 500")
+                var missing: [(String, String)] = []
+                while sqlite3_step(query) == SQLITE_ROW {
+                    guard let id = columnString(query, index: 0), let key = columnString(query, index: 1) else {
+                        sqlite3_finalize(query)
+                        throw SQLiteStoreError.corruptRow("history migration")
+                    }
+                    missing.append((id, key))
+                }
+                defer { sqlite3_finalize(query) }
+                try checkStatement(query)
+                let insert = try prepare("INSERT INTO observation_sync (record_name, observation_id, identity_key) VALUES (?, ?, ?) ON CONFLICT(record_name) DO UPDATE SET observation_id = COALESCE(observation_sync.observation_id, excluded.observation_id), identity_key = COALESCE(observation_sync.identity_key, excluded.identity_key)")
+                defer { sqlite3_finalize(insert) }
+                for (id, key) in missing {
+                    guard let uuid = UUID(uuidString: id) else { throw SQLiteStoreError.corruptRow(id) }
+                    sqlite3_reset(insert); sqlite3_clear_bindings(insert)
+                    bind(CloudObservationCodec.recordName(identityKey: key, id: uuid), to: 1, in: insert)
+                    bind(id, to: 2, in: insert); bind(key, to: 3, in: insert)
+                    try stepDone(insert)
+                }
+                try execute("COMMIT")
+                if missing.count < 500 { return }
+            } catch { try? execute("ROLLBACK"); throw error }
+        }
+    }
+
+    func dirtyObservationNames() throws -> [String] {
+        try prepareObservationSync()
+        let query = try prepare("SELECT record_name FROM observation_sync WHERE dirty = 1")
+        defer { sqlite3_finalize(query) }
+        var result: [String] = []
+        while sqlite3_step(query) == SQLITE_ROW {
+            if let name = columnString(query, index: 0) { result.append(name) }
+        }
+        try checkStatement(query)
+        return result
+    }
+
+    func dirtyObservationCount() throws -> Int {
+        let query = try prepare("SELECT COUNT(*) FROM observation_sync WHERE dirty = 1")
+        defer { sqlite3_finalize(query) }
+        guard sqlite3_step(query) == SQLITE_ROW else { try checkStatement(query); return 0 }
+        return Int(sqlite3_column_int64(query, 0))
+    }
+
+    func observationRecords(dirtyOnly: Bool = false, named: String? = nil) throws -> [LocalObservationRecord] {
+        if named == nil { try prepareObservationSync() }
+        let condition = named != nil ? "s.record_name = ?" : (dirtyOnly ? "s.dirty = 1" : "1 = 1")
+        let statement = try prepare("SELECT s.record_name, s.identity_key, p.payload, s.tombstone, s.dirty, s.system_fields FROM observation_sync s LEFT JOIN price_observations p ON p.id = s.observation_id WHERE " + condition)
+        defer { sqlite3_finalize(statement) }
+        if let named { bind(named, to: 1, in: statement) }
+        var result: [LocalObservationRecord] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            let observation = try columnData(statement, index: 2).map { try decoder.decode(PriceObservation.self, from: $0) }
+            guard let name = columnString(statement, index: 0) else { throw SQLiteStoreError.corruptRow("observation name") }
+            result.append(LocalObservationRecord(recordName: name,
+                identityKey: columnString(statement, index: 1), observation: observation,
+                isTombstone: sqlite3_column_int(statement, 3) != 0,
+                isDirty: sqlite3_column_int(statement, 4) != 0, systemFields: columnData(statement, index: 5)))
+        }
+        try checkStatement(statement)
+        return result
+    }
+
+    /// Union by immutable UUID. Repeated downloads are no-ops; disagreement
+    /// about one UUID is surfaced, never resolved by discarding a real sample.
+    func applyRemoteObservation(_ remote: LocalObservationRecord) throws {
+        try execute("BEGIN IMMEDIATE TRANSACTION")
+        do {
+            let local = try observationRecords(named: remote.recordName).first
+            if let a = local?.observation, let b = remote.observation,
+               !CloudObservationCodec.sameSample(a, b) {
+                throw SQLiteStoreError.corruptRow("Conflicto en observación \(a.id)")
+            }
+            let tombstone = remote.isTombstone || local?.isTombstone == true
+            if let observation = remote.observation, let key = remote.identityKey {
+                let existing = try prepare("SELECT identity_key, payload FROM price_observations WHERE id = ?")
+                defer { sqlite3_finalize(existing) }
+                bind(observation.id.uuidString, to: 1, in: existing)
+                if sqlite3_step(existing) == SQLITE_ROW {
+                    guard columnString(existing, index: 0) == key,
+                          let data = columnData(existing, index: 1),
+                          CloudObservationCodec.sameSample(try decoder.decode(PriceObservation.self, from: data), observation) else {
+                        throw SQLiteStoreError.corruptRow("Observation UUID collision")
+                    }
+                } else {
+                    try checkStatement(existing)
+                }
+                let insert = try prepare("INSERT OR IGNORE INTO price_observations (id, identity_key, checked_at, payload) VALUES (?, ?, ?, ?)")
+                defer { sqlite3_finalize(insert) }
+                bind(observation.id.uuidString, to: 1, in: insert); bind(key, to: 2, in: insert)
+                sqlite3_bind_double(insert, 3, observation.checkedAt.timeIntervalSince1970)
+                bind(try encoder.encode(observation), to: 4, in: insert)
+                try stepDone(insert)
+            }
+            let statement = try prepare("INSERT INTO observation_sync (record_name, observation_id, identity_key, tombstone, dirty, system_fields) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(record_name) DO UPDATE SET observation_id = COALESCE(observation_sync.observation_id, excluded.observation_id), identity_key = COALESCE(observation_sync.identity_key, excluded.identity_key), tombstone = excluded.tombstone, dirty = excluded.dirty, system_fields = excluded.system_fields")
+            defer { sqlite3_finalize(statement) }
+            bind(remote.recordName, to: 1, in: statement)
+            bind((remote.observation ?? local?.observation)?.id.uuidString, to: 2, in: statement)
+            bind(remote.identityKey ?? local?.identityKey, to: 3, in: statement)
+            sqlite3_bind_int(statement, 4, tombstone ? 1 : 0)
+            sqlite3_bind_int(statement, 5, tombstone && !remote.isTombstone ? 1 : 0)
+            bind(remote.systemFields, to: 6, in: statement)
+            try stepDone(statement)
+            try execute("COMMIT")
+        } catch { try? execute("ROLLBACK"); throw error }
+    }
+
+    func retainIncomingRecord(named name: String, archive: Data) throws {
+        let query = try prepare("INSERT INTO incoming_sync_records (record_name, archive) VALUES (?, ?) ON CONFLICT(record_name) DO UPDATE SET archive = excluded.archive")
+        defer { sqlite3_finalize(query) }
+        bind(name, to: 1, in: query); bind(archive, to: 2, in: query)
+        try stepDone(query)
+    }
+
+    func retainedIncomingRecords() throws -> [Data] {
+        let query = try prepare("SELECT archive FROM incoming_sync_records")
+        defer { sqlite3_finalize(query) }
+        var result: [Data] = []
+        while sqlite3_step(query) == SQLITE_ROW {
+            if let archive = columnData(query, index: 0) { result.append(archive) }
+        }
+        try checkStatement(query)
+        return result
+    }
+
+    func removeRetainedIncomingRecord(named name: String) throws {
+        let query = try prepare("DELETE FROM incoming_sync_records WHERE record_name = ?")
+        defer { sqlite3_finalize(query) }
+        bind(name, to: 1, in: query); try stepDone(query)
+    }
+
+    func resetObservationSystemFields(named name: String) throws {
+        let statement = try prepare("UPDATE observation_sync SET system_fields = NULL, dirty = 1 WHERE record_name = ?")
+        defer { sqlite3_finalize(statement) }
+        bind(name, to: 1, in: statement); try stepDone(statement)
+    }
+
+    func tombstoneObservation(named name: String) throws {
+        let statement = try prepare("INSERT INTO observation_sync (record_name, tombstone, dirty) VALUES (?, 1, 1) ON CONFLICT(record_name) DO UPDATE SET tombstone = 1, dirty = 1, system_fields = NULL")
+        defer { sqlite3_finalize(statement) }
+        bind(name, to: 1, in: statement); try stepDone(statement)
     }
 
     func delete(id: UUID) throws {
@@ -241,31 +398,44 @@ actor SQLiteItemStore: PriceHistoryStoring {
         systemFields: Data,
         dirty: Bool
     ) throws {
-        let payload = try item.map { try encoder.encode($0) }
-        let itemID = item?.id.uuidString ?? recordName
-        let statement = try prepare(
-            """
-            INSERT INTO item_records
-                (record_name, identity_key, item_id, payload, tombstone, dirty, system_fields)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(record_name) DO UPDATE SET
-                identity_key = excluded.identity_key,
-                item_id = CASE WHEN excluded.payload IS NULL THEN item_records.item_id ELSE excluded.item_id END,
-                payload = COALESCE(excluded.payload, item_records.payload),
-                tombstone = excluded.tombstone,
-                dirty = excluded.dirty,
-                system_fields = excluded.system_fields
-            """
-        )
-        defer { sqlite3_finalize(statement) }
-        bind(recordName, to: 1, in: statement)
-        bind(identityKey, to: 2, in: statement)
-        bind(itemID, to: 3, in: statement)
-        bind(payload, to: 4, in: statement)
-        sqlite3_bind_int(statement, 5, isTombstone ? 1 : 0)
-        sqlite3_bind_int(statement, 6, dirty ? 1 : 0)
-        bind(systemFields, to: 7, in: statement)
-        try stepDone(statement)
+        try execute("BEGIN IMMEDIATE TRANSACTION")
+        do {
+            // Device-local identity must survive remote updates, including callers
+            // that did not pass through CloudRecordCodec's device-field merge.
+            var value = item
+            if let localID = try localRecord(named: recordName)?.item?.id {
+                value?.id = localID
+            }
+            let payload = try value.map { try encoder.encode($0) }
+            let itemID = value?.id.uuidString ?? recordName
+            let statement = try prepare(
+                """
+                INSERT INTO item_records
+                    (record_name, identity_key, item_id, payload, tombstone, dirty, system_fields)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(record_name) DO UPDATE SET
+                    identity_key = excluded.identity_key,
+                    item_id = CASE WHEN excluded.payload IS NULL THEN item_records.item_id ELSE excluded.item_id END,
+                    payload = COALESCE(excluded.payload, item_records.payload),
+                    tombstone = excluded.tombstone,
+                    dirty = excluded.dirty,
+                    system_fields = excluded.system_fields
+                """
+            )
+            defer { sqlite3_finalize(statement) }
+            bind(recordName, to: 1, in: statement)
+            bind(identityKey, to: 2, in: statement)
+            bind(itemID, to: 3, in: statement)
+            bind(payload, to: 4, in: statement)
+            sqlite3_bind_int(statement, 5, isTombstone ? 1 : 0)
+            sqlite3_bind_int(statement, 6, dirty ? 1 : 0)
+            bind(systemFields, to: 7, in: statement)
+            try stepDone(statement)
+            try execute("COMMIT")
+        } catch {
+            try? execute("ROLLBACK")
+            throw error
+        }
     }
 
     /// Records the server's new changeTag. A newer local edit keeps the row
@@ -461,6 +631,18 @@ actor SQLiteItemStore: PriceHistoryStoring {
                 payload BLOB NOT NULL
             );
             CREATE INDEX IF NOT EXISTS price_observations_identity_time ON price_observations(identity_key, checked_at);
+            CREATE TABLE IF NOT EXISTS incoming_sync_records (
+                record_name TEXT PRIMARY KEY NOT NULL,
+                archive BLOB NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS observation_sync (
+                record_name TEXT PRIMARY KEY NOT NULL,
+                observation_id TEXT UNIQUE,
+                identity_key TEXT,
+                tombstone INTEGER NOT NULL DEFAULT 0,
+                dirty INTEGER NOT NULL DEFAULT 1,
+                system_fields BLOB
+            );
             CREATE TABLE IF NOT EXISTS metadata (
                 key TEXT PRIMARY KEY NOT NULL,
                 value BLOB NOT NULL
@@ -504,7 +686,11 @@ actor SQLiteItemStore: PriceHistoryStoring {
         }
     }
 
-    private func bind(_ value: String, to index: Int32, in statement: OpaquePointer) {
+    private func bind(_ value: String?, to index: Int32, in statement: OpaquePointer) {
+        guard let value else {
+            sqlite3_bind_null(statement, index)
+            return
+        }
         let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
         sqlite3_bind_text(statement, index, value, -1, transient)
     }

@@ -30,6 +30,16 @@ private func codecItem(storeItemID: String, title: String) -> Item {
 }
 
 struct CloudRecordMergerTests {
+    @Test func absentHistorySchemaKeepsCatalogTransportEligible() {
+        let catalog = CKRecord.ID(recordName: "item_test", zoneID: mergeZoneID)
+        let observation = CKRecord.ID(recordName: CloudObservationCodec.prefix + "test", zoneID: mergeZoneID)
+        let restored: [CKSyncEngine.PendingRecordZoneChange] = [
+            .saveRecord(catalog), .saveRecord(observation), .deleteRecord(observation), .deleteRecord(catalog)
+        ]
+        #expect(!HistoryTransportPolicy.enabled)
+        #expect(restored.filter(HistoryTransportPolicy.permits) == [.saveRecord(catalog), .deleteRecord(catalog)])
+    }
+
     @Test func independentConcurrentFieldEditsAreBothKept() throws {
         let ancestor = mergeRecord(title: "Old title", notes: "Old notes")
         let client = try CloudRecordCodec.copy(ancestor)

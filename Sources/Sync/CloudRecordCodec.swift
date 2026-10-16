@@ -291,3 +291,89 @@ enum CloudRecordCodec {
         return try JSONDecoder().decode(T.self, from: data)
     }
 }
+
+/// Each immutable sample is its own record. Never place a whole device's
+/// history in CatalogItem, where an older client could replace it.
+struct LocalObservationRecord: Sendable {
+    var recordName: String
+    var identityKey: String?
+    var observation: PriceObservation?
+    var isTombstone: Bool
+    var isDirty: Bool
+    var systemFields: Data?
+}
+
+enum CloudObservationCodec {
+    static let recordType = "PriceObservation"
+    static let prefix = "observation_"
+    static let deviceIndependentID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+
+    static func recordName(identityKey: String, id: UUID) -> String {
+        prefix + CloudRecordIdentity.recordName(for: identityKey + "|" + id.uuidString)
+    }
+
+    static func makeRecord(_ local: LocalObservationRecord, zoneID: CKRecordZone.ID) throws -> CKRecord {
+        let id = CKRecord.ID(recordName: local.recordName, zoneID: zoneID)
+        let restored = try local.systemFields.map(CloudRecordCodec.record(fromSystemFields:))
+        let record = restored?.recordID == id ? restored! : CKRecord(recordType: recordType, recordID: id)
+        record["tombstone"] = NSNumber(value: local.isTombstone)
+        record["identityKey"] = local.identityKey as CKRecordValue?
+        record["observationID"] = nil
+        record["payload"] = nil
+        if !local.isTombstone, var observation = local.observation {
+            // Item UUIDs may differ for the same store identity on two devices.
+            observation.itemID = deviceIndependentID
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .secondsSince1970
+            encoder.outputFormatting = [.sortedKeys]
+            record["observationID"] = observation.id.uuidString as CKRecordValue
+            record["payload"] = try encoder.encode(observation) as CKRecordValue
+        }
+        return record
+    }
+
+    static func decode(_ record: CKRecord) throws -> LocalObservationRecord {
+        guard record.recordType == recordType, record.recordID.recordName.hasPrefix(prefix) else {
+            throw CloudRecordCodecError.invalidRecord("observation type/name")
+        }
+        let deleted = (record["tombstone"] as? NSNumber)?.boolValue ?? false
+        let identity = record["identityKey"] as? String
+        var observation: PriceObservation?
+        if !deleted {
+            guard let identity, !identity.isEmpty,
+                  let idString = record["observationID"] as? String,
+                  let id = UUID(uuidString: idString),
+                  record.recordID.recordName == recordName(identityKey: identity, id: id),
+                  let data = record["payload"] as? Data else {
+                throw CloudRecordCodecError.invalidRecord("observation identity/payload")
+            }
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .secondsSince1970
+            let value = try decoder.decode(PriceObservation.self, from: data)
+            guard value.id == id, value.priceCents >= 0,
+                  !value.currency.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  value.checkedAt.timeIntervalSince1970.isFinite else {
+                throw CloudRecordCodecError.invalidRecord("observation values")
+            }
+            observation = value
+        }
+        return LocalObservationRecord(recordName: record.recordID.recordName, identityKey: identity,
+                                      observation: observation, isTombstone: deleted, isDirty: false,
+                                      systemFields: try CloudRecordCodec.archivedSystemFields(record))
+    }
+
+    private static func sameDate(_ lhs: Date?, _ rhs: Date?) -> Bool {
+        switch (lhs, rhs) {
+        case (nil, nil): return true
+        case let (a?, b?): return abs(a.timeIntervalSince(b)) < 0.001
+        default: return false
+        }
+    }
+
+    static func sameSample(_ lhs: PriceObservation, _ rhs: PriceObservation) -> Bool {
+        lhs.id == rhs.id && lhs.priceCents == rhs.priceCents && lhs.currency == rhs.currency
+            && abs(lhs.checkedAt.timeIntervalSince(rhs.checkedAt)) < 0.001
+            && lhs.isOnSale == rhs.isOnSale && sameDate(lhs.saleEndsAt, rhs.saleEndsAt)
+            && lhs.availability == rhs.availability
+    }
+}

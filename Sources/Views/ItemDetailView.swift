@@ -2,7 +2,7 @@ import SwiftUI
 import Charts
 
 /// Shows successful check freshness separately from observed price changes.
-/// History is made only from recorded observations on this device.
+/// History contains real recorded observations, merged across devices.
 struct ItemDetailView: View {
     private let initialItem: Item
     let viewModel: ItemListViewModel
@@ -433,7 +433,9 @@ struct ItemDetailView: View {
 
     private var historyExplanation: String {
         if Store.refreshableStores.contains(item.store) {
-            return "Cada comprobación correcta guarda un punto, aunque el precio no cambie. El historial empieza al comprobar desde esta versión y se guarda en este dispositivo, separado por moneda."
+            return CatalogLanguage.isSpanish
+                ? "Cada comprobación correcta guarda un punto, aunque el precio no cambie. Los puntos se conservan y sincronizan con iCloud, separados por moneda."
+                : "Each successful check records a point, even if the price is unchanged. Points are preserved and synced with iCloud, separated by currency."
         }
         return "Este enlace se guardó con el precio del momento y no se vuelve a comprobar automáticamente."
     }

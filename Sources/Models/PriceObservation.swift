@@ -1,7 +1,7 @@
 import Foundation
 
 /// One immutable observation per successful price check, including unchanged
-/// prices. Failed checks do not create observations. Stored locally in SQLite.
+/// prices. Failed checks do not create observations. Committed locally in SQLite, then synced as an independent CloudKit record.
 struct PriceObservation: Identifiable, Codable, Hashable, Sendable {
     var id: UUID = UUID()
     var itemID: UUID

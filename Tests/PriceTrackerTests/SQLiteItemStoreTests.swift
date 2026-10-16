@@ -3,6 +3,163 @@ import Foundation
 import Testing
 @testable import PriceTracker
 
+struct HistorySyncTests {
+    private let zone = CKRecordZone.ID(zoneName: "HistoryTests", ownerName: CKCurrentUserDefaultName)
+
+    private func transfer(_ source: SQLiteItemStore, to target: SQLiteItemStore) async throws {
+        for local in try await source.observationRecords(dirtyOnly: true) {
+            let record = try CloudObservationCodec.makeRecord(local, zoneID: zone)
+            let accepted = try CloudObservationCodec.decode(record)
+            try await target.applyRemoteObservation(accepted)
+            try await source.applyRemoteObservation(accepted)
+        }
+    }
+
+    @Test func disabledHistoryTransportRetainsSamplesAcrossCatalogAcknowledgementAndRestart() async throws {
+        let (store, directory) = makeSQLiteStore()
+        let item = sqliteItem(storeItemID: "gate", title: "Catalog remains eligible")
+        let point = PriceObservation(itemID: item.id, checkedAt: Date(timeIntervalSince1970: 1000), priceCents: 100, currency: "EUR", isOnSale: false)
+        try await store.upsert(item, observation: point)
+        let catalog = try #require(try await store.dirtyRecords().first)
+        let names = try await store.dirtyObservationNames()
+        let pending = ([catalog.recordName] + names).map { CKSyncEngine.PendingRecordZoneChange.saveRecord(CKRecord.ID(recordName: $0, zoneID: zone)) }
+        #expect(pending.filter(HistoryTransportPolicy.permits).count == 1)
+        let accepted = try CloudRecordCodec.archivedSystemFields(CloudRecordCodec.makeRecord(from: catalog, zoneID: zone))
+        _ = try await store.acknowledgeSavedRecord(named: catalog.recordName, systemFields: accepted, matchesCurrentLocalValue: true)
+        let reopened = SQLiteItemStore(databaseURL: directory.appendingPathComponent("catalog.sqlite"))
+        #expect(try await reopened.dirtyCount() == 0)
+        #expect(try await reopened.observationRecords(dirtyOnly: true).first?.observation == point)
+        #expect(try await reopened.observations(for: item.identityKey) == [point])
+    }
+
+    @Test func upgradeDoesNotReuseCursorWrittenByHistoryUnawareClient() async throws {
+        let (store, _) = makeSQLiteStore()
+        let old = Data("old client advanced past unknown history records".utf8)
+        try await store.setMetadataData(old, for: "ck-sync-engine-state-v1")
+        #expect(try await store.metadataData(for: SQLiteItemStore.syncStateMetadataKey) == nil)
+        let new = Data("new history-aware cursor".utf8)
+        try await store.setMetadataData(new, for: SQLiteItemStore.syncStateMetadataKey)
+        try await store.setMetadataData(Data("downgraded client cursor".utf8), for: "ck-sync-engine-state-v1")
+        #expect(try await store.metadataData(for: SQLiteItemStore.syncStateMetadataKey) == new)
+    }
+
+    @Test func conflictingIncomingRecordRemainsDurableWhileOtherSamplesApply() async throws {
+        let (store, directory) = makeSQLiteStore()
+        let item = sqliteItem(storeItemID: "retained", title: "Retained conflict")
+        let point = PriceObservation(itemID: item.id, checkedAt: Date(timeIntervalSince1970: 9000), priceCents: 100, currency: "EUR", isOnSale: false)
+        try await store.upsert(item, observation: point)
+        var conflict = try #require(try await store.observationRecords().first)
+        conflict.observation?.priceCents = 999
+        let server = try CloudObservationCodec.makeRecord(conflict, zoneID: zone)
+        let archive = try CloudRecordCodec.archivedSystemFields(server)
+        try await store.retainIncomingRecord(named: conflict.recordName, archive: archive)
+        do { try await store.applyRemoteObservation(CloudObservationCodec.decode(server)) } catch {}
+        var other = point
+        other.id = UUID(); other.currency = "USD"
+        let record = LocalObservationRecord(recordName: CloudObservationCodec.recordName(identityKey: item.identityKey, id: other.id), identityKey: item.identityKey, observation: other, isTombstone: false, isDirty: false, systemFields: nil)
+        try await store.applyRemoteObservation(record)
+        let reopened = SQLiteItemStore(databaseURL: directory.appendingPathComponent("catalog.sqlite"))
+        #expect(try await reopened.observations(for: item.identityKey).count == 2)
+        let retained = try #require(try await reopened.retainedIncomingRecords().first)
+        let decoded = try CloudObservationCodec.decode(CloudRecordCodec.record(fromSystemFields: retained))
+        #expect(decoded.observation?.priceCents == 999)
+        #expect(try await reopened.observations(for: item.identityKey).first(where: { $0.id == point.id })?.priceCents == 100)
+    }
+
+    @Test func unknownPhysicalDeletionWinsOverLateOfflineSample() async throws {
+        let (store, _) = makeSQLiteStore()
+        let item = sqliteItem(storeItemID: "late", title: "Late sample")
+        let point = PriceObservation(itemID: item.id, checkedAt: Date(timeIntervalSince1970: 6000), priceCents: 50, currency: "EUR", isOnSale: false)
+        let name = CloudObservationCodec.recordName(identityKey: item.identityKey, id: point.id)
+        try await store.tombstoneObservation(named: name)
+        try await store.applyRemoteObservation(LocalObservationRecord(recordName: name, identityKey: item.identityKey, observation: point, isTombstone: false, isDirty: false, systemFields: nil))
+        try await store.upsert(item)
+        #expect(try await store.observations(for: item.identityKey).isEmpty)
+        #expect(try await store.observationRecords(named: name).first?.observation?.id == point.id)
+        #expect(try await store.observationRecords(named: name).first?.isDirty == true)
+    }
+
+    @Test func offlineDevicesUnionRealSamplesAndRetriesDoNotDuplicate() async throws {
+        let (a, _) = makeSQLiteStore()
+        let (b, _) = makeSQLiteStore()
+        let itemA = sqliteItem(storeItemID: "union", title: "History")
+        var itemB = itemA
+        itemB.id = UUID()
+        let first = PriceObservation(itemID: itemA.id, checkedAt: Date(timeIntervalSince1970: 1000), priceCents: 1000, currency: "EUR", isOnSale: false)
+        var second = first
+        second.id = UUID(); second.itemID = itemB.id
+        second.checkedAt = Date(timeIntervalSince1970: 2000); second.priceCents = 800
+        try await a.upsert(itemA, observation: first)
+        try await b.upsert(itemB, observation: second)
+        try await transfer(a, to: b)
+        try await transfer(b, to: a)
+        // Fetching the same server records again is idempotent.
+        for local in try await a.observationRecords() {
+            let remote = try CloudObservationCodec.decode(CloudObservationCodec.makeRecord(local, zoneID: zone))
+            try await b.applyRemoteObservation(remote)
+            try await b.applyRemoteObservation(remote)
+        }
+        let pointsA = try await a.observations(for: itemA.identityKey)
+        let pointsB = try await b.observations(for: itemA.identityKey)
+        #expect(pointsA.map(\.id) == [first.id, second.id])
+        #expect(pointsB.map(\.id) == pointsA.map(\.id))
+        #expect(pointsA.map(\.priceCents) == [1000, 800])
+        #expect(pointsB.allSatisfy { $0.itemID == itemB.id })
+        #expect(try await a.observationRecords(dirtyOnly: true).isEmpty)
+        #expect(try await b.observationRecords(dirtyOnly: true).isEmpty)
+    }
+
+    @Test func migrationAndRestartPreserveUUIDDatesCurrencyAndPendingSamples() async throws {
+        let (store, directory) = makeSQLiteStore()
+        let item = sqliteItem(storeItemID: "migration", title: "Old history")
+        let point = PriceObservation(itemID: item.id, checkedAt: Date(timeIntervalSince1970: 1234.25), priceCents: 0, currency: "USD", isOnSale: false)
+        try await store.upsert(item, observation: point)
+        // Local writes retain the old schema; discovery adds only sync metadata.
+        try await store.prepareObservationSync()
+        try await store.prepareObservationSync()
+        let reopened = SQLiteItemStore(databaseURL: directory.appendingPathComponent("catalog.sqlite"))
+        let pending = try await reopened.observationRecords(dirtyOnly: true)
+        #expect(pending.count == 1)
+        #expect(pending.first?.observation == point)
+        try await reopened.resetObservationSystemFields(named: pending[0].recordName)
+        #expect(try await reopened.observationRecords(dirtyOnly: true).first?.observation == point)
+    }
+
+    @Test func samplesArrivingBeforeItemAndTombstonesNeverResurrectHistory() async throws {
+        let (source, _) = makeSQLiteStore()
+        let (target, _) = makeSQLiteStore()
+        let item = sqliteItem(storeItemID: "ordering", title: "Ordering")
+        let point = PriceObservation(itemID: item.id, checkedAt: Date(timeIntervalSince1970: 3000), priceCents: 500, currency: "EUR", isOnSale: false)
+        try await source.upsert(item, observation: point)
+        let local = try #require(try await source.observationRecords().first)
+        let remote = try CloudObservationCodec.decode(CloudObservationCodec.makeRecord(local, zoneID: zone))
+        try await target.applyRemoteObservation(remote)
+        try await target.upsert(item)
+        #expect(try await target.observations(for: item.identityKey).count == 1)
+        try await target.delete(id: item.id)
+        #expect(try await target.observations(for: item.identityKey).isEmpty)
+        #expect(try await target.observationRecords().first?.observation?.id == point.id)
+        try await target.tombstoneObservation(named: local.recordName)
+        try await target.applyRemoteObservation(remote)
+        #expect(try await target.observationRecords(named: local.recordName).first?.isTombstone == true)
+        #expect(try await target.observationRecords(named: local.recordName).first?.isDirty == true)
+    }
+
+    @Test func conflictingImmutableUUIDFailsWithoutDiscardingLocalSample() async throws {
+        let (store, _) = makeSQLiteStore()
+        let item = sqliteItem(storeItemID: "conflict", title: "Conflict")
+        let point = PriceObservation(itemID: item.id, checkedAt: Date(timeIntervalSince1970: 5000), priceCents: 100, currency: "EUR", isOnSale: false)
+        try await store.upsert(item, observation: point)
+        var remote = try #require(try await store.observationRecords().first)
+        remote.observation?.priceCents = 999
+        do {
+            try await store.applyRemoteObservation(remote)
+            Issue.record("Conflicting sample must not overwrite history")
+        } catch {}
+        #expect(try await store.observations(for: item.identityKey).first?.priceCents == 100)
+    }
+}
+
 private func makeSQLiteStore() -> (SQLiteItemStore, URL) {
     let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent("PriceTrackerSQLiteTests")
@@ -159,6 +316,8 @@ extension SQLiteItemStoreTests {
         try await store.applyRemote(recordName: CloudRecordIdentity.recordName(for: item.identityKey), identityKey: item.identityKey,
             item: remote, isTombstone: false, systemFields: Data(), dirty: false)
         #expect(try await store.observations(for: item.identityKey) == [observation])
+        #expect(try await store.item(id: item.id)?.priceCurrentCents == remote.priceCurrentCents)
+        #expect(try await store.item(id: remote.id) == nil)
         let record = try #require(try await store.localRecord(named: CloudRecordIdentity.recordName(for: item.identityKey)))
         let cloud = try CloudRecordCodec.makeRecord(from: record, zoneID: CKRecordZone.ID(zoneName: "Test", ownerName: CKCurrentUserDefaultName))
         #expect(!cloud.allKeys().contains("observations"))

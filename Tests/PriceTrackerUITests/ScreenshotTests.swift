@@ -43,7 +43,13 @@ final class ScreenshotTests: XCTestCase {
         defer { XCUIDevice.shared.orientation = .portrait }
         for orientation: UIDeviceOrientation in [.portrait, .landscapeLeft] {
             XCUIDevice.shared.orientation = orientation
-            let bar = app.navigationBars.firstMatch
+            let hierarchy = XCTAttachment(string: app.debugDescription)
+            hierarchy.name = "iPad toolbar hierarchy \(orientation.rawValue)"
+            hierarchy.lifetime = .keepAlways
+            add(hierarchy)
+            // Landscape can expose a sidebar navigation bar before the
+            // catalog bar. Select by the control's owner, not tree order.
+            let bar = app.navigationBars.containing(.button, identifier: "mural-search-button").firstMatch
             for identifier in ["mural-search-button", "mural-refresh-button", "mural-status-filter-menu", "add-item-button"] {
                 let control = bar.buttons[identifier]
                 XCTAssertTrue(control.waitForExistence(timeout: 5), identifier)
@@ -67,7 +73,7 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         app.buttons["dismiss-mural-keyboard-button"].tap()
         app.navigationBars.buttons["mural-status-filter-menu"].tap()
-        XCTAssertTrue(app.buttons["Con bajada"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Menos que al añadir"].waitForExistence(timeout: 5))
     }
 
     func testSyntheticCatalogAndDetail() throws {

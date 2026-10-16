@@ -1,6 +1,21 @@
 @preconcurrency import CloudKit
 import Foundation
 
+/// Production does not yet contain PriceObservation. Keep samples durable locally
+/// until a separately verified schema rollout enables their outbound transport.
+enum HistoryTransportPolicy {
+    static let enabled = false
+
+    static func permits(_ change: CKSyncEngine.PendingRecordZoneChange) -> Bool {
+        let id: CKRecord.ID
+        switch change {
+        case .saveRecord(let value), .deleteRecord(let value): id = value
+        @unknown default: return false
+        }
+        return enabled || !id.recordName.hasPrefix(CloudObservationCodec.prefix)
+    }
+}
+
 /// Owns CKSyncEngine for the user's private database. The actor serializes
 /// CloudKit delegate events with local-store updates and conflict resolution.
 actor CloudSyncManager: CKSyncEngineDelegate {
@@ -101,6 +116,14 @@ actor CloudSyncManager: CKSyncEngineDelegate {
         let startingFailureGeneration = failureGeneration
         do {
             await addDirtyRecordsToEngine()
+            for archive in try await localStore.retainedIncomingRecords() {
+                do {
+                    let record = try CloudRecordCodec.record(fromSystemFields: archive)
+                    try await ingestFetchedRecord(record, syncEngine: engine)
+                    try await localStore.removeRetainedIncomingRecord(named: record.recordID.recordName)
+                    await statusStore.catalogDidChange()
+                } catch { await report(error) }
+            }
             // The first send creates the custom zone when necessary. Fetching
             // then resolves remote edits before the final send of merged rows.
             try await engine.sendChanges()
@@ -197,11 +220,27 @@ actor CloudSyncManager: CKSyncEngineDelegate {
             case .fetchedRecordZoneChanges(let changes):
                 guard accountAllowsSync else { break }
                 var catalogChanged = false
+                try await localStore.prepareObservationSync()
                 for modification in changes.modifications where modification.record.recordID.zoneID == zoneID {
-                    try await ingestFetchedRecord(modification.record, syncEngine: syncEngine)
-                    catalogChanged = true
+                    // Persist before processing: a conflict must not discard
+                    // this record or stop unrelated changes in the same batch.
+                    try await localStore.retainIncomingRecord(named: modification.record.recordID.recordName,
+                        archive: CloudRecordCodec.archivedSystemFields(modification.record))
+                    do {
+                        try await ingestFetchedRecord(modification.record, syncEngine: syncEngine)
+                        try await localStore.removeRetainedIncomingRecord(named: modification.record.recordID.recordName)
+                        catalogChanged = true
+                    } catch { await report(error) }
                 }
                 for deletion in changes.deletions where deletion.recordID.zoneID == zoneID {
+                    if deletion.recordID.recordName.hasPrefix(CloudObservationCodec.prefix) {
+                        try await localStore.tombstoneObservation(named: deletion.recordID.recordName)
+                        if HistoryTransportPolicy.enabled {
+                            syncEngine.state.add(pendingRecordZoneChanges: [.saveRecord(deletion.recordID)])
+                        }
+                        catalogChanged = true
+                        continue
+                    }
                     if try await localStore.turnPhysicalServerDeletionIntoTombstone(
                         recordName: deletion.recordID.recordName
                     ) {
@@ -213,10 +252,12 @@ actor CloudSyncManager: CKSyncEngineDelegate {
 
             case .sentRecordZoneChanges(let changes):
                 for record in changes.savedRecords where record.recordID.zoneID == zoneID {
-                    try await acknowledge(record, syncEngine: syncEngine)
+                    do { try await acknowledge(record, syncEngine: syncEngine) }
+                    catch { await report(error) }
                 }
                 for failure in changes.failedRecordSaves where failure.record.recordID.zoneID == zoneID {
-                    try await handleFailedSave(failure, syncEngine: syncEngine)
+                    do { try await handleFailedSave(failure, syncEngine: syncEngine) }
+                    catch { await report(error) }
                 }
                 if let error = changes.failedRecordDeletes.values.first {
                     await report(error)
@@ -255,12 +296,21 @@ actor CloudSyncManager: CKSyncEngineDelegate {
         syncEngine: CKSyncEngine
     ) async -> CKSyncEngine.RecordZoneChangeBatch? {
         guard accountAllowsSync else { return nil }
+        // Also remove observations restored from an older serialized engine state.
+        // This only changes the transport queue; SQLite dirty samples are retained.
+        let blocked = syncEngine.state.pendingRecordZoneChanges.filter { !HistoryTransportPolicy.permits($0) }
+        syncEngine.state.remove(pendingRecordZoneChanges: blocked)
         let pending = syncEngine.state.pendingRecordZoneChanges.filter {
-            context.options.scope.contains($0)
+            HistoryTransportPolicy.permits($0) && context.options.scope.contains($0)
         }
+        guard !pending.isEmpty else { return nil }
         return await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: pending) { [localStore, zoneID] recordID in
-            guard recordID.zoneID == zoneID,
-                  let local = try? await localStore.localRecord(named: recordID.recordName) else {
+            guard recordID.zoneID == zoneID else { return nil }
+            if recordID.recordName.hasPrefix(CloudObservationCodec.prefix) {
+                guard let local = try? await localStore.observationRecords(named: recordID.recordName).first else { return nil }
+                return try? CloudObservationCodec.makeRecord(local, zoneID: zoneID)
+            }
+            guard let local = try? await localStore.localRecord(named: recordID.recordName) else {
                 return nil
             }
             return try? CloudRecordCodec.makeRecord(from: local, zoneID: zoneID)
@@ -280,11 +330,18 @@ actor CloudSyncManager: CKSyncEngineDelegate {
     private func addDirtyRecordsToEngine() async {
         guard let engine else { return }
         do {
-            let changes = try await localStore.dirtyRecords().map {
+            var changes = try await localStore.dirtyRecords().map {
                 CKSyncEngine.PendingRecordZoneChange.saveRecord(
                     CKRecord.ID(recordName: $0.recordName, zoneID: zoneID)
                 )
             }
+            if HistoryTransportPolicy.enabled {
+                changes += try await localStore.dirtyObservationNames().map {
+                    CKSyncEngine.PendingRecordZoneChange.saveRecord(CKRecord.ID(recordName: $0, zoneID: zoneID))
+                }
+            }
+            let blocked = engine.state.pendingRecordZoneChanges.filter { !HistoryTransportPolicy.permits($0) }
+            engine.state.remove(pendingRecordZoneChanges: blocked)
             if !changes.isEmpty { engine.state.add(pendingRecordZoneChanges: changes) }
             await statusStore.setPendingLocalChanges(changes.count)
         } catch {
@@ -293,6 +350,10 @@ actor CloudSyncManager: CKSyncEngineDelegate {
     }
 
     private func ingestFetchedRecord(_ server: CKRecord, syncEngine: CKSyncEngine) async throws {
+        if server.recordType == CloudObservationCodec.recordType {
+            try await ingestObservation(server, syncEngine: syncEngine)
+            return
+        }
         guard server.recordType == CloudRecordCodec.recordType else { return }
         let identityKey = try CloudRecordCodec.identityKey(server)
         let expectedName = CloudRecordIdentity.recordName(for: identityKey)
@@ -354,7 +415,21 @@ actor CloudSyncManager: CKSyncEngineDelegate {
         }
     }
 
+    private func ingestObservation(_ server: CKRecord, syncEngine: CKSyncEngine) async throws {
+        try await localStore.applyRemoteObservation(CloudObservationCodec.decode(server))
+        let id = server.recordID
+        if HistoryTransportPolicy.enabled, try await localStore.observationRecords(named: id.recordName).first?.isDirty == true {
+            syncEngine.state.add(pendingRecordZoneChanges: [.saveRecord(id)])
+        } else {
+            syncEngine.state.remove(pendingRecordZoneChanges: [.saveRecord(id)])
+        }
+    }
+
     private func acknowledge(_ server: CKRecord, syncEngine: CKSyncEngine) async throws {
+        if server.recordType == CloudObservationCodec.recordType {
+            try await ingestObservation(server, syncEngine: syncEngine)
+            return
+        }
         guard let local = try await localStore.localRecord(named: server.recordID.recordName) else { return }
         let matches = try CloudRecordCodec.matches(local: local, serverRecord: server, zoneID: zoneID)
         let remainsDirty = try await localStore.acknowledgeSavedRecord(
@@ -372,6 +447,32 @@ actor CloudSyncManager: CKSyncEngineDelegate {
         syncEngine: CKSyncEngine
     ) async throws {
         let error = failure.error
+        if failure.record.recordType == CloudObservationCodec.recordType {
+            guard HistoryTransportPolicy.enabled else {
+                syncEngine.state.remove(pendingRecordZoneChanges: [.saveRecord(failure.record.recordID)])
+                return
+            }
+            switch error.code {
+            case .serverRecordChanged:
+                if let server = error.serverRecord {
+                    try await localStore.retainIncomingRecord(named: server.recordID.recordName,
+                        archive: CloudRecordCodec.archivedSystemFields(server))
+                    try await ingestObservation(server, syncEngine: syncEngine)
+                    try await localStore.removeRetainedIncomingRecord(named: server.recordID.recordName)
+                    await statusStore.catalogDidChange()
+                } else { await report(error) }
+            case .unknownItem, .zoneNotFound:
+                try await localStore.resetObservationSystemFields(named: failure.record.recordID.recordName)
+                if error.code == .zoneNotFound {
+                    syncEngine.state.add(pendingDatabaseChanges: [.saveZone(CKRecordZone(zoneID: zoneID))])
+                }
+                syncEngine.state.add(pendingRecordZoneChanges: [.saveRecord(failure.record.recordID)])
+            default:
+                syncEngine.state.add(pendingRecordZoneChanges: [.saveRecord(failure.record.recordID)])
+                await report(error)
+            }
+            return
+        }
 
         switch error.code {
         case .unknownItem:
@@ -462,7 +563,9 @@ actor CloudSyncManager: CKSyncEngineDelegate {
 
     private func updatePendingCount() async {
         do {
-            await statusStore.setPendingLocalChanges(try await localStore.dirtyCount())
+            let items = try await localStore.dirtyCount()
+            let observations = HistoryTransportPolicy.enabled ? try await localStore.dirtyObservationCount() : 0
+            await statusStore.setPendingLocalChanges(items + observations)
         } catch {
             await report(error)
         }
