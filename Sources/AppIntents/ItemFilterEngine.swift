@@ -64,7 +64,8 @@ enum ItemFilterEngine {
         case .all:
             return items
         case .category(let category):
-            return items.filter { normalizedCategory($0.category) == normalizedCategory(category) }
+            let name = normalizedCategory(category)
+            return items.filter { normalizedCategory($0.category) == name }
         case .uncategorized:
             return items.filter { normalizedCategory($0.category) == nil }
         }
@@ -93,7 +94,12 @@ enum ItemFilterEngine {
     /// Unknown category names remain visible, and missing/blank names share the last section.
     static func sections(in items: [Item]) -> [CategorySection] {
         let groups = Dictionary(grouping: items) { normalizedCategory($0.category) }
-        let names = categoryNames(in: items)
+        // Group keys are already normalized and unique; avoid scanning and
+        // normalizing the entire catalog a second time.
+        let names = groups.keys.compactMap { $0 }.sorted {
+            let comparison = $0.localizedCaseInsensitiveCompare($1)
+            return comparison == .orderedSame ? $0 < $1 : comparison == .orderedAscending
+        }
         var sections = names.map { CategorySection(category: $0, items: groups[$0] ?? []) }
         if let unclassified = groups[nil] {
             sections.append(CategorySection(category: nil, items: unclassified))

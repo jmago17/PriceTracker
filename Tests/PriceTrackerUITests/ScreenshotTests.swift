@@ -140,7 +140,10 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["price-history-chart"].exists)
         capture(app, "history_flat_after_refresh")
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.staticTexts["Comprobado ahora"].firstMatch.waitForExistence(timeout: 5))
+        // ItemRowView combines its children into one accessibility element.
+        let refreshedRow = app.descendants(matching: .any)["item-row"].firstMatch
+        XCTAssertTrue(refreshedRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(refreshedRow.label.contains("Última comprobación correcta: ahora"))
         capture(app, "catalog_fresh_after_equal_price")
     }
 
@@ -315,17 +318,24 @@ final class ScreenshotTests: XCTestCase {
         app.launch()
         app.tabBars.buttons["Ajustes"].tap()
         let toggle = app.switches["compact-catalog-mural-toggle"]
+        // Settings has sections above Appearance; List materializes rows on scroll.
+        for _ in 0..<6 where !toggle.isHittable { app.swipeUp() }
         XCTAssertTrue(toggle.waitForExistence(timeout: 5))
         guard toggle.isEnabled else {
             throw XCTSkip("Switch compacto deshabilitado en ancho regular")
         }
-        if toggle.value as? String == "1" { toggle.tap() }
+        // SwiftUI exposes a row-sized switch container plus the native control.
+        let control = toggle.switches.firstMatch
+        if toggle.value as? String == "1" { control.tap() }
+        XCTAssertEqual(toggle.value as? String, "0")
         app.tabBars.buttons["Precios"].tap()
         guard app.descendants(matching: .any)["item-row"].firstMatch.waitForExistence(timeout: 5) else {
             throw XCTSkip("Ejecutar en iPhone vertical")
         }
         app.tabBars.buttons["Ajustes"].tap()
-        toggle.tap()
+        for _ in 0..<6 where !toggle.isHittable { app.swipeUp() }
+        control.tap()
+        XCTAssertEqual(toggle.value as? String, "1")
         app.tabBars.buttons["Precios"].tap()
         XCTAssertTrue(app.scrollViews["catalog-mural-compact"].waitForExistence(timeout: 5))
         capture(app, "iphone_mural_settings_enabled")
@@ -333,7 +343,9 @@ final class ScreenshotTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.scrollViews["catalog-mural-compact"].waitForExistence(timeout: 10))
         app.tabBars.buttons["Ajustes"].tap()
-        app.switches["compact-catalog-mural-toggle"].tap()
+        for _ in 0..<6 where !toggle.isHittable { app.swipeUp() }
+        control.tap()
+        XCTAssertEqual(toggle.value as? String, "0")
         app.tabBars.buttons["Precios"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["item-row"].firstMatch.waitForExistence(timeout: 5))
         capture(app, "iphone_list_settings_disabled")
@@ -392,7 +404,7 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(match.waitForExistence(timeout: 5))
         XCTAssertTrue(match.label.contains("12,99"), "La tarjeta mantiene el precio real")
         XCTAssertTrue(match.label.contains("Verde oliva"))
-        XCTAssertTrue(match.label.contains("Comprobado"))
+        XCTAssertTrue(match.label.contains("Última comprobación correcta:"))
         XCTAssertTrue(app.buttons["mural-status-filter-menu"].isHittable)
         filter.tap()
         XCTAssertTrue(app.buttons["Pausados"].waitForExistence(timeout: 5))

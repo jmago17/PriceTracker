@@ -163,3 +163,43 @@ struct CatalogSemanticsTests {
         #expect(item.reductionSinceAddedCents == nil)
     }
 }
+
+struct CategoryOptimizationRegressionTests {
+    @Test func whitespaceSelectionRetainsUncategorizedSemanticsAndExactCents() {
+        let items = [makeItem(title: "Nil", priceCurrentCents: 0),
+                     makeItem(title: "Blank", category: " \n", priceCurrentCents: 1),
+                     makeItem(title: "Named", category: " Libros ", priceCurrentCents: 1299),
+                     makeItem(title: "Lower", category: "libros", priceCurrentCents: 1300)]
+        #expect(ItemFilterEngine.filter(items, by: .category(" \n")) == Array(items.prefix(2)))
+        #expect(ItemFilterEngine.filter(items, by: .category(" Libros\n")) == [items[2]])
+        let sections = ItemFilterEngine.sections(in: items)
+        #expect(sections.map(\.category) == ["Libros", "libros", nil])
+        #expect(sections.flatMap(\.items).map(\.priceCurrentCents) == [1299, 1300, 0, 1])
+    }
+
+    @Test func largeCatalogMatchesPreviousGroupingAndMeasuresWork() {
+        let items = (0..<10_000).map { index in
+            makeItem(title: "Item \(index)", category: index % 7 == 0 ? nil : " Category \(index % 30) ")
+        }
+        func previous() -> [ItemFilterEngine.CategorySection] {
+            let groups = Dictionary(grouping: items) { ItemFilterEngine.normalizedCategory($0.category) }
+            var sections = ItemFilterEngine.categoryNames(in: items).map {
+                ItemFilterEngine.CategorySection(category: $0, items: groups[$0] ?? [])
+            }
+            if let unclassified = groups[nil] {
+                sections.append(.init(category: nil, items: unclassified))
+            }
+            return sections
+        }
+        let expected = previous()
+        let actual = ItemFilterEngine.sections(in: items)
+        #expect(actual.map(\.id) == expected.map(\.id))
+        #expect(actual.map(\.items) == expected.map(\.items))
+        let clock = ContinuousClock()
+        var checksum = 0
+        let before = clock.measure { for _ in 0..<20 { checksum += previous().count } }
+        let after = clock.measure { for _ in 0..<20 { checksum += ItemFilterEngine.sections(in: items).count } }
+        #expect(checksum == 1240)
+        print("CATEGORY_BENCHMARK 10000 items x20 before=\(before) after=\(after)")
+    }
+}

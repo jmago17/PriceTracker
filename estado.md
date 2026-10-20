@@ -1,3 +1,19 @@
+## Auditoría de categorías y regresiones — 2026-10-20
+
+Base remota c5b3e75. Copia aislada fuera de iCloud; checkout histórico y cambios ajenos preservados.
+
+Se normaliza la categoría seleccionada una sola vez y se reutilizan las claves de agrupación para evitar recorrer/normalizar dos veces el catálogo. Se conservan orden, categorías vacías y distinción de mayúsculas. Dos regresiones adicionales comprueban valores exactos en céntimos y equivalencia de todos los artículos de 10.000 entradas sintéticas con el algoritmo anterior.
+
+Benchmark Debug (20 agrupaciones de 10.000 artículos): 0,744 → 0,450 s; repetición 0,258 → 0,138 s. Reducción local del 40–47 %, no medida de apertura de app ni de dispositivo físico.
+
+Xcode 27.1 / iPhone 17 Pro iOS 27.0: 215 unitarias pasan. Primera batería UI: 13 correctas, 3 omitidas por tamaño/dispositivo y 3 fallos reproducidos con producción original. Se reparan selectores de esos tests sin cambiar UI: desplazar Ajustes y pulsar el switch hijo nativo (valores 0→1→0 y persistencia), leer la etiqueta accesible vigente de tarjeta y fila. Los tres pasan en repeticiones dirigidas; última ejecución: 215 unitarias + 2 UI, TEST SUCCEEDED, salida 0. No se ha repetido toda la UI en una única ejecución después de corregir selectores.
+
+Evidencia: /tmp/PriceTracker-evidence-20261020 (regression, baseline-ui, fixed-ui y final-targeted, logs y xcresult). Respaldo de logs/parche e informe en Documents/Codex/2026-10-20/task-2/evidence.
+
+Sin cambios de esquemas, migración, historial, cálculo monetario ni datos reales. Se mantienen JSON y adaptadores con usos activos. Pendiente: iPad/anchura estrecha de esta ronda, validación física/CloudKit ya documentada y posible consulta SQLite indexada por UUID para sustituir cargas completas; requiere trabajo separado con pruebas de migración y tombstones. Avisos del SDK/XCTest y deprecaciones preexistentes no resueltos en esta ronda.
+
+---
+
 ## Estado vigente — revisión final 2026-10-16
 
 Production no dispone de PriceObservation. **Transporte saliente del historial desactivado** mediante HistoryTransportPolicy.enabled = false: no se encolan nuevas muestras y se eliminan observaciones pendientes restauradas antes de construir lotes. CatalogItem sigue elegible. Los bytes, UUID y pendientes locales de observaciones se conservan en SQLite; no se despliega ni cambia el esquema.
