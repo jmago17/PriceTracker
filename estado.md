@@ -1,3 +1,13 @@
+## Cierre adicional de UI — 2026-10-20 (UTC)
+
+Código verificado: 9a65935, sin cambios de Sources/Tests en esta ronda. Pasada coherente de iPhone 17 Pro: **16 tests UI, 0 fallos, 0 omitidos**, salida 0. Después, en serie, iPad dedicado: **2 tests UI, 0 fallos, 0 omitidos**, salida 0 (toolbar/acciones y mural vertical-horizontal). Evidencia: /tmp/PriceTracker-evidence-20261020/coherent-iphone-ui.xcresult y final-ipad-ui.xcresult, logs y resúmenes JSON; respaldo en Documents/Codex/2026-10-20/task-2/evidence.
+
+**Cobertura UI final: 18/19, no suite completa.** El caso testCompactMuralNarrowWidthFallback exige viewport <358 pt. Intentar crear iPhone SE 1st generation de 320 pt con el único runtime instalado (iOS 27.0) falla: CoreSimulator.SimError 403, Incompatible device, salida 147. No se creó el destino. No se modificó el umbral ni se eliminó la aserción para obtener un aprobado; este caso permanece bloqueado por destino incompatible.
+
+Revisión de selectores: se conservan las aserciones de céntimos/precio, color, frescura, gráfico, navegación y persistencia tras relanzar. Settings pulsa el switch nativo observado dentro del contenedor y añade comprobaciones 0→1→0. Las etiquetas de tarjeta/fila se comprueban con el texto accesible vigente. Sin relajación de tolerancias ni cambios de UI productiva. Se ejecutó un solo destino de PriceTracker cada vez; los simuladores de otros proyectos no se tocaron. Sin procesos de test pendientes.
+
+---
+
 ## Auditoría de categorías y regresiones — 2026-10-20
 
 Base remota c5b3e75. Copia aislada fuera de iCloud; checkout histórico y cambios ajenos preservados.
