@@ -23,6 +23,7 @@ private final class MockAppleStoreURLProtocol: URLProtocol, @unchecked Sendable 
     override func stopLoading() {}
 }
 
+@Suite(.serialized)
 struct AppleStoreConnectorTests {
     @Test func configuredWatchUsesExactOfferAndSKU() async throws {
         MockAppleStoreURLProtocol.responseData = htmlData(

@@ -15,6 +15,8 @@ final class SyncViewModel {
         guard !AppGroup.isDemo else { return }
         await environment.syncManager.start()
         await reload()
+        do { try await environment.refreshCoordinator.retryPendingAlerts() }
+        catch { snapshot.lastError = "Alertas pendientes de reintento: \(error.localizedDescription)" }
     }
 
     func syncNow() async {
@@ -22,6 +24,8 @@ final class SyncViewModel {
         snapshot.isSyncing = true
         await environment.syncManager.syncNow()
         await reload()
+        do { try await environment.refreshCoordinator.retryPendingAlerts() }
+        catch { snapshot.lastError = "Alertas pendientes de reintento: \(error.localizedDescription)" }
     }
 
     func monitorStatus() async {

@@ -199,3 +199,72 @@ struct WebPriceParserTests {
     }
 
 }
+
+// Explicit synthetic fixtures, not the historical Amazon incident DOM.
+struct AmazonPriceReconciliationTests {
+    private let url = URL(string: "https://www.amazon.es/dp/B07VLJ5JDV")!
+    private var selected: Item {
+        Item(store: .amazon, storeItemID: "B07VLJ5JDV", currency: "EUR", canonicalURL: url,
+             title: "Cámara sintética", size: "Kit", color: "Negro")
+    }
+    private func structured(_ price: String = "1090.99", asin: String = "B07VLJ5JDV", fields: String = "") -> String {
+        """
+        <script type='application/ld+json'>{"@type":"Product","sku":"\(asin)","url":"https://www.amazon.es/dp/\(asin)","name":"Cámara sintética",\(fields)"offers":{"@type":"Offer","price":"\(price)","priceCurrency":"EUR"}}</script>
+        """
+    }
+    private func box(_ price: String = "1.090,99 €", extra: String = "") -> String {
+        """
+        <input id='ASIN' value='B07VLJ5JDV'><span id='productTitle'>Cámara sintética</span>
+        <div id='variation_color_name'><span class='selection'>Negro</span></div>
+        <div id='corePrice_feature_div'>\(extra)<span class='a-price'><span class='a-offscreen'>\(price)</span><span aria-hidden='true'>1.090<small>99</small>€</span></span></div>
+        """
+    }
+    private func parse(_ html: String) throws -> FetchResult {
+        try WebPriceParser.parse(data: Data(html.utf8), finalURL: url, item: selected)
+    }
+
+    @Test func structuredAndVisibleMustAgreeButEitherCanStandAlone() throws {
+        #expect(try parse(structured() + box()).priceCents == 109099)
+        #expect(try parse(structured()).priceCents == 109099)
+        #expect(try parse(box()).priceCents == 109099)
+        #expect(throws: (any Error).self) { try parse(structured("12.39") + box()) }
+        #expect(throws: (any Error).self) { try parse(structured() + box("12,39 €")) }
+        // A small total can be legitimate: never use a price floor.
+        #expect(try parse(structured("12.39") + box("12,39 €")).priceCents == 1239)
+    }
+
+    @Test func structuredCannotHideDOMConditionsCurrencyOrVariantConflict() {
+        for condition in ["12,39 € al mes", "3 <span>pagos</span> de", "Envío 12,39 €", "precio por unidad", "subscription", "<span aria-label='financing'></span>"] {
+            #expect(throws: (any Error).self) { try parse(structured() + box(extra: condition)) }
+        }
+        for price in ["12,39 € al mes", "12,39 €–1.090,99 €", "$1090.99", "EUR 1090.99 USD", "1.090,99 € + envío"] {
+            #expect(throws: (any Error).self) { try parse(structured() + box(price)) }
+        }
+        #expect(throws: (any Error).self) { try parse(structured() + box().replacingOccurrences(of: "Negro", with: "Rojo")) }
+        #expect(throws: (any Error).self) { try parse(structured() + box().replacingOccurrences(of: "value='B07VLJ5JDV'", with: "value='B000000001'")) }
+        #expect(throws: (any Error).self) { try parse(structured(fields: "\"color\":\"Rojo\",")) }
+    }
+
+    @Test func accessoryBeforeMainHiddenNodesAndAccessibleDuplicates() throws {
+        let accessory = structured("12.39", asin: "B000000001")
+        let hidden = "<span hidden class='a-price'><span class='a-offscreen'>12,39 €</span></span><span style='display: none' class='a-price'><span class='a-offscreen'>13,39 €</span></span>"
+        #expect(try parse(accessory + structured() + box(extra: hidden)).priceCents == 109099)
+        let duplicate = "<span class='a-price'><span class='a-offscreen'>1.090,99 €</span></span>"
+        #expect(try parse(box(extra: duplicate)).priceCents == 109099)
+        #expect(throws: (any Error).self) { try parse(box(extra: duplicate.replacingOccurrences(of: "1.090,99", with: "12,39"))) }
+        #expect(throws: (any Error).self) { try parse(box(extra: "<div data-asin='B000000001'>Otro producto</div>")) }
+        for scope in ["data-asin='B000000001'", "id='recommendations'", "class='sponsored-accessories'"] {
+            let scoped = box().replacingOccurrences(of: "<div id='corePrice_feature_div'>", with: "<div \(scope)><div id='corePrice_feature_div'>") + "</div>"
+            #expect(throws: (any Error).self) { try parse(structured() + scoped) }
+        }
+        #expect(throws: (any Error).self) { try parse(accessory) }
+    }
+
+    @Test func metadataUsesSameContractAndDoesNotBindAccessory() throws {
+        let page = "<title>Cámara sintética</title>" + structured("12.39", asin: "B000000001") + structured() + box()
+        let metadata = try #require(StorePageParser.parse(data: Data(page.utf8), fallbackURL: url))
+        #expect(metadata.priceCents == 109099 && metadata.currency == "EUR")
+        let conflict = page.replacingOccurrences(of: "\"price\":\"1090.99\"", with: "\"price\":\"12.39\"")
+        #expect(StorePageParser.parse(data: Data(conflict.utf8), fallbackURL: url)?.priceCents == nil)
+    }
+}

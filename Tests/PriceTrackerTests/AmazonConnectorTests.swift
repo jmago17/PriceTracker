@@ -20,7 +20,7 @@ private final class MockAmazonURLProtocol: URLProtocol, @unchecked Sendable {
 
 @Suite(.serialized)
 struct AmazonConnectorTests {
-    @Test func extractsMetadataOnceButRemainsNonRefreshable() async throws {
+    @Test func unboundMetadataKeepsLinkWithoutInventingPrice() async throws {
         MockAmazonURLProtocol.responseData = Data("""
         <html><head>
         <meta name="title" content="Producto Amazon real : Amazon.es: Electrónica">
@@ -48,12 +48,12 @@ struct AmazonConnectorTests {
         #expect(item.title == "Producto Amazon real")
         #expect(item.subtitle == "Descripción Amazon real")
         #expect(item.imageURL?.absoluteString == "https://example.com/amazon-real.jpg")
-        #expect(item.priceCents == 2_550)
+        #expect(item.priceCents == nil) // unbound meta is not a verified product offer
         #expect(item.storeGenre == "Electrónica")
         #expect(Store.refreshableStores.contains(.amazon))
     }
 
-    @Test func renderedVisiblePriceOverridesAmbiguousStructuredPrice() async throws {
+    @Test func legacyCapturePriceIsNotTrustedWithoutEvidence() async throws {
         MockAmazonURLProtocol.responseData = Data("""
         <html><head>
         <meta name="title" content="Producto Amazon real : Amazon.es: Electrónica">
@@ -77,7 +77,7 @@ struct AmazonConnectorTests {
 
         let item = try await connector.resolve(url: url, pageCapture: capture)
 
-        #expect(item.priceCents == 699)
+        #expect(item.priceCents == nil)
         #expect(item.currency == "EUR")
     }
 
@@ -85,5 +85,33 @@ struct AmazonConnectorTests {
         let url = AmazonConnector.keepaURL(asin: "B07RXN1HGG", region: "ES")
 
         #expect(url.absoluteString == "https://keepa.com/#!product/9-B07RXN1HGG")
+    }
+}
+
+extension AmazonConnectorTests {
+    @Test func manualAndShareUseSameValidatedTotalAndRejectContradictions() async throws {
+        let url = URL(string: "https://www.amazon.es/dp/B07VLJ5JDV")!
+        let visible = "<input id='ASIN' value='B07VLJ5JDV'><span id='productTitle'>Cámara sintética</span><div id='corePrice_feature_div'><span class='a-price'><span class='a-offscreen'>1.090,99 €</span></span></div>"
+        let structured = "<title>Cámara sintética</title><script type='application/ld+json'>{\"@type\":\"Product\",\"sku\":\"B07VLJ5JDV\",\"offers\":{\"price\":\"1090.99\",\"priceCurrency\":\"EUR\"}}</script>"
+        MockAmazonURLProtocol.responseData = Data(structured.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockAmazonURLProtocol.self]
+        let connector = AmazonConnector(session: URLSession(configuration: configuration), rendersDynamicPages: false)
+        let manual = try await connector.resolve(url: url)
+        #expect(manual.priceCents == 109099)
+        let capture = try #require(SharedPageCapture(propertyList: ["pageURL":url.absoluteString,
+            "title":"Cámara sintética", "priceCents":1239, "currency":"USD", "amazonPriceHTML":visible]))
+        let shared = try await connector.resolve(url: url, pageCapture: capture)
+        #expect(shared.priceCents == manual.priceCents && shared.currency == "EUR")
+        let item = Item(resolved: shared)
+        #expect(item.priceCurrentCents == 109099 && item.priceAtAddCents == 109099 && item.priceLowCents == 109099)
+        for invalid in [visible.replacingOccurrences(of: "1.090,99 €", with: "12,39 € al mes"),
+                        visible.replacingOccurrences(of: "1.090,99 €", with: "12,39 €"),
+                        visible.replacingOccurrences(of: "B07VLJ5JDV", with: "B000000001")] {
+            var bad = capture; bad.amazonPriceHTML = invalid
+            let saved = Item(resolved: try await connector.resolve(url: url, pageCapture: bad))
+            #expect(saved.priceCurrentCents == nil && saved.priceLowCents == nil && saved.priceAtAddCents == nil)
+            #expect(saved.canonicalURL == url && saved.lastSuccessAt == nil)
+        }
     }
 }

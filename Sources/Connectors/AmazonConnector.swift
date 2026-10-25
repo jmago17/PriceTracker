@@ -42,16 +42,31 @@ struct AmazonConnector: StoreConnector {
         let title = renderedTitle.title ?? metadataTitle.title ?? "Amazon \(asin)"
         let description = renderedCapture?.description ?? metadata?.description
         let subtitle = description == title ? nil : description
+        let size = renderedCapture?.size ?? metadata?.size
+        let color = renderedCapture?.color ?? metadata?.color
+        // Never trust priceCents from legacy Safari captures. Reconcile public
+        // structured evidence and the sanitized visible DOM with the refresh
+        // validator. Contradictions/unknown layouts still allow saving the link.
+        var priceDocument = metadata?.amazonPriceDocument ?? Data()
+        var captureIdentityIsValid = true
+        if let capture = renderedCapture, let evidence = capture.amazonPriceHTML {
+            captureIdentityIsValid = [capture.pageURL, capture.canonicalURL].compactMap { $0 }.allSatisfy {
+                Self.extractASIN(from: $0) == asin && $0.host?.lowercased() == url.host?.lowercased()
+            } && capture.pageURL != nil
+            priceDocument.append(Data(evidence.utf8))
+        }
+        let price = captureIdentityIsValid ? try? WebPriceParser.amazonAddPrice(data: priceDocument,
+            url: url, title: title, size: size, color: color) : nil
         return ResolvedItem(
             store: .amazon,
             storeItemID: asin,
             region: marketplace.region,
-            currency: renderedCapture?.currency ?? metadata?.currency ?? marketplace.currency,
+            currency: marketplace.currency,
             canonicalURL: Self.canonicalURL(asin: asin, host: url.host ?? "www.amazon.es"),
             title: title,
             subtitle: subtitle,
             imageURL: renderedCapture?.imageURL ?? metadata?.imageURL,
-            priceCents: renderedCapture?.priceCents ?? metadata?.priceCents,
+            priceCents: price?.priceCents,
             priceReferenceCents: nil,
             storeGenre: renderedCapture?.category ?? metadata?.category ?? metadataTitle.category,
             size: renderedCapture?.size ?? metadata?.size,
@@ -94,7 +109,7 @@ struct AmazonConnector: StoreConnector {
         return URL(string: "https://keepa.com/#!product/\(domainID)-\(asin)")!
     }
 
-    private static func marketplace(for host: String?) -> (region: String, currency: String) {
+    static func marketplace(for host: String?) -> (region: String, currency: String) {
         guard let host = host?.lowercased() else { return ("US", "USD") }
         if host.hasSuffix("amazon.co.uk") { return ("GB", "GBP") }
         if host.hasSuffix("amazon.de") { return ("DE", "EUR") }

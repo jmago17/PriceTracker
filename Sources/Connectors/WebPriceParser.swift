@@ -1,9 +1,17 @@
 import Foundation
 import CoreFoundation
 
-/// Strict refresh extraction. The permissive add-time parser is never trusted
-/// to choose a price: related products, ranges and unverified variants fail closed.
+/// Shared strict extraction for refresh and Amazon add/share. Related products,
+/// ranges and unverified variants fail closed; missing evidence is not a price.
 enum WebPriceParser {
+    static func amazonAddPrice(data: Data, url: URL, title: String, size: String?, color: String?) throws -> FetchResult {
+        guard let asin = AmazonConnector.extractASIN(from: url) else { throw WebPriceError.identity }
+        let market = AmazonConnector.marketplace(for: url.host)
+        let item = Item(store: .amazon, storeItemID: asin, region: market.region, currency: market.currency,
+            canonicalURL: url, title: title, size: size, color: color)
+        return try parse(data: data, finalURL: url, item: item)
+    }
+
     static func parse(data: Data, finalURL: URL, item: Item, now: Date = Date()) throws -> FetchResult {
         guard let html = String(data: data, encoding: .utf8), html.count <= 2_000_000 else { throw WebPriceError.missing }
         let document = PriceHTML.parse(html)
@@ -21,7 +29,11 @@ enum WebPriceParser {
             .flatMap { absolute($0.attributes["href"], base: finalURL) }
         guard matches(finalURL, item: item) || canonical.map({ matches($0, item: item) }) == true else { throw WebPriceError.identity }
 
-        let pagePrice = try metadataPrice(document, base: finalURL, item: item)
+        let metadata = try metadataPrice(document, base: finalURL, item: item)
+        let amazonPrice = item.store == .amazon ? try amazon(document, item: item) : nil
+        let pagePrice: FetchResult?
+        if let amazonPrice { pagePrice = try reconcile(amazonPrice, with: metadata) }
+        else { pagePrice = metadata }
         let scripts = document.nodes.filter { $0.tag == "script" && $0.attributes["type"]?.lowercased() == "application/ld+json" }
         var products: [[String: Any]] = []
         var graph: [String: [String: Any]] = [:]
@@ -33,7 +45,7 @@ enum WebPriceParser {
             let selected = products.filter { product in
                 if let url = absolute(string(product["url"]), base: finalURL) { return matches(url, item: item) }
                 if item.store == .amazon, string(product["sku"]) == item.storeItemID { return true }
-                return products.count == 1 && normalized(string(product["name"]) ?? "") == normalized(item.title)
+                return item.store != .amazon && products.count == 1 && normalized(string(product["name"]) ?? "") == normalized(item.title)
             }
             guard !selected.isEmpty else { throw WebPriceError.identity }
             let results = try selected.map { product -> FetchResult in
@@ -48,16 +60,18 @@ enum WebPriceParser {
             return try reconcile(unique(results), with: pagePrice)
         }
 
-        let microProducts = document.nodes.filter { schemaType($0.attributes["itemtype"]) == "Product" }
+        let microProducts = document.nodes.filter { !$0.isExcluded && schemaType($0.attributes["itemtype"]) == "Product" }
         if !microProducts.isEmpty {
             let selected = microProducts.filter { node in
                 let values = properties(node)
                 if let url = absolute(values["url"]?.first, base: finalURL) { return matches(url, item: item) }
+                if item.store == .amazon { return values["sku"] == [item.storeItemID] }
                 return microProducts.count == 1 && normalized(values["name"]?.first ?? "") == normalized(item.title)
             }
             guard selected.count == 1, let product = selected.first else { throw WebPriceError.identity }
             let values = properties(product)
-            try validateVariant(size: values["size"]?.first, color: values["color"]?.first, item: item, asinBound: false)
+            if item.store == .amazon, let skus = values["sku"], skus.contains(where: { $0 != item.storeItemID }) { throw WebPriceError.identity }
+            try validateVariant(size: values["size"]?.first, color: values["color"]?.first, item: item, asinBound: item.store == .amazon)
             let offers = product.nodes.filter { schemaType($0.attributes["itemtype"]) == "Offer" && nearestProduct($0) === product }
             guard !offers.isEmpty else { throw WebPriceError.missing }
             let result = try unique(offers.map { node in
@@ -75,7 +89,10 @@ enum WebPriceParser {
             return try reconcile(result, with: pagePrice)
         }
 
-        if item.store == .amazon { return try reconcile(amazon(document, item: item), with: pagePrice) }
+        if item.store == .amazon {
+            guard let pagePrice else { throw WebPriceError.missing }
+            return pagePrice
+        }
         guard let pagePrice else { throw WebPriceError.missing }
         try validateVariant(size: nil, color: nil, item: item, asinBound: false)
         return pagePrice
@@ -193,12 +210,11 @@ enum WebPriceParser {
         }
     }
 
-    private static func amazon(_ document: PriceHTML, item: Item) throws -> FetchResult {
+    private static func amazon(_ document: PriceHTML, item: Item) throws -> FetchResult? {
         let selectedASINs = Set(document.nodes.filter {
             $0.tag == "input" && ($0.attributes["id"] == "ASIN" || $0.attributes["name"] == "ASIN")
         }.compactMap { $0.attributes["value"] }.filter { !$0.isEmpty })
-        guard selectedASINs == [item.storeItemID],
-              document.nodes.contains(where: { $0.attributes["id"] == "productTitle" && !$0.text.isEmpty }) else { throw WebPriceError.identity }
+        if !selectedASINs.isEmpty && selectedASINs != [item.storeItemID] { throw WebPriceError.identity }
         // Amazon's selected ASIN identifies the chosen child variant. Any explicit
         // selected values we can see must still match the user's stored variant.
         for (id, expected) in [("variation_size_name", item.size), ("variation_color_name", item.color)] {
@@ -210,16 +226,31 @@ enum WebPriceParser {
            ["currently unavailable", "temporarily out", "no disponible", "agotado", "indisponible"].contains(where: availability.contains) {
             throw WebPriceError.missing
         }
-        let blockIDs = ["corePriceDisplay_desktop_feature_div", "corePrice_feature_div", "apex_desktop", "priceblock_ourprice", "priceblock_dealprice"]
-        let blocks = document.nodes.filter { blockIDs.contains($0.attributes["id"] ?? "") }
+        let blockIDs = ["corePriceDisplay_desktop_feature_div", "corePrice_feature_div", "apex_desktop", "apex_mobile", "priceblock_ourprice", "priceblock_dealprice"]
+        let blocks = document.nodes.filter { !$0.isExcluded && blockIDs.contains($0.attributes["id"] ?? "") }
+        guard !blocks.isEmpty else { return nil }
+        guard selectedASINs == [item.storeItemID],
+              document.nodes.contains(where: { !$0.isExcluded && $0.attributes["id"] == "productTitle" && !$0.text.isEmpty }) else { throw WebPriceError.identity }
         var amounts: [String] = []
         for block in blocks {
+            var ancestor: PriceHTML? = block
+            while let node = ancestor {
+                if let asin = node.attributes["data-asin"], !asin.isEmpty, asin != item.storeItemID { throw WebPriceError.identity }
+                let context = ((node.attributes["id"] ?? "") + " " + (node.attributes["class"] ?? "")).lowercased()
+                if context.range(of: #"recommend|accessor|sponsored|frequently[-_ ]?bought|sims-|similar|bundle"#, options: .regularExpression) != nil { throw WebPriceError.ambiguous }
+                ancestor = node.parent
+            }
             if hasConditionalPrice(in: block) { throw WebPriceError.ambiguous }
-            let prices = block.nodes.filter { $0.classes.contains("a-price") && !$0.classes.contains("a-text-price") }
+            let prices = block.nodes.filter { !$0.isExcluded && $0.classes.contains("a-price") && !$0.classes.contains("a-text-price") }
+            for node in block.nodes where !node.isExcluded {
+                if let asin = node.attributes["data-asin"], !asin.isEmpty, asin != item.storeItemID { throw WebPriceError.identity }
+            }
             for price in prices {
                 guard !price.text.lowercased().contains("/"),
                       !price.text.lowercased().contains("mes"), !price.text.lowercased().contains("month") else { throw WebPriceError.ambiguous }
-                if let amount = price.nodes.first(where: { $0.classes.contains("a-offscreen") })?.text { amounts.append(amount) }
+                let labels = price.nodes.filter { !$0.isExcluded && $0.classes.contains("a-offscreen") }
+                if labels.isEmpty { throw WebPriceError.ambiguous }
+                amounts.append(contentsOf: labels.map(\.text))
             }
             if (block.attributes["id"] ?? "").hasPrefix("priceblock_") { amounts.append(block.text) }
         }
@@ -249,7 +280,7 @@ enum WebPriceParser {
     /// Additional rejection signals inside the price area, not proof that any
     /// unrecognized wording is unconditional. Unknown page layouts can still fail.
     private static func hasConditionalPrice(in block: PriceHTML) -> Bool {
-        let annotations = block.nodes.flatMap { node in
+        let annotations = block.nodes.filter { !$0.isExcluded }.flatMap { node in
             ["aria-label", "title", "alt", "class", "id"].compactMap { node.attributes[$0] }
         }
         let text = normalized(([block.text] + annotations).joined(separator: " "))
@@ -258,8 +289,9 @@ enum WebPriceParser {
             #"\b(?:\d+|tres|three)\s*(?:pagos?|cuotas?|payments?|instalments?|installments?)\b"#,
             #"\b(?:al|por|per|a)\s+(?:mes|month|semana|week|ano|year)\b"#,
             #"(?:/|\bper\s+)(?:mes|mo|month|week|ano|year)\b"#,
-            #"\b(?:prime|miembros?|members?|socios?|cuotas?|mensual|monthly|installments?|instalments?|financing|subscription|membership)\b"#,
+            #"\b(?:prime|miembros?|members?|socios?|cuotas?|mensual|monthly|installments?|instalments?|financing|financiacion|subscription|membership)\b"#,
             #"subscribe|suscrib|precio exclusivo|compra recurrente|prime[-_ ]?(?:exclusive|member|price)"#,
+            #"\b(?:envio|shipping|delivery|accesorios?|accessor(?:y|ies)|recomendados?|recommended|por unidad|per unit)\b"#,
             #"\b\d+\s*[x×]\s*(?:[€£$]|\d)|\bpaga(?:r)?\s+en\s+\d+\b"#
         ]
         return patterns.contains { text.range(of: $0, options: .regularExpression) != nil }
@@ -325,7 +357,7 @@ enum WebPriceParser {
     }
     private static func properties(_ root: PriceHTML) -> [String: [String]] {
         var values: [String: [String]] = [:]
-        for node in root.nodes.dropFirst() {
+        for node in root.nodes.dropFirst() where !node.isExcluded {
             var ancestor = node.parent
             var nestedScope = false
             while let current = ancestor, current !== root {
@@ -350,9 +382,32 @@ private final class PriceHTML {
     init(_ tag: String, _ attributes: [String: String] = [:]) { self.tag = tag; self.attributes = attributes }
     var classes: Set<String> { Set((attributes["class"] ?? "").split(separator: " ").map(String.init)) }
     var nodes: [PriceHTML] { [self] + children.flatMap(\.nodes) }
+    var isExcluded: Bool {
+        if ["script", "style", "template", "noscript"].contains(tag) { return true }
+        if attributes["hidden"] != nil || attributes["aria-hidden"] == "true" { return true }
+        let style = (attributes["style"] ?? "").lowercased().filter { !$0.isWhitespace }
+        if style.contains("display:none") || style.contains("visibility:hidden") ||
+            !classes.isDisjoint(with: ["aok-hidden", "a-hidden", "hidden"]) { return true }
+        return parent?.isExcluded ?? false
+    }
     var text: String {
-        if ["script", "style"].contains(tag) { return "" }
+        if isExcluded { return "" }
         return StorePageParser.decodeHTMLEntities(([rawText] + children.map(\.text)).joined(separator: " ")).split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+    static func htmlAttributes(_ opening: String) -> [String: String] {
+        var values: [String: String] = [:]
+        // Consume a whole quoted/unquoted attribute, never reinterpret text
+        // inside an aria-label/title as a new attribute (including hidden).
+        let pattern = #"([A-Za-z_:][A-Za-z0-9_:.-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?"#
+        let regex = try! NSRegularExpression(pattern: pattern)
+        for match in regex.matches(in: opening, range: NSRange(opening.startIndex..., in: opening)) {
+            guard let keyRange = Range(match.range(at: 1), in: opening) else { continue }
+            let key = String(opening[keyRange]).lowercased()
+            let value = (2...4).compactMap { Range(match.range(at: $0), in: opening) }.first
+            if let value { values[key] = StorePageParser.decodeHTMLEntities(String(opening[value])) }
+            else if key == "hidden" { values[key] = "" }
+        }
+        return values
     }
     static func parse(_ html: String) -> PriceHTML {
         let root = PriceHTML("document")
@@ -370,7 +425,7 @@ private final class PriceHTML {
                 let tag = token.dropFirst().prefix { $0.isLetter || $0.isNumber }.lowercased()
                 guard !tag.isEmpty else { continue }
                 let opening = String(token.prefix(through: token.firstIndex(of: ">")!))
-                let node = PriceHTML(tag, StorePageParser.attributes(in: opening))
+                let node = PriceHTML(tag, htmlAttributes(opening))
                 node.parent = stack.last; stack.last?.children.append(node)
                 if tag == "script", let start = token.firstIndex(of: ">"), let end = token.range(of: "</script", options: .caseInsensitive)?.lowerBound {
                     node.rawText = String(token[token.index(after: start)..<end])

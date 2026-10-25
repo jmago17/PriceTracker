@@ -263,6 +263,66 @@ function priceTrackerPageText() {
     return text.length > 12000 ? text.slice(0, 12000) : text;
 }
 
+function priceTrackerAmazonEvidence() {
+    // Do not promote a number in JS: the same Swift validator consumes this
+    // bounded pricing-only fragment for Safari, WebKit and URLSession.
+    // No forms, links, scripts, cookies or full-page/account snapshots cross
+    // the extension boundary. Unknown layouts deliberately save without price.
+    const escape = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    function hidden(node) {
+        for (let p = node; p && p.nodeType === 1; p = p.parentElement) {
+            if (p.hasAttribute('hidden') || p.getAttribute('aria-hidden') === 'true') return true;
+            if (typeof getComputedStyle === 'function') {
+                const style = getComputedStyle(p);
+                if (style.display === 'none' || style.visibility === 'hidden') return true;
+            }
+        }
+        return false;
+    }
+    let visited = 0;
+    function serialize(node, depth = 0) {
+        if (++visited > 6000 || depth > 40) throw new Error('pricing fragment too large');
+        if (node.nodeType === 3) return escape(node.textContent || '');
+        if (node.nodeType !== 1) return '';
+        const tag = node.tagName.toLowerCase();
+        const asinInput = tag === 'input' && (node.getAttribute('id') === 'ASIN' || node.getAttribute('name') === 'ASIN');
+        if (tag === 'input' && !asinInput) return '';
+        // Amazon's selected ASIN is normally an input[type=hidden]. It is
+        // identity evidence, NOT a hidden price; preserve only that input.
+        if (!asinInput && hidden(node)) return '';
+        if (!['div', 'span', 'p', 'b', 'strong', 'input', 'label', 'section', 'img'].includes(tag)) {
+            return Array.from(node.childNodes || []).map(n => serialize(n, depth + 1)).join('');
+        }
+        const attrs = ['id', 'class', 'name', 'value', 'data-asin', 'aria-label', 'title', 'alt']
+            .filter(key => node.hasAttribute(key))
+            .map(key => ' ' + key + '="' + escape(node.getAttribute(key)) + '"').join('');
+        return '<' + tag + attrs + '>' + (['input', 'img'].includes(tag) ? '' :
+            Array.from(node.childNodes || []).map(n => serialize(n, depth + 1)).join('') + '</' + tag + '>');
+    }
+    try {
+        const selectors = ['input#ASIN', 'input[name="ASIN"]', '#productTitle',
+            '#variation_size_name', '#variation_color_name', '#availability',
+            '#corePriceDisplay_desktop_feature_div', '#corePrice_feature_div',
+            '#apex_desktop', '#apex_mobile', '#priceblock_ourprice', '#priceblock_dealprice'];
+        const roots = [...new Set(selectors.flatMap(s => Array.from(document.querySelectorAll(s))))];
+        const html = roots.filter(n => !roots.some(p => p !== n && p.contains(n))).map(node => {
+            let fragment = serialize(node);
+            // Keep relevant ancestry: moving a related product's price block
+            // out of its original data-asin/recommendation scope would be unsafe.
+            for (let p = node.parentElement; p; p = p.parentElement) {
+                const asin = p.getAttribute('data-asin');
+                const context = (p.getAttribute('id') || '') + ' ' + (p.getAttribute('class') || '');
+                const related = /recommend|accessor|sponsored|frequently[-_ ]?bought|sims-|similar|bundle/i.test(context);
+                if (asin || related) fragment = '<div' + (asin ? ' data-asin="' + escape(asin) + '"' : '')
+                    + (related ? ' class="' + escape(context) + '"' : '') + '>' + fragment + '</div>';
+            }
+            return fragment;
+        }).join('');
+        return html.length <= 120000 ? html : null;
+    } catch (_) { return null; }
+}
+
 function capturePage() {
     const hydrated = priceTrackerHydratedProduct();
     const hydratedProduct = hydrated ? hydrated.value : null;
@@ -326,12 +386,14 @@ function capturePage() {
     ]) || (hydratedProduct && (hydratedProduct.category || hydratedProduct.primaryCategoryId));
     const canonicalURL = priceTrackerURL(document.querySelector('link[rel="canonical"]'));
 
+    const isAmazon = /(^|\.)amazon\.[a-z.]+$/i.test(new URL(location.href).hostname);
     const result = { pageURL: location.href };
+    if (isAmazon) result.amazonPriceHTML = priceTrackerAmazonEvidence();
     if (canonicalURL) result.canonicalURL = canonicalURL;
     if (title) result.title = title;
     if (description) result.description = description;
     if (imageURL) result.imageURL = imageURL;
-    if (priceCents !== null && currency) {
+    if (!isAmazon && priceCents !== null && currency) {
         result.priceCents = priceCents;
         result.currency = currency;
     }

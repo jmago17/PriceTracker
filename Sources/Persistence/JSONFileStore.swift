@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 /// Generic atomic JSON-array-in-a-file store. Backs both items and alerts —
 /// see `JSONFileItemStore` / `JSONFileAlertStore` below. An `actor` because
@@ -47,6 +48,15 @@ actor JSONFileStore<Element: Codable & Sendable> {
     }
 
     func mutate(_ body: @Sendable (inout [Element]) -> Void) throws {
+        // Different app/Intent instances may have separate backing actors.
+        // Serialize read-modify-rename across those instances/processes too.
+        let directory = fileURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let fd = open(fileURL.path + ".lock", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        guard fd >= 0 else { throw CocoaError(.fileWriteUnknown) }
+        defer { close(fd) }
+        guard flock(fd, LOCK_EX) == 0 else { throw CocoaError(.fileWriteUnknown) }
+        defer { flock(fd, LOCK_UN) }
         var elements = try loadAll()
         body(&elements)
         try save(elements)
@@ -89,7 +99,11 @@ struct JSONFileAlertStore: AlertStoring {
 extension JSONFileAlertStore {
     @discardableResult
     func append(_ alert: PriceAlert) async throws -> PriceAlert {
-        try await backing.mutate { $0.append(alert) }
+        try await backing.mutate { alerts in
+            // Stable outbox UUID makes append-before-ack safe across restarts.
+            // Keep the original (including sentAt) when it was already delivered.
+            if !alerts.contains(where: { $0.id == alert.id }) { alerts.append(alert) }
+        }
         return alert
     }
     func markSent(ids: Set<UUID>, at date: Date = Date()) async throws {

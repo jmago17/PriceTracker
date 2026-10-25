@@ -398,3 +398,244 @@ extension AutomationTests {
         #expect(try await notifier.notifyPendingDrops() == 0)
     }
 }
+
+// Durable outbox fault injection. All catalog/JSON files are unique temporary fixtures.
+private enum OutboxFault: Error { case injected }
+
+private actor FaultAlertSink: AlertStoring {
+    let backing: JSONFileAlertStore
+    var failOnAppend: Int?
+    var failAfterWrite: Bool
+    var calls = 0
+    init(url: URL, failOnAppend: Int?, afterWrite: Bool = false) {
+        backing = JSONFileAlertStore(fileURL: url); self.failOnAppend = failOnAppend; failAfterWrite = afterWrite
+    }
+    func loadAll() async throws -> [PriceAlert] { try await backing.loadAll() }
+    func save(_ alerts: [PriceAlert]) async throws { try await backing.save(alerts) }
+    func append(_ alert: PriceAlert) async throws -> PriceAlert {
+        calls += 1
+        let fail = calls == failOnAppend
+        if fail && !failAfterWrite { throw OutboxFault.injected }
+        let result = try await backing.append(alert)
+        if fail { throw OutboxFault.injected }
+        return result
+    }
+}
+
+private actor FaultOutbox: AlertOutboxStoring {
+    let backing: SQLiteItemStore
+    var failAck: Bool
+    init(_ backing: SQLiteItemStore, failAck: Bool) { self.backing = backing; self.failAck = failAck }
+    func loadAll() async throws -> [Item] { try await backing.loadAll() }
+    func save(_ items: [Item]) async throws { try await backing.save(items) }
+    func upsert(_ item: Item, observation: PriceObservation) async throws -> Item { try await backing.upsert(item, observation: observation) }
+    func observations(for identityKey: String) async throws -> [PriceObservation] { try await backing.observations(for: identityKey) }
+    func commitRefresh(_ item: Item, expected: Item, observation: PriceObservation?, alerts: [PriceAlert]) async throws -> Item {
+        try await backing.commitRefresh(item, expected: expected, observation: observation, alerts: alerts)
+    }
+    func pendingAlertDeliveries() async throws -> [PriceAlert] { try await backing.pendingAlertDeliveries() }
+    func acknowledgeAlertDelivery(id: UUID) async throws {
+        if failAck { failAck = false; throw OutboxFault.injected }
+        try await backing.acknowledgeAlertDelivery(id: id)
+    }
+}
+
+struct DurableAlertOutboxTests {
+    private func fixtureItem() -> Item {
+        var item = automationItem()
+        item.createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+        item.updatedAt = item.createdAt
+        return item
+    }
+    private func directory() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("outbox-\(UUID())")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+    @Test func eachAppendFailureAndCrashAfterWriteSurviveReopenAndEqualPriceRetry() async throws {
+        for afterWrite in [false, true] {
+            for failureIndex in [1, 2] {
+                let directory = try directory()
+                let db = directory.appendingPathComponent("catalog.sqlite")
+                let json = directory.appendingPathComponent("alerts.json")
+                let store = SQLiteItemStore(databaseURL: db)
+                let item = fixtureItem()
+                try await store.upsert(item)
+                let sink = FaultAlertSink(url: json, failOnAppend: failureIndex, afterWrite: afterWrite)
+                let connector = RecordingConnector(price: 500)
+                let coordinator = RefreshCoordinator(itemStore: store, alertStore: sink, connectorToFetch: { _ in connector })
+                let outcome = await coordinator.refreshResult(id: item.id)
+                #expect(outcome.didPersist && outcome.error == nil && outcome.notificationError != nil)
+                #expect(try await store.item(id: item.id)?.priceCurrentCents == 500)
+                #expect(try await store.observations(for: item.identityKey).count == 1)
+                #expect(try await store.pendingAlertDeliveries().count == 3 - failureIndex)
+                let durableIDs = Set(try await store.pendingAlertDeliveries().map(\.id))
+                let deliveredIDs = Set(try await sink.loadAll().map(\.id))
+                // New store/coordinator/sink: no retained in-memory drafts.
+                let reopened = SQLiteItemStore(databaseURL: db)
+                let recoveredSink = JSONFileAlertStore(fileURL: json)
+                let resumed = RefreshCoordinator(itemStore: reopened, alertStore: recoveredSink, connectorToFetch: { _ in connector })
+                let equalPrice = await resumed.refreshResult(id: item.id)
+                #expect(equalPrice.didPersist && !equalPrice.changed && equalPrice.notificationError == nil)
+                let alerts = try await recoveredSink.loadAll()
+                #expect(alerts.count == 2 && Set(alerts.map(\.id)).count == 2)
+                #expect(Set(alerts.map(\.id)) == durableIDs.union(deliveredIDs))
+                #expect(Set(alerts.map(\.kind)) == [.lowRecord, .drop])
+                #expect(try await reopened.pendingAlertDeliveries().isEmpty)
+                try await resumed.retryPendingAlerts()
+                #expect(try await recoveredSink.loadAll().count == 2)
+            }
+        }
+    }
+
+    @Test func ackFailureRetriesStableIDsWithoutResettingSentAt() async throws {
+        let dir = try directory(), item = fixtureItem()
+        let store = SQLiteItemStore(databaseURL: dir.appendingPathComponent("catalog.sqlite"))
+        try await store.upsert(item)
+        let outbox = FaultOutbox(store, failAck: true)
+        let json = dir.appendingPathComponent("alerts.json")
+        let sink = JSONFileAlertStore(fileURL: json)
+        let connector = RecordingConnector(price: 500)
+        let coordinator = RefreshCoordinator(itemStore: outbox, alertStore: sink, connectorToFetch: { _ in connector })
+        let outcome = await coordinator.refreshResult(id: item.id)
+        #expect(outcome.didPersist && outcome.notificationError != nil)
+        let appended = try #require(try await sink.loadAll().first)
+        let sent = Date(timeIntervalSince1970: 1700000000)
+        try await sink.markSent(ids: [appended.id], at: sent)
+        try await coordinator.retryPendingAlerts()
+        let recovered = try await sink.loadAll()
+        #expect(recovered.count == 2)
+        #expect(recovered.first(where: { $0.id == appended.id })?.sentAt == sent)
+        #expect(try await store.pendingAlertDeliveries().isEmpty)
+    }
+
+    @Test func commitThenRestartBeforeDispatchDoesNotNeedAnotherFetch() async throws {
+        let dir = try directory(), item = fixtureItem()
+        let db = dir.appendingPathComponent("catalog.sqlite")
+        let store = SQLiteItemStore(databaseURL: db)
+        try await store.upsert(item)
+        let evaluation = PriceDropDetector.evaluate(item: item, fetch: FetchResult(priceCents: 500, currency: "EUR", isOnSale: false, availability: "available"))
+        let drafts = evaluation.alerts.map { PriceAlert(itemID: item.id, kind: $0.kind, priceFromCents: $0.fromCents, priceToCents: $0.toCents, currency: "EUR") }
+        let point = PriceObservation(itemID: item.id, checkedAt: Date(), priceCents: 500, currency: "EUR", isOnSale: false)
+        try await store.commitRefresh(evaluation.updatedItem, expected: item, observation: point, alerts: drafts)
+        let reopened = SQLiteItemStore(databaseURL: db)
+        let log = JSONFileAlertStore(fileURL: dir.appendingPathComponent("alerts.json"))
+        let resumed = RefreshCoordinator(itemStore: reopened, alertStore: log, connectorToFetch: { _ in nil })
+        try await resumed.retryPendingAlerts()
+        #expect(Set(try await log.loadAll().map(\.id)) == Set(drafts.map(\.id)))
+        #expect(try await reopened.observations(for: item.identityKey).count == 1)
+        #expect(try await reopened.pendingAlertDeliveries().isEmpty)
+    }
+
+    @Test func deletedItemIsNotResurrectedByAnUndeliveredAlert() async throws {
+        let dir = try directory(), item = fixtureItem()
+        let store = SQLiteItemStore(databaseURL: dir.appendingPathComponent("catalog.sqlite"))
+        try await store.upsert(item)
+        let alert = PriceAlert(itemID: item.id, kind: .drop, priceFromCents: 1000, priceToCents: 500)
+        try await store.commitRefresh(item, expected: item, observation: nil, alerts: [alert])
+        try await store.delete(id: item.id)
+        #expect(try await store.pendingAlertDeliveries().isEmpty)
+        #expect(try await store.loadAll().isEmpty)
+    }
+
+    @Test func failedTransactionLeavesNoPriceObservationDedupeOrAlert() async throws {
+        let dir = try directory(), item = fixtureItem()
+        let store = SQLiteItemStore(databaseURL: dir.appendingPathComponent("catalog.sqlite"))
+        try await store.upsert(item)
+        var changed = item; changed.priceCurrentCents = 500; changed.lastAlertedPriceCents = 500
+        let point = PriceObservation(itemID: item.id, checkedAt: Date(), priceCents: 500, currency: "EUR", isOnSale: false)
+        // The second draft violates the transaction identity invariant AFTER
+        // item, observation and first outbox row were written, forcing rollback.
+        let first = PriceAlert(itemID: item.id, kind: .drop, priceFromCents: 1000, priceToCents: 500)
+        let invalid = PriceAlert(itemID: UUID(), kind: .lowRecord, priceFromCents: 1000, priceToCents: 500)
+        await #expect(throws: (any Error).self) {
+            try await store.commitRefresh(changed, expected: item, observation: point, alerts: [first, invalid])
+        }
+        #expect(try await store.item(id: item.id) == item)
+        #expect(try await store.observations(for: item.identityKey).isEmpty)
+        #expect(try await store.pendingAlertDeliveries().isEmpty)
+    }
+}
+
+struct OutboxProcessRecoveryTests {
+    /// The host harness invokes this twice in SEPARATE swift-test processes.
+    /// Phase one exits with append committed but no ack; phase two has no objects
+    /// or draft state from the first process. Opt-in avoids persistent fixtures.
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["PRICETRACKER_OUTBOX_PROCESS_FIXTURE"] != nil))
+    func processBoundaryFixture() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        let directory = URL(fileURLWithPath: try #require(environment["PRICETRACKER_OUTBOX_PROCESS_FIXTURE"]))
+        let store = SQLiteItemStore(databaseURL: directory.appendingPathComponent("catalog.sqlite"))
+        let sink = JSONFileAlertStore(fileURL: directory.appendingPathComponent("alerts.json"))
+        if environment["PRICETRACKER_OUTBOX_PROCESS_PHASE"] == "1" {
+            var item = automationItem("process-boundary")
+            item.createdAt = Date(timeIntervalSince1970: 1700000000); item.updatedAt = item.createdAt
+            try await store.upsert(item)
+            var updated = item; updated.priceCurrentCents = 500; updated.lastAlertedPriceCents = 500; updated.priceLowCents = 500
+            let drafts = [AlertKind.lowRecord, .drop].map { PriceAlert(itemID: item.id, kind: $0, priceFromCents: 1000, priceToCents: 500, currency: "EUR") }
+            let point = PriceObservation(itemID: item.id, checkedAt: item.createdAt, priceCents: 500, currency: "EUR", isOnSale: false)
+            try await store.commitRefresh(updated, expected: item, observation: point, alerts: drafts)
+            try await sink.append(drafts[0])
+            try await sink.markSent(ids: [drafts[0].id], at: item.createdAt)
+            #expect(try await store.pendingAlertDeliveries().count == 2)
+        } else {
+            let item = try #require(try await store.loadAll().first)
+            let drafts = try await store.pendingAlertDeliveries()
+            #expect(drafts.count == 2 && item.priceCurrentCents == 500 && item.lastAlertedPriceCents == 500)
+            let connector = RecordingConnector(price: 500)
+            let coordinator = RefreshCoordinator(itemStore: store, alertStore: sink, connectorToFetch: { _ in connector })
+            try await coordinator.retryPendingAlerts()
+            #expect(Set(try await sink.loadAll().map(\.id)) == Set(drafts.map(\.id)))
+            #expect(try await sink.loadAll().filter { $0.sentAt != nil }.count == 1)
+            #expect(try await store.pendingAlertDeliveries().isEmpty)
+            let outcome = await coordinator.refreshResult(id: item.id)
+            #expect(outcome.didPersist && !outcome.changed && outcome.notificationError == nil)
+            #expect(try await sink.loadAll().count == 2)
+            #expect(try await store.observations(for: item.identityKey).count == 2)
+        }
+    }
+}
+
+extension DurableAlertOutboxTests {
+    @Test func independentSinksAndDispatchersDoNotLoseOrDuplicateDrafts() async throws {
+        let dir = try directory(), item = fixtureItem()
+        let db = dir.appendingPathComponent("catalog.sqlite"), json = dir.appendingPathComponent("alerts.json")
+        let store = SQLiteItemStore(databaseURL: db)
+        try await store.upsert(item)
+        let drafts = (0..<24).map { _ in PriceAlert(itemID: item.id, kind: .drop, priceFromCents: 1000, priceToCents: 500) }
+        try await store.commitRefresh(item, expected: item, observation: nil, alerts: drafts)
+        let other = SQLiteItemStore(databaseURL: db)
+        let firstSink = JSONFileAlertStore(fileURL: json), secondSink = JSONFileAlertStore(fileURL: json)
+        async let first: Void = AlertOutboxDelivery.flush(itemStore: store, alertStore: firstSink)
+        async let second: Void = AlertOutboxDelivery.flush(itemStore: other, alertStore: secondSink)
+        _ = try await (first, second)
+        let persisted = try await firstSink.loadAll()
+        #expect(persisted.count == 24 && Set(persisted.map(\.id)) == Set(drafts.map(\.id)))
+        #expect(try await store.pendingAlertDeliveries().isEmpty)
+    }
+}
+
+extension DurableAlertOutboxTests {
+    @Test func initialPriceRiseMarkerCannotConsumeAnUndeliveredAlert() async throws {
+        let dir = try directory(), item = fixtureItem()
+        let db = dir.appendingPathComponent("catalog.sqlite"), json = dir.appendingPathComponent("alerts.json")
+        let store = SQLiteItemStore(databaseURL: db)
+        try await store.upsert(item)
+        let connector = RecordingConnector(price: 2500)
+        let fault = FaultAlertSink(url: json, failOnAppend: 1)
+        let coordinator = RefreshCoordinator(itemStore: store, alertStore: fault, connectorToFetch: { _ in connector })
+        let failedDelivery = await coordinator.refreshResult(id: item.id)
+        #expect(failedDelivery.didPersist && failedDelivery.notificationError != nil)
+        let saved = try #require(try await store.item(id: item.id))
+        #expect(saved.hasAlertedInitialPriceRise && saved.priceCurrentCents == 2500)
+        #expect(try await store.pendingAlertDeliveries().count == 1)
+        let reopened = SQLiteItemStore(databaseURL: db), sink = JSONFileAlertStore(fileURL: json)
+        let resumed = RefreshCoordinator(itemStore: reopened, alertStore: sink, connectorToFetch: { _ in connector })
+        let equalPrice = await resumed.refreshResult(id: item.id)
+        let alerts = try await sink.loadAll()
+        #expect(equalPrice.didPersist && !equalPrice.changed && equalPrice.notificationError == nil)
+        #expect(alerts.count == 1 && alerts.first?.kind == .priceChange)
+        #expect(alerts.first?.initialPriceAlertKey == saved.initialPriceAlertKey && alerts.first?.currency == "EUR")
+        #expect(try await reopened.pendingAlertDeliveries().isEmpty)
+    }
+}

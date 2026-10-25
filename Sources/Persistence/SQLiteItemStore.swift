@@ -35,7 +35,7 @@ enum SQLiteStoreError: Error, LocalizedError {
 /// Record-oriented local source of truth. Every app-facing write commits here
 /// before CloudKit is notified, so reads and writes remain available offline.
 /// WAL plus SQLite's process locks make separate app/App Intent processes safe.
-actor SQLiteItemStore: PriceHistoryStoring {
+actor SQLiteItemStore: AlertOutboxStoring {
     static let migrationMetadataKey = "items-json-migration-v1"
     // New record types require a full bootstrap. A separate key also prevents
     // downgraded clients from advancing past history records they ignore.
@@ -107,7 +107,30 @@ actor SQLiteItemStore: PriceHistoryStoring {
         try upsert(item, observation: observation, expected: expected)
     }
 
-    private func upsert(_ item: Item, observation: PriceObservation?, expected: Item? = nil) throws -> Item {
+    func commitRefresh(_ item: Item, expected: Item, observation: PriceObservation?, alerts: [PriceAlert]) throws -> Item {
+        try upsert(item, observation: observation, expected: expected, alerts: alerts)
+    }
+
+    func pendingAlertDeliveries() throws -> [PriceAlert] {
+        let statement = try prepare("SELECT o.payload FROM alert_outbox o JOIN item_records i ON i.identity_key = o.identity_key WHERE i.tombstone = 0 AND i.item_id = o.item_id ORDER BY o.rowid")
+        defer { sqlite3_finalize(statement) }
+        var values: [PriceAlert] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let data = columnData(statement, index: 0) else { throw SQLiteStoreError.corruptRow("alert_outbox") }
+            values.append(try decoder.decode(PriceAlert.self, from: data))
+        }
+        try checkStatement(statement)
+        return values
+    }
+
+    func acknowledgeAlertDelivery(id: UUID) throws {
+        let statement = try prepare("DELETE FROM alert_outbox WHERE id = ?")
+        defer { sqlite3_finalize(statement) }
+        bind(id.uuidString, to: 1, in: statement)
+        try stepDone(statement)
+    }
+
+    private func upsert(_ item: Item, observation: PriceObservation?, expected: Item? = nil, alerts: [PriceAlert] = []) throws -> Item {
         try execute("BEGIN IMMEDIATE TRANSACTION")
         do {
             let recordName = CloudRecordIdentity.recordName(for: item.identityKey)
@@ -131,6 +154,16 @@ actor SQLiteItemStore: PriceHistoryStoring {
                 bind(value.identityKey, to: 2, in: statement)
                 sqlite3_bind_double(statement, 3, observation.checkedAt.timeIntervalSince1970)
                 bind(try encoder.encode(observation), to: 4, in: statement)
+                try stepDone(statement)
+            }
+            for alert in alerts {
+                guard alert.itemID == value.id else { throw RefreshCommitError.itemChanged }
+                let statement = try prepare("INSERT INTO alert_outbox (id, identity_key, item_id, payload) VALUES (?, ?, ?, ?)")
+                defer { sqlite3_finalize(statement) }
+                bind(alert.id.uuidString, to: 1, in: statement)
+                bind(value.identityKey, to: 2, in: statement)
+                bind(value.id.uuidString, to: 3, in: statement)
+                bind(try encoder.encode(alert), to: 4, in: statement)
                 try stepDone(statement)
             }
             try execute("COMMIT")
@@ -642,6 +675,12 @@ actor SQLiteItemStore: PriceHistoryStoring {
                 tombstone INTEGER NOT NULL DEFAULT 0,
                 dirty INTEGER NOT NULL DEFAULT 1,
                 system_fields BLOB
+            );
+            CREATE TABLE IF NOT EXISTS alert_outbox (
+                id TEXT PRIMARY KEY NOT NULL,
+                identity_key TEXT NOT NULL,
+                item_id TEXT NOT NULL,
+                payload BLOB NOT NULL
             );
             CREATE TABLE IF NOT EXISTS metadata (
                 key TEXT PRIMARY KEY NOT NULL,

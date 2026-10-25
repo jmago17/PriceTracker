@@ -31,6 +31,14 @@ extension PriceHistoryStoring {
     }
 }
 
+/// Production stores must persist these drafts in the SAME transaction as the
+/// observation and dedupe markers. The outbox is device-local, never CloudKit.
+protocol AlertOutboxStoring: PriceHistoryStoring {
+    @discardableResult func commitRefresh(_ item: Item, expected: Item, observation: PriceObservation?, alerts: [PriceAlert]) async throws -> Item
+    func pendingAlertDeliveries() async throws -> [PriceAlert]
+    func acknowledgeAlertDelivery(id: UUID) async throws
+}
+
 enum RefreshCommitError: Error, LocalizedError {
     case itemChanged
     var errorDescription: String? {
@@ -85,6 +93,7 @@ extension AlertStoring {
     @discardableResult
     func append(_ alert: PriceAlert) async throws -> PriceAlert {
         var alerts = try await loadAll()
+        if let existing = alerts.first(where: { $0.id == alert.id }) { return existing }
         alerts.append(alert)
         try await save(alerts)
         return alert

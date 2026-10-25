@@ -13,6 +13,7 @@ struct RefreshSummary: Equatable, Sendable {
     var skipped: Int = 0
     var skippedStores: Set<Store> = []
     var cancelled = false
+    var notificationError: String? = nil
 
     var completionMessage: String {
         var parts = [cancelled ? "Comprobación cancelada." : "Comprobación finalizada.",
@@ -24,6 +25,7 @@ struct RefreshSummary: Equatable, Sendable {
         }
         if checked == 0 && skipped == 0 && !cancelled { parts.append("No hay artículos activos que comprobar.") }
         if failed > 0 { parts.append("Los artículos con error conservan la fecha de su última comprobación correcta.") }
+        if notificationError != nil { parts.append("Hay alertas guardadas pendientes de entrega; se reintentarán sin volver a comprobar el precio.") }
         return parts.joined(separator: " ")
     }
 }
@@ -72,18 +74,44 @@ actor RefreshCoordinator {
             try Task.checkCancellation()
             guard let item = try await itemStore.item(id: id) else { throw RefreshError.itemNotFound }
             let (updated, alerts) = try await refresh(item)
-            for alert in alerts {
-                try await alertStore.append(PriceAlert(itemID: id, kind: alert.kind, priceFromCents: alert.fromCents, priceToCents: alert.toCents, confirmedSaleEndsAt: alert.confirmedSaleEndsAt, initialPriceAlertKey: alert.kind == .priceChange ? updated.initialPriceAlertKey : nil, currency: updated.currency))
-            }
+            var notificationError: String?
+            do {
+                if itemStore is any AlertOutboxStoring {
+                    try await AlertOutboxDelivery.flush(itemStore: itemStore, alertStore: alertStore)
+                } else {
+                    // Lightweight legacy/in-memory stores only. Both production
+                    // stores implement AlertOutboxStoring (including demo SQLite).
+                    for alert in Self.priceAlerts(alerts, item: updated) { try await alertStore.append(alert) }
+                }
+            } catch { notificationError = error.localizedDescription }
             await didRefresh()
             return ItemRefreshOutcome(itemID: id, priceCents: updated.priceCurrentCents,
                 currency: updated.currency, changed: updated.lastError == nil &&
                     (item.priceCurrentCents != updated.priceCurrentCents || item.currency != updated.currency),
                 checkedAt: updated.lastCheckedAt, error: updated.lastError,
-                dropped: alerts.contains { $0.kind == .drop || $0.kind == .targetHit || $0.kind == .lowRecord }, didPersist: true)
+                dropped: alerts.contains { $0.kind == .drop || $0.kind == .targetHit || $0.kind == .lowRecord }, didPersist: true, notificationError: notificationError)
         } catch {
             return ItemRefreshOutcome(itemID: id, error: error.localizedDescription)
         }
+    }
+
+    /// Called on launch/reactivation too. An append/ack failure leaves its UUID
+    /// durable; retries never regenerate drafts from the now-unchanged price.
+    func retryPendingAlerts() async throws {
+        await acquire()
+        defer { release() }
+        guard let outbox = itemStore as? any AlertOutboxStoring else { return }
+        let deliveries = try await outbox.pendingAlertDeliveries()
+        let pendingNotifications = try await alertStore.pendingAlerts()
+        guard !deliveries.isEmpty || !pendingNotifications.isEmpty else { return }
+        try await AlertOutboxDelivery.flush(itemStore: itemStore, alertStore: alertStore)
+        await didRefresh()
+    }
+
+    private static func priceAlerts(_ drafts: [PendingAlertDraft], item: Item) -> [PriceAlert] {
+        drafts.map { PriceAlert(itemID: item.id, kind: $0.kind, priceFromCents: $0.fromCents,
+            priceToCents: $0.toCents, confirmedSaleEndsAt: $0.confirmedSaleEndsAt,
+            initialPriceAlertKey: $0.kind == .priceChange ? item.initialPriceAlertKey : nil, currency: item.currency) }
     }
 
     func refreshCategory(_ category: String?, onProgress: (@MainActor @Sendable (RefreshProgress) -> Void)? = nil) async throws -> RefreshSummary {
@@ -102,7 +130,10 @@ actor RefreshCoordinator {
     }
 
     private func refreshBatch(_ items: [Item], onProgress: (@MainActor @Sendable (RefreshProgress) -> Void)?) async throws -> RefreshSummary {
+        // Also retry on empty catalogs/unsupported stores; no new price needed.
         var summary = RefreshSummary()
+        do { try await retryPendingAlerts() }
+        catch { summary.notificationError = error.localizedDescription }
         let total = items.count
         for (index, item) in items.enumerated() {
             if Task.isCancelled { summary.cancelled = true; break }
@@ -115,6 +146,7 @@ actor RefreshCoordinator {
             }
 
             let result = await refreshResult(id: item.id)
+            if let error = result.notificationError { summary.notificationError = error }
             summary.checked += 1
             if result.error != nil { summary.failed += 1 }
             else if result.dropped { summary.dropped += 1 }
@@ -152,7 +184,13 @@ actor RefreshCoordinator {
         let observation = PriceObservation(itemID: item.id, checkedAt: now,
             priceCents: result.priceCents, currency: result.currency.uppercased(),
             isOnSale: result.isOnSale, saleEndsAt: result.saleEndsAt, availability: result.availability)
-        let stored = try await itemStore.commitRefresh(evaluation.updatedItem, expected: current, observation: observation)
+        let stored: Item
+        if let outbox = itemStore as? any AlertOutboxStoring {
+            stored = try await outbox.commitRefresh(evaluation.updatedItem, expected: current,
+                observation: observation, alerts: Self.priceAlerts(evaluation.alerts, item: evaluation.updatedItem))
+        } else {
+            stored = try await itemStore.commitRefresh(evaluation.updatedItem, expected: current, observation: observation)
+        }
         return (stored, evaluation.alerts)
     }
 }
@@ -178,4 +216,18 @@ struct ItemRefreshOutcome: Sendable {
     var error: String? = nil
     var dropped: Bool = false
     var didPersist: Bool = false
+    /// The price committed; notification persistence will retry independently.
+    var notificationError: String? = nil
+}
+
+/// At-least-once outbox dispatch, exactly-once durable alert IDs. Not a CloudKit
+/// transport. Notification delivery keeps its existing sentAt/permission policy.
+enum AlertOutboxDelivery {
+    static func flush(itemStore: any ItemStoring, alertStore: any AlertStoring) async throws {
+        guard let outbox = itemStore as? any AlertOutboxStoring else { return }
+        for alert in try await outbox.pendingAlertDeliveries() {
+            try await alertStore.append(alert)
+            try await outbox.acknowledgeAlertDelivery(id: alert.id)
+        }
+    }
 }

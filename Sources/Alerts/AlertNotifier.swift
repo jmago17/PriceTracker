@@ -42,6 +42,9 @@ actor AlertNotifier {
         guard !delivering else { return 0 }
         delivering = true
         defer { delivering = false }
+        // Persistence is independent of notification permission. Recover drafts
+        // after a crash even when invoked directly by an App Intent.
+        try await AlertOutboxDelivery.flush(itemStore: itemStore, alertStore: alertStore)
         guard enabled(), await authorized() else { return 0 }
         let pending = try await alertStore.pendingAlerts()
         guard !pending.isEmpty else { return 0 }

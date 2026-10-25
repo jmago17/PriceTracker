@@ -42,6 +42,9 @@ enum AppGroup {
 /// can provide it to the Share extension; the main app produces the same shape
 /// through WebKit when a pasted URL has incomplete server-side metadata.
 struct SharedPageCapture: Codable, Hashable, Sendable {
+    /// A bounded, pricing-only DOM fragment from PageCapture.js. Never trust a
+    /// legacy Amazon priceCents without revalidating this evidence in Swift.
+    var amazonPriceHTML: String? = nil
     var pageURLString: String?
     var canonicalURLString: String?
     var title: String?
@@ -99,6 +102,9 @@ struct SharedPageCapture: Codable, Hashable, Sendable {
         size = string("size")
         color = string("color")
         pageText = string("pageText")
+        if let evidence = string("amazonPriceHTML"), evidence.utf8.count <= 128_000 {
+            amazonPriceHTML = evidence
+        }
 
         guard pageURLString != nil || canonicalURLString != nil || title != nil else { return nil }
     }

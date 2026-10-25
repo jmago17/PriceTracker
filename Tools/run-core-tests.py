@@ -15,8 +15,24 @@ files = ['App/AppGroup.swift', 'AppIntents/SearchCatalogIntent.swift', 'Models/I
          'Alerts/PriceDropDetector.swift', 'Alerts/AlertNotifier.swift', 'Refresh/RefreshCoordinator.swift',
          'Refresh/DailyRefreshSettings.swift', 'Refresh/ShortcutBridgeSettings.swift', 'AppIntents/ItemFilterEngine.swift', 'AppIntents/ItemEntity.swift',
          'AppIntents/ItemQuery.swift', 'AppIntents/RefreshItemIntent.swift', 'Views/MoneyFormatter.swift']
+files += ['Models/CategoryLabel.swift', 'Sync/CloudRecordCodec.swift', 'Sync/CloudRecordMerger.swift']
+test_names = ['AutomationTests.swift', 'ShortcutBridgeTests.swift', 'PriceDropDetectorTests.swift', 'ItemFilterEngineTests.swift']
+if os.environ.get('PRICETRACKER_EXTENDED_TESTS') == '1':
+    files += [str(p.relative_to(root/'Sources')) for p in (root/'Sources/Connectors').glob('*.swift') if p.name != 'StoreConnector.swift']
+    test_names += ['AmazonConnectorTests.swift', 'WebPriceParserTests.swift', 'AppleStoreConnectorTests.swift', 'RefreshFeedbackTests.swift',
+                   'GenericStoreConnectorTests.swift', 'WebPriceRefreshTests.swift', 'SQLiteItemStoreTests.swift',
+                   'JSONFileItemStoreTests.swift', 'SharedURLInboxTests.swift', 'CloudRecordMergerTests.swift',
+                   'CloudRecordIdentityTests.swift', 'ISOCountryCodesTests.swift', 'MoneyFormatterTests.swift']
+    # Copy the transport gate verbatim, without starting CKSyncEngine/accounts.
+    sync = (root/'Sources/Sync/CloudSyncManager.swift').read_text()
+    (source/'HistoryTransportPolicy.swift').write_text(sync[:sync.index('/// Owns CKSyncEngine')])
+# UNAuthorizationStatus.ephemeral is iOS-only; keep that suite unchanged for
+# the native iOS runner instead of rewriting its production code/assertions.
+files = [name for name in files if name != 'Refresh/ShortcutBridgeSettings.swift']
+test_names.remove('ShortcutBridgeTests.swift')
+print('Host excludes ShortcutBridgeTests (iOS-only ephemeral permission API)', flush=True)
 for name in files: shutil.copy2(root/'Sources'/name, source/Path(name).name)
-for name in ['AutomationTests.swift', 'ShortcutBridgeTests.swift', 'PriceDropDetectorTests.swift', 'ItemFilterEngineTests.swift']:
+for name in test_names:
     shutil.copy2(root/'Tests/PriceTrackerTests'/name, tests/name)
 (source/'TestComposition.swift').write_text('''import Foundation
 final class AppEnvironment: Sendable {
@@ -43,5 +59,5 @@ let package = Package(name: "PriceTracker", platforms: [.macOS("27.0")], targets
 ''')
 print(f'Host test package: {work}', flush=True)
 env = dict(os.environ)
-env.setdefault('DEVELOPER_DIR', '/Applications/Xcode-beta.app/Contents/Developer')
+env.setdefault('DEVELOPER_DIR', subprocess.check_output(['xcode-select', '-p'], text=True).strip())
 raise SystemExit(subprocess.call(['xcrun', 'swift', 'test', '--package-path', str(work), '--jobs', '1'], env=env))

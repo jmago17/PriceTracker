@@ -6,6 +6,7 @@ struct StorePageMetadata: Sendable {
         case from
     }
 
+    var amazonPriceDocument: Data? = nil
     var title: String
     var description: String?
     var sku: String?
@@ -75,10 +76,14 @@ enum StorePageParser {
     static func parse(data: Data, fallbackURL: URL) -> StorePageMetadata? {
         guard let html = String(data: data, encoding: .utf8) else { return nil }
 
-        let products = jsonLDProducts(in: html) + hydratedProducts(in: html)
+        let isAmazonPage = fallbackURL.host?.lowercased().contains("amazon.") == true
+        let products = (jsonLDProducts(in: html) + hydratedProducts(in: html)).filter { product in
+            guard isAmazonPage else { return true }
+            let asin = AmazonConnector.extractASIN(from: fallbackURL)
+            return product.sku == asin || AmazonConnector.extractASIN(from: product.canonicalURL) == asin
+        }
         let product = products.first(where: { $0.priceCents != nil }) ?? products.first
         let meta = metaContents(in: html)
-        let isAmazonPage = fallbackURL.host?.lowercased().contains("amazon.") == true
         let pageTitle = isAmazonPage
             ? firstNonEmpty(meta["title"], meta["og:title"], meta["twitter:title"], htmlTitle(in: html))
             : firstNonEmpty(meta["og:title"], meta["twitter:title"], meta["title"], htmlTitle(in: html))
@@ -122,6 +127,13 @@ enum StorePageParser {
         metadata.size = products.lazy.compactMap(\.size).first
         metadata.color = products.lazy.compactMap(\.color).first
         metadata.pageText = visibleText(in: html)
+        if isAmazonPage {
+            metadata.amazonPriceDocument = data // ephemeral; never persisted with Item
+            metadata.currency = AmazonConnector.marketplace(for: fallbackURL.host).currency
+            metadata.priceCents = try? WebPriceParser.amazonAddPrice(data: data, url: fallbackURL,
+                title: title, size: metadata.size, color: metadata.color).priceCents
+            metadata.priceKind = metadata.priceCents == nil ? nil : .exact
+        }
         return metadata
     }
 
