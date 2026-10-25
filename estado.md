@@ -1,3 +1,36 @@
+## Correcciones Amazon y outbox de alertas — 2026-10-25
+
+**Rama de revisión, NO integrar todavía.** Base remota verificada mediante fetch: `ea3c23d4fdafa6e2f8e7568756a10b00704c59e6`. Implementación: `9ef4ad97ec2989dcec44dd902813e593dab89018`, rama `fix/amazon-validation-20261025`, worktree `/root/repos/pricetracker-amazon-validation-20261025`. Principal `/root/repos/PriceTracker` sigue en main `6794765`, limpio; no reset/checkout/merge/push. El checkout ajeno del Mac `~/Developer/PriceTracker` no se tocó.
+
+### Cambios aplicados
+
+- F1: Amazon no promueve `priceCents` de PageCapture ni de capturas antiguas. JavaScript emite un fragmento acotado de evidencia del área de precio, conserva el ASIN oculto legítimo y el contexto de ancestros, excluye precios ocultos/duplicados aria y valores de formularios ajenos. Alta URLSession y Compartir/WebKit usan `WebPriceParser` para verificar identidad/variante, total, moneda y acuerdo de candidatos. Se conserva el enlace/metadatos sin precio si no es fiable. No cambia el contrato de Apple Store «desde» ni el de otras tiendas.
+- F2: el parser contrasta evidencia visible Amazon reconocible antes de devolver JSON-LD/microdata. Contradicción, financiación y ASIN/variante incompatibles fallan de forma conservadora. Un canal válido puede bastar cuando falta legítimamente el otro.
+- F3: `alert_outbox` local en la misma transacción SQLite que precio, observación y dedupe. UUID estable, append JSON idempotente con bloqueo entre instancias/procesos y ack posterior. Reintento al refrescar, arrancar/reactivar y notificar; conserva `sentAt`. `notificationError` separado del precio persistido. SQLite y CloudBacked implementan el contrato durable; el fallback antiguo queda limitado a fakes/legacy en memoria. La tabla no se sincroniza ni cambia el payload/esquema CloudKit. No migración destructiva ni JSON antes del commit.
+
+### Validación medida y límites
+
+- JavaScript FINAL real: **7/7** mocks/fixtures sintéticos con Node, sintaxis correcta. Helper FINAL ejecutado sobre DOM WebKit real sintético: ASIN `input[type=hidden]`, total visible, exclusión de CSS oculto/duplicado aria/recomendaciones y conservación de cuota/ancestro ASIN. No es una respuesta pública de Amazon ni una ejecución completa de Safari Share.
+- Mac aislado: `~/MinisValidation/pricetracker-amazon-20261025/source`, Xcode 27.1 (`/Applications/Xcode.app`), SDK Simulator 27.1. Build genérico y build-for-testing de app/extensión/tests pasaron. Último verde: `evidence/generic-final.log` (anterior al delta de ancestros y nuevo test de subida inicial).
+- Último host verde: `evidence/core-final-exact.log`, **158 pruebas pasadas + 1 opt-in omitida** en 24 suites (Swift Testing informa 159). La opt-in de reinicio pasó además en **dos procesos separados**, antes y después del checkpoint append-sin-ack; log `evidence/outbox-process-restart-final.log`. La suite ShortcutBridge se excluye del host porque `.ephemeral` no existe en macOS; no se reescriben sus aserciones ni la API productiva iOS. Apple Store «desde», parser Amazon, SQLite/historial, concurrencia de alertas y RefreshFeedback están incluidos.
+- Primera ejecución iOS: **224 pasadas, 2 fallos de callbacks de refresco, 1 omitida** (227 casos), no suite verde. Se corrigieron los callbacks espurios de cola vacía y RefreshFeedback pasó en host; NO se ha repetido la suite iOS final. El nuevo test WebKit app+JS+Swift quedó compilado, no ejecutado.
+- Después del último verde se añadieron controles de ASIN/contexto en ancestros y sus regresiones, y el test específico de recuperación de la alerta de subida inicial. JavaScript final sí está probado; este delta Swift final sigue **pendiente de compilar/ejecutar en Mac**. Delta preciso: `/var/minis/shared/PriceTracker/fix-20261025/last-green-to-final.patch`.
+- Bloqueo real: disco del Mac cayó a 125 MiB; no se borraron datos, dispositivos, runtimes ni DerivedData. Después se midieron 141 y 485 MiB. Finalmente SSH dejó de responder tanto por Tailscale como por LAN `192.168.31.104` (8 s cada uno); la transferencia/build del último delta no llegó a ejecutarse. No afirmar validación completa del commit final.
+
+### Simulación y cierre
+
+Una sola tarea/dispositivo propio: `PriceTracker-AmazonFix-20261025`, iPhone 17 Pro/iOS 27.0, UUID `7E9CE89C-D06B-4AE5-B8EA-32595595E31F`. Runner PID 93832, xcodebuild PID 94046 (inicio 12:04:31 CET). Terminados los tests, Xcode quedó recogiendo diagnósticos; con disco crítico se envió TERM solo al grupo propio tras revalidar PID/PPID/inicio/comando. Su finally apagó el UUID. Se verificaron Shutdown, ausencia de workers propios y **0/151 procesos runtime propios restantes por identidad/descendencia**. Sin nuevas simulaciones, sin `shutdown all`, erase/delete ni procesos ajenos detenidos. El comando de esa primera ronda salió -15, no TEST SUCCEEDED. Evidencia resumida: `fix-20261025/simulator-closure.json`.
+
+### Pendiente antes de integrar
+
+1. Revisor independiente: revisar `git diff ea3c23d..fix/amazon-validation-20261025` y el delta posterior al último verde.
+2. Recuperar acceso y margen de disco con autorización separada para cualquier limpieza; copiar solo fuentes de esta rama a la copia aislada, nunca al checkout ajeno. Repetir build-for-testing genérico, `Tools/run-core-tests.py` con `PRICETRACKER_EXTENDED_TESTS=1`, `Tools/test-outbox-process-recovery.py` y la suite nativa `PriceTrackerTests` con inspección, UUID único y cierre finally verificado. No repetir simulación mientras el cierre/recursos no permitan hacerlo.
+3. Comprobar nuevo test WebKit y entrada manual/Safari Share integrada en app. No se ha hecho reparación automática de 12,39, pruebas de cuenta/CloudKit multidispositivo ni notificaciones físicas. El origen histórico de 12,39 sigue sin acreditarse.
+
+Informe, patch, fixtures y logs locales: `/var/minis/shared/PriceTracker/fix-20261025/`. Evidencia remota completa: `~/MinisValidation/pricetracker-amazon-20261025/evidence/` (parcialmente respaldada; Mac inaccesible al cerrar). Sin publicación, TestFlight, cambios de permisos/configuración, compras, datos reales ni Brrr.
+
+---
+
 ## Cierre adicional de UI — 2026-10-20 (UTC)
 
 Código verificado: 9a65935, sin cambios de Sources/Tests en esta ronda. Pasada coherente de iPhone 17 Pro: **16 tests UI, 0 fallos, 0 omitidos**, salida 0. Después, en serie, iPad dedicado: **2 tests UI, 0 fallos, 0 omitidos**, salida 0 (toolbar/acciones y mural vertical-horizontal). Evidencia: /tmp/PriceTracker-evidence-20261020/coherent-iphone-ui.xcresult y final-ipad-ui.xcresult, logs y resúmenes JSON; respaldo en Documents/Codex/2026-10-20/task-2/evidence.
