@@ -80,4 +80,70 @@ test('ancestor ASIN and recommendation scope survive extraction', () => {
     const html = capture(root).amazonPriceHTML;
     assert.match(html, /data-asin="B000000001"/); assert.match(html, /recommendations/);
 });
+const product = (...children) => e('div', {}, e('input', {id:'ASIN', value:'B07VLJ5JDV'}),
+    e('span', {id:'productTitle'}, 'Demo'), e('div', {id:'corePrice_feature_div'}, ...children));
+test('R1 button financing aria-label and title survive on a neutral wrapper', () => {
+    const result = capture(product(e('button', {'aria-label':'3 pagos al mes', title:'Financiación'}, 'i'), price('12,39 €')));
+    assert.match(result.amazonPriceHTML, /<div aria-label="3 pagos al mes" title="Financiación">i<\/div>/);
+    assert.equal(result.priceCents, undefined);
+});
+test('R1 link retains conflicting ASIN and recommendation context but not URL', () => {
+    const html = capture(product(e('a', {'data-asin':'B000000001', class:'recommended-accessory', href:'PRIVATE-LINK'}, price('12,39 €')))).amazonPriceHTML;
+    assert.match(html, /<div class="recommended-accessory" data-asin="B000000001">/);
+    assert.doesNotMatch(html, /href|PRIVATE-LINK|<a\b/);
+});
+test('R1 arbitrary wrappers retain identity and conditions (not a two-tag fix)', () => {
+    for (const tag of ['article', 'aside', 'details', 'dl', 'x-price-context', 'svg']) {
+        const html = capture(product(e(tag, {'data-asin':'B000000001', 'aria-label':'3 pagos al mes', title:'mensual', class:'accessory'}, price('12,39 €')))).amazonPriceHTML;
+        assert.match(html, /data-asin="B000000001" aria-label="3 pagos al mes" title="mensual"/);
+        assert.match(html, /class="accessory"/);
+    }
+});
+test('malicious attributes and non-ASIN values never cross the boundary', () => {
+    const html = capture(product(e('a', {href:'PRIVATE-HREF', action:'PRIVATE-ACTION', onclick:'PRIVATE-EVENT',
+        style:'PRIVATE-STYLE', value:'PRIVATE-VALUE', name:'PRIVATE-NAME', 'data-token':'PRIVATE-TOKEN',
+        title:'safe " < & >', 'aria-label':'safe label'}, price('12,39 €')),
+        e('input', {name:'csrf', value:'PRIVATE-INPUT'}))).amazonPriceHTML;
+    assert.doesNotMatch(html, /PRIVATE-|href=|action=|onclick=|style=|data-token=/);
+    assert.match(html, /title="safe &quot; &lt; &amp; &gt;"/);
+    assert.match(html, /aria-label="safe label"/);
+});
+test('scripts and other inert content never become text evidence', () => {
+    const html = capture(product(price('12,39 €'), ...['script','style','template','noscript'].map(tag => e(tag, {}, 'PRIVATE-SCRIPT 3 pagos al mes')))).amazonPriceHTML;
+    assert.doesNotMatch(html, /PRIVATE-SCRIPT|3 pagos|script|style|template/);
+});
+test('unknown wrappers still exclude hidden and aria duplicate prices', () => {
+    const html = capture(product(price('12,39 €'), e('button', {'aria-hidden':'true'}, price('99,99 €')),
+        e('article', {hidden:''}, price('88,88 €')), e('aside', {style:'display: none'}, price('77,77 €')))).amazonPriceHTML;
+    assert.match(html, /12,39 €/); assert.doesNotMatch(html, /99,99|88,88|77,77/);
+});
+test('legitimate 12.39 total retains usable evidence without promoting a JS number', () => {
+    const result = capture(product(e('article', {title:'Precio total'}, price('12,39 €'))));
+    assert.match(result.amazonPriceHTML, /id="ASIN" value="B07VLJ5JDV"/);
+    assert.match(result.amazonPriceHTML, /title="Precio total"/);
+    assert.match(result.amazonPriceHTML, /class="a-offscreen">12,39 €/);
+    assert.equal(result.priceCents, undefined);
+});
+test('form and embedded content fail closed, never export a partial total', () => {
+    for (const tag of ['form', 'textarea', 'select', 'iframe', 'object', 'embed']) {
+        const result = capture(product(price('12,39 €'), e(tag, {action:'PRIVATE'}, 'PRIVATE-CONTENT')));
+        assert.equal(result.amazonPriceHTML, null); assert.equal(result.priceCents, undefined);
+        assert.equal(result.pageURL, 'https://www.amazon.es/dp/B07VLJ5JDV');
+        assert.equal(result.title, 'Cámara sintética');
+    }
+});
+test('incremental budgets fail closed for text, escape expansion, attributes, nodes and depth', () => {
+    let deep = price('12,39 €');
+    for (let i = 0; i < 45; i++) deep = e('article', {}, deep);
+    const cases = [product(price('12,39 €'), 'x'.repeat(2000000)),
+        product(price('12,39 €'), '&'.repeat(25000)),
+        product(e('article', {title:'x'.repeat(2000000)}, price('12,39 €'))),
+        product(price('12,39 €'), ...Array.from({length:6001}, () => e('span', {}))), product(deep),
+        e('div', {'data-asin':'x'.repeat(2000000)}, product(price('12,39 €')))];
+    for (const node of cases) {
+        const result = capture(node);
+        assert.equal(result.amazonPriceHTML, null); assert.equal(result.priceCents, undefined);
+        assert.equal(result.pageURL, 'https://www.amazon.es/dp/B07VLJ5JDV');
+    }
+});
 console.log(JSON.stringify({ kind: 'SYNTHETIC_DOM_MOCK_REAL_PAGECAPTURE_JS', passed: scenarios.length, scenarios }, null, 2));

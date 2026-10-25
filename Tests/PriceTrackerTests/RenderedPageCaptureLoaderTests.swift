@@ -103,7 +103,75 @@ private final class AmazonFixtureNavigation: NSObject, WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: any Error) { finish(error) }
 }
 
+// Always fail public metadata loading: these tests must exercise captured DOM
+// evidence alone, without URLSession traffic or a second source masking R1.
+private final class OfflineAmazonFixtureProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() { client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet)) }
+    override func stopLoading() {}
+}
+
 extension RenderedPageCaptureLoaderTests {
+    // R1 follow-up: added locally, NOT yet compiled/executed on Mac.
+    @Test @MainActor func amazonWrapperContextSurvivesJavaScriptThroughOfflineResolveAndItem() async throws {
+        let url = URL(string: "https://www.amazon.es/dp/B07VLJ5JDV")!
+        let scriptURL = try #require(Bundle.main.url(forResource: "PageCapture", withExtension: "js"))
+        let script = try String(contentsOf: scriptURL, encoding: .utf8)
+        let config = WKWebViewConfiguration(); config.websiteDataStore = .nonPersistent()
+        let webView = WKWebView(frame: .zero, configuration: config)
+        let navigation = AmazonFixtureNavigation()
+        let sessionConfig = URLSessionConfiguration.ephemeral
+        sessionConfig.protocolClasses = [OfflineAmazonFixtureProtocol.self]
+        let session = URLSession(configuration: sessionConfig)
+        defer { session.invalidateAndCancel() }
+        let connector = AmazonConnector(session: session, rendersDynamicPages: false)
+        let manual = Item(resolved: try await connector.resolve(url: url))
+        #expect(manual.canonicalURL == url && manual.priceCurrentCents == nil && manual.priceAtAddCents == nil && manual.priceLowCents == nil && manual.lastSuccessAt == nil)
+        let total = "<span class='a-price'><span class='a-offscreen'>12,39 €</span></span>"
+        let cases: [(name: String, body: String, expected: Int?)] = [
+            ("button aria financing", "<button aria-label='3 pagos al mes'>i</button>" + total, nil),
+            ("button title financing", "<button title='3 pagos al mes'>i</button>" + total, nil),
+            ("link other ASIN", "<a data-asin='B000000001' class='recommended-accessory' href='https://example.invalid/PRIVATE-HREF'>" + total + "</a>", nil),
+            ("arbitrary article other ASIN", "<article data-asin='B000000001'>" + total + "</article>", nil),
+            ("arbitrary definition title", "<dl><dd title='3 pagos al mes'>i</dd></dl>" + total, nil),
+            ("arbitrary custom aria", "<x-context aria-label='3 pagos al mes'>i</x-context>" + total, nil),
+            ("legitimate small total", "<article title='Precio total'>" + total + "</article>", 1239),
+            ("safe attributes only", "<a href='https://example.invalid/PRIVATE-HREF' onclick='PRIVATE-EVENT' name='PRIVATE-NAME' value='PRIVATE-VALUE' title='Precio total'>" + total + "</a>", 1239),
+            ("script and duplicates excluded", total + "<script>window.fixtureSecret = 'PRIVATE-SCRIPT';</script><article hidden>99,99 €</article><button aria-hidden='true'>88,88 €</button><input name='csrf' value='PRIVATE-INPUT'>", 1239)
+        ]
+        for fixture in cases {
+            let html = """
+            <html><head><title>Cámara sintética</title>
+            <meta name="description" content="Metadatos sintéticos conservados">
+            </head><body><input id="ASIN" type="hidden" value="B07VLJ5JDV">
+            <span id="productTitle">Cámara sintética</span>
+            <div id="corePrice_feature_div">\(fixture.body)</div></body></html>
+            """
+            // Both the original and the actual JS fragment must agree. No
+            // hand-sanitized Swift fixture can stand in for this assertion.
+            let original = try? WebPriceParser.amazonAddPrice(data: Data(html.utf8), url: url, title: "Cámara sintética", size: nil, color: nil)
+            #expect(original?.priceCents == fixture.expected, "Original: \(fixture.name)")
+            try await navigation.load(html, webView: webView, baseURL: url)
+            _ = try await webView.evaluateJavaScript(script)
+            let json = try #require(try await webView.evaluateJavaScript("JSON.stringify(capturePage())") as? String)
+            let dictionary = try #require(try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+            let capture = try #require(SharedPageCapture(propertyList: dictionary))
+            #expect(capture.priceCents == nil)
+            let evidence = try #require(capture.amazonPriceHTML)
+            #expect(!evidence.contains("PRIVATE-") && !evidence.contains("99,99") && !evidence.contains("88,88"))
+            let fragment = try? WebPriceParser.amazonAddPrice(data: Data(evidence.utf8), url: url, title: "Cámara sintética", size: nil, color: nil)
+            #expect(fragment?.priceCents == original?.priceCents, "Fragment: \(fixture.name)")
+            let resolved = try await connector.resolve(url: url, pageCapture: capture)
+            #expect(resolved.title == "Cámara sintética" && resolved.subtitle == "Metadatos sintéticos conservados")
+            #expect(resolved.storeItemID == "B07VLJ5JDV" && resolved.currency == "EUR")
+            let saved = Item(resolved: resolved)
+            #expect(saved.canonicalURL == url)
+            #expect(saved.priceCurrentCents == fixture.expected && saved.priceAtAddCents == fixture.expected && saved.priceLowCents == fixture.expected, "Item: \(fixture.name)")
+            if fixture.expected == nil { #expect(saved.lastSuccessAt == nil) }
+        }
+    }
+
     @Test @MainActor func amazonDOMCaptureAndSwiftValidationShareTheSameContract() async throws {
         let url = URL(string: "https://www.amazon.es/dp/B07VLJ5JDV")!
         let scriptURL = try #require(Bundle.main.url(forResource: "PageCapture", withExtension: "js"))

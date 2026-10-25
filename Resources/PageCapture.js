@@ -268,10 +268,26 @@ function priceTrackerAmazonEvidence() {
     // bounded pricing-only fragment for Safari, WebKit and URLSession.
     // No forms, links, scripts, cookies or full-page/account snapshots cross
     // the extension boundary. Unknown layouts deliberately save without price.
-    const escape = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const maxLength = 120000;
+    const parts = [];
+    let length = 0, visited = 0;
+    function emit(value) {
+        if (value.length > maxLength - length) throw new Error('pricing fragment too large');
+        parts.push(value); length += value.length;
+    }
+    function escaped(value) {
+        // Check BEFORE escaping: even one enormous text/attribute must fail
+        // without constructing an enormous escaped copy. Escaping can expand
+        // this bounded input; emit checks the remaining output budget as well.
+        value = String(value);
+        if (value.length > maxLength - length) throw new Error('pricing fragment too large');
+        emit(value.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;'));
+    }
     function hidden(node) {
+        let depth = 0;
         for (let p = node; p && p.nodeType === 1; p = p.parentElement) {
+            if (++depth > 40) throw new Error('pricing ancestry too deep');
             if (p.hasAttribute('hidden') || p.getAttribute('aria-hidden') === 'true') return true;
             if (typeof getComputedStyle === 'function') {
                 const style = getComputedStyle(p);
@@ -280,46 +296,81 @@ function priceTrackerAmazonEvidence() {
         }
         return false;
     }
-    let visited = 0;
+    function attributes(node, keys) {
+        for (const key of keys) {
+            if (!node.hasAttribute(key)) continue;
+            emit(' ' + key + '="'); escaped(node.getAttribute(key)); emit('"');
+        }
+    }
     function serialize(node, depth = 0) {
         if (++visited > 6000 || depth > 40) throw new Error('pricing fragment too large');
-        if (node.nodeType === 3) return escape(node.textContent || '');
-        if (node.nodeType !== 1) return '';
+        if (node.nodeType === 3) { escaped(node.textContent || ''); return; }
+        if (node.nodeType !== 1) return;
         const tag = node.tagName.toLowerCase();
         const asinInput = tag === 'input' && (node.getAttribute('id') === 'ASIN' || node.getAttribute('name') === 'ASIN');
-        if (tag === 'input' && !asinInput) return '';
-        // Amazon's selected ASIN is normally an input[type=hidden]. It is
-        // identity evidence, NOT a hidden price; preserve only that input.
-        if (!asinInput && hidden(node)) return '';
-        if (!['div', 'span', 'p', 'b', 'strong', 'input', 'label', 'section', 'img'].includes(tag)) {
-            return Array.from(node.childNodes || []).map(n => serialize(n, depth + 1)).join('');
+        if (tag === 'input' && !asinInput) return;
+        // These subtrees are not visible evidence. Never flatten script/style
+        // contents into price text or export non-ASIN form values.
+        if (['script', 'style', 'template', 'noscript'].includes(tag)) return;
+        if (!asinInput && hidden(node)) return;
+        // Unknown ordinary wrappers keep ALL safe context on a neutral tag,
+        // rather than silently detaching descendants from identity/conditions.
+        // Interactive form/embedded payloads cannot be represented safely here.
+        if (['form', 'textarea', 'select', 'iframe', 'object', 'embed'].includes(tag)) {
+            throw new Error('unsupported pricing context');
         }
-        const attrs = ['id', 'class', 'name', 'value', 'data-asin', 'aria-label', 'title', 'alt']
-            .filter(key => node.hasAttribute(key))
-            .map(key => ' ' + key + '="' + escape(node.getAttribute(key)) + '"').join('');
-        return '<' + tag + attrs + '>' + (['input', 'img'].includes(tag) ? '' :
-            Array.from(node.childNodes || []).map(n => serialize(n, depth + 1)).join('') + '</' + tag + '>');
+        const safeTag = ['div', 'span', 'p', 'b', 'strong', 'input', 'label', 'section', 'img'].includes(tag) ? tag : 'div';
+        emit('<' + safeTag);
+        attributes(node, ['id', 'class', 'data-asin', 'aria-label', 'title', 'alt']);
+        // The sole input allowed is Amazon's selected ASIN (normally hidden).
+        // name/value on ANY other wrapper are not price context.
+        if (asinInput) attributes(node, ['name', 'value']);
+        emit('>');
+        if (!['input', 'img'].includes(safeTag)) {
+            for (const child of node.childNodes || []) serialize(child, depth + 1);
+            emit('</' + safeTag + '>');
+        }
     }
     try {
         const selectors = ['input#ASIN', 'input[name="ASIN"]', '#productTitle',
             '#variation_size_name', '#variation_color_name', '#availability',
             '#corePriceDisplay_desktop_feature_div', '#corePrice_feature_div',
             '#apex_desktop', '#apex_mobile', '#priceblock_ourprice', '#priceblock_dealprice'];
-        const roots = [...new Set(selectors.flatMap(s => Array.from(document.querySelectorAll(s))))];
-        const html = roots.filter(n => !roots.some(p => p !== n && p.contains(n))).map(node => {
-            let fragment = serialize(node);
-            // Keep relevant ancestry: moving a related product's price block
-            // out of its original data-asin/recommendation scope would be unsafe.
-            for (let p = node.parentElement; p; p = p.parentElement) {
-                const asin = p.getAttribute('data-asin');
-                const context = (p.getAttribute('id') || '') + ' ' + (p.getAttribute('class') || '');
-                const related = /recommend|accessor|sponsored|frequently[-_ ]?bought|sims-|similar|bundle/i.test(context);
-                if (asin || related) fragment = '<div' + (asin ? ' data-asin="' + escape(asin) + '"' : '')
-                    + (related ? ' class="' + escape(context) + '"' : '') + '>' + fragment + '</div>';
+        const roots = new Set();
+        let selected = 0;
+        for (const selector of selectors) {
+            for (const node of document.querySelectorAll(selector)) {
+                if (++selected > 6000) throw new Error('too many pricing roots');
+                roots.add(node);
             }
-            return fragment;
-        }).join('');
-        return html.length <= 120000 ? html : null;
+        }
+        for (const node of roots) {
+            if ([...roots].some(p => p !== node && p.contains(node))) continue;
+            const ancestry = [];
+            let wrappers = 0;
+            // Keep the existing ASIN/recommendation ancestry guard. Account
+            // siblings are never serialized; every wrapper spends the budget.
+            for (let p = node.parentElement; p; p = p.parentElement) {
+                if (ancestry.length >= 40 || ++visited > 6000) throw new Error('pricing ancestry too deep');
+                ancestry.push(p);
+            }
+            for (const p of ancestry.reverse()) {
+                const asin = p.getAttribute('data-asin');
+                const id = p.getAttribute('id') || '', className = p.getAttribute('class') || '';
+                if (id.length + className.length + 1 > maxLength - length) throw new Error('pricing context too large');
+                const context = id + ' ' + className;
+                const related = /recommend|accessor|sponsored|frequently[-_ ]?bought|sims-|similar|bundle/i.test(context);
+                if (asin || related) {
+                    emit('<div');
+                    if (asin) { emit(' data-asin="'); escaped(asin); emit('"'); }
+                    if (related) { emit(' class="'); escaped(context); emit('"'); }
+                    emit('>'); wrappers++;
+                }
+            }
+            serialize(node);
+            for (let i = 0; i < wrappers; i++) emit('</div>');
+        }
+        return parts.join('');
     } catch (_) { return null; }
 }
 
