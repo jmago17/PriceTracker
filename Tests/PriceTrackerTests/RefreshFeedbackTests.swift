@@ -33,7 +33,7 @@ private actor FeedbackConnector: StoreConnector {
     func resolve(url: URL) throws -> ResolvedItem { throw ConnectorError.unrecognizedURL }
     func fetch(_ item: Item) throws -> FetchResult {
         calls += 1
-        if fails { throw ConnectorError.network("HTTP 429") }
+        if fails { throw WebPriceError.response(429) }
         return FetchResult(priceCents: item.priceCurrentCents!, currency: item.currency, isOnSale: false, availability: "available")
     }
 }

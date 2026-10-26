@@ -29,7 +29,7 @@ struct AppleStoreConnector: StoreConnector {
         let region = Self.region(from: canonicalURL) ?? defaultRegion
         guard let priceCents = product.priceCents,
               let currency = product.currency else {
-            throw ConnectorError.decoding("Apple Store no publicó un precio para este enlace")
+            throw WebPriceError.missing
         }
 
         return ResolvedItem(
@@ -54,7 +54,7 @@ struct AppleStoreConnector: StoreConnector {
         let product = try await loadProduct(from: item.canonicalURL)
         guard let priceCents = product.priceCents,
               let currency = product.currency else {
-            throw ConnectorError.decoding("Apple Store no publicó un precio para este enlace")
+            throw WebPriceError.missing
         }
         return FetchResult(
             priceCents: priceCents,

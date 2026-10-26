@@ -24,7 +24,7 @@ struct RefreshSummary: Equatable, Sendable {
             parts.append("Estas tiendas no tienen seguimiento de precios disponible; su fecha no se actualiza.")
         }
         if checked == 0 && skipped == 0 && !cancelled { parts.append("No hay artículos activos que comprobar.") }
-        if failed > 0 { parts.append("Los artículos con error conservan la fecha de su última comprobación correcta.") }
+        if failed > 0 { parts.append("Los artículos con error conservan la fecha de su última comprobación correcta. Abre su detalle y toca Ver diagnóstico de comprobación para ver o compartir el motivo.") }
         if notificationError != nil { parts.append("Hay alertas guardadas pendientes de entrega; se reintentarán sin volver a comprobar el precio.") }
         return parts.joined(separator: " ")
     }
@@ -49,12 +49,14 @@ actor RefreshCoordinator {
     }
 
     private let now: @Sendable () -> Date
+    private let diagnostics: RefreshDiagnostics
 
-    init(itemStore: any PriceHistoryStoring, alertStore: any AlertStoring, connectorToFetch: @escaping @Sendable (Store) -> (any StoreConnector)?, now: @escaping @Sendable () -> Date = { Date() }, didRefresh: @escaping @Sendable () async -> Void = {}) {
+    init(itemStore: any PriceHistoryStoring, alertStore: any AlertStoring, connectorToFetch: @escaping @Sendable (Store) -> (any StoreConnector)?, now: @escaping @Sendable () -> Date = { Date() }, diagnostics: RefreshDiagnostics = .shared, didRefresh: @escaping @Sendable () async -> Void = {}) {
         self.itemStore = itemStore
         self.alertStore = alertStore
         self.connectorToFetch = connectorToFetch
         self.now = now
+        self.diagnostics = diagnostics
         self.didRefresh = didRefresh
     }
 
@@ -70,11 +72,21 @@ actor RefreshCoordinator {
     func refreshResult(id: UUID) async -> ItemRefreshOutcome {
         await acquire()
         defer { release() }
+        let attemptID = UUID(), startedAt = Date(), clock = ContinuousClock.now
+        var store: Store?
+        var lastSuccessAt: Date?
+        var phase = RefreshDiagnosticPhase.loading
+        var fetchFailure: RefreshDiagnosticFailure?
         do {
             try Task.checkCancellation()
             guard let item = try await itemStore.item(id: id) else { throw RefreshError.itemNotFound }
-            let (updated, alerts) = try await refresh(item)
+            store = item.store
+            lastSuccessAt = item.lastSuccessAt
+            let (updated, alerts) = try await refresh(item, failure: &fetchFailure, phase: &phase)
+            lastSuccessAt = updated.lastSuccessAt
             var notificationError: String?
+            var alertFailure: RefreshDiagnosticFailure?
+            phase = .alerts
             do {
                 if itemStore is any AlertOutboxStoring {
                     try await AlertOutboxDelivery.flush(itemStore: itemStore, alertStore: alertStore)
@@ -83,7 +95,14 @@ actor RefreshCoordinator {
                     // stores implement AlertOutboxStoring (including demo SQLite).
                     for alert in Self.priceAlerts(alerts, item: updated) { try await alertStore.append(alert) }
                 }
-            } catch { notificationError = error.localizedDescription }
+            } catch {
+                alertFailure = RefreshDiagnosticFailure.classify(error, phase: .alerts)
+                notificationError = alertFailure?.errorDescription
+            }
+            let elapsed = clock.duration(to: .now).components
+            await diagnostics.record(RefreshDiagnosticAttempt(id: attemptID, itemID: id, store: store,
+                startedAt: startedAt, duration: Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18,
+                lastSuccessAt: lastSuccessAt, failure: fetchFailure, alertFailure: alertFailure))
             await didRefresh()
             return ItemRefreshOutcome(itemID: id, priceCents: updated.priceCurrentCents,
                 currency: updated.currency, changed: updated.lastError == nil &&
@@ -91,7 +110,12 @@ actor RefreshCoordinator {
                 checkedAt: updated.lastCheckedAt, error: updated.lastError,
                 dropped: alerts.contains { $0.kind == .drop || $0.kind == .targetHit || $0.kind == .lowRecord }, didPersist: true, notificationError: notificationError)
         } catch {
-            return ItemRefreshOutcome(itemID: id, error: error.localizedDescription)
+            let failure = RefreshDiagnosticFailure.classify(error, phase: phase)
+            let elapsed = clock.duration(to: .now).components
+            await diagnostics.record(RefreshDiagnosticAttempt(id: attemptID, itemID: id, store: store,
+                startedAt: startedAt, duration: Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18,
+                lastSuccessAt: lastSuccessAt, failure: failure, alertFailure: nil, precedingFailure: fetchFailure))
+            return ItemRefreshOutcome(itemID: id, error: failure.errorDescription)
         }
     }
 
@@ -133,7 +157,7 @@ actor RefreshCoordinator {
         // Also retry on empty catalogs/unsupported stores; no new price needed.
         var summary = RefreshSummary()
         do { try await retryPendingAlerts() }
-        catch { summary.notificationError = error.localizedDescription }
+        catch { summary.notificationError = RefreshDiagnosticCode.alerts.message }
         let total = items.count
         for (index, item) in items.enumerated() {
             if Task.isCancelled { summary.cancelled = true; break }
@@ -158,23 +182,30 @@ actor RefreshCoordinator {
 
     /// Each successful fetch records an observation, even when the price is
     /// unchanged. Persistence failures propagate; they are not network failures.
-    private func refresh(_ item: Item) async throws -> (Item, [PendingAlertDraft]) {
+    private func refresh(_ item: Item, failure: inout RefreshDiagnosticFailure?, phase: inout RefreshDiagnosticPhase) async throws -> (Item, [PendingAlertDraft]) {
         guard let connector = connectorToFetch(item.store) else {
+            failure = RefreshDiagnosticFailure(code: .unsupported, phase: .validation)
             var updated = item
-            updated.lastError = "Sin conector de refresco para \(item.store.displayName)."
+            updated.lastError = failure?.errorDescription
+            phase = .persistence
             return (try await itemStore.commitRefresh(updated, expected: item, observation: nil), [])
         }
         let result: FetchResult
+        phase = .download
         do {
             result = try await connector.fetch(item)
             guard result.priceCents >= 0 else { throw ConnectorError.decoding("Precio negativo") }
         } catch {
             try Task.checkCancellation()
+            let safeFailure = RefreshDiagnosticFailure.classify(error, phase: phase)
+            failure = safeFailure
+            phase = .persistence
             guard let latest = try await itemStore.item(id: item.id) else { throw RefreshError.itemNotFound }
-            let failed = PriceDropDetector.applyFailure(to: latest, error: error, now: now())
+            let failed = PriceDropDetector.applyFailure(to: latest, error: safeFailure, now: now())
             return (try await itemStore.commitRefresh(failed, expected: latest, observation: nil), [])
         }
         try Task.checkCancellation()
+        phase = .persistence
         // Re-read after network suspension so edits made during fetch survive.
         guard let current = try await itemStore.item(id: item.id), current.identityKey == item.identityKey else {
             throw RefreshError.itemNotFound

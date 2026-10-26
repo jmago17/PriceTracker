@@ -127,9 +127,9 @@ enum WebPriceParser {
 
     private static func offer(_ offer: [String: Any], base: URL, item: Item, now: Date) throws -> FetchResult {
         let types = (offer["@type"] as? [String] ?? [string(offer["@type"]) ?? "Offer"]).compactMap(schemaType)
-        guard types.contains("Offer"), !types.contains("AggregateOffer"), offer["lowPrice"] == nil, offer["highPrice"] == nil,
-              offer["priceSpecification"] == nil,
-              ["billingDuration", "billingIncrement", "referenceQuantity", "unitCode", "eligibleQuantity", "eligibleTransactionVolume", "eligibleCustomerType", "validForMemberTier"].allSatisfy({ offer[$0] == nil }) else { throw WebPriceError.ambiguous }
+        guard types.contains("Offer"), !types.contains("AggregateOffer"), offer["lowPrice"] == nil, offer["highPrice"] == nil else { throw WebPriceError.ambiguous }
+        guard offer["priceSpecification"] == nil,
+              ["billingDuration", "billingIncrement", "referenceQuantity", "unitCode", "eligibleQuantity", "eligibleTransactionVolume", "eligibleCustomerType", "validForMemberTier"].allSatisfy({ offer[$0] == nil }) else { throw WebPriceError.conditions }
         if let region = offer["eligibleRegion"] {
             let regions = (region as? [String]) ?? string(region).map { [$0] } ?? []
             guard regions.map({ $0.uppercased() }).contains(item.region.uppercased()) else { throw WebPriceError.ambiguous }
@@ -198,7 +198,7 @@ enum WebPriceParser {
 
     private static func unique(_ values: [FetchResult]) throws -> FetchResult {
         guard let first = values.first else { throw WebPriceError.missing }
-        guard values.allSatisfy({ $0.priceCents == first.priceCents && $0.currency == first.currency }) else { throw WebPriceError.ambiguous }
+        guard values.allSatisfy({ $0.priceCents == first.priceCents && $0.currency == first.currency }) else { throw WebPriceError.conflict }
         return first
     }
 
@@ -240,7 +240,7 @@ enum WebPriceParser {
                 if context.range(of: #"recommend|accessor|sponsored|frequently[-_ ]?bought|sims-|similar|bundle"#, options: .regularExpression) != nil { throw WebPriceError.ambiguous }
                 ancestor = node.parent
             }
-            if hasConditionalPrice(in: block) { throw WebPriceError.ambiguous }
+            if hasConditionalPrice(in: block) { throw WebPriceError.conditions }
             let prices = block.nodes.filter { !$0.isExcluded && $0.classes.contains("a-price") && !$0.classes.contains("a-text-price") }
             for node in block.nodes where !node.isExcluded {
                 if let asin = node.attributes["data-asin"], !asin.isEmpty, asin != item.storeItemID { throw WebPriceError.identity }

@@ -147,6 +147,61 @@ final class ScreenshotTests: XCTestCase {
         capture(app, "catalog_fresh_after_equal_price")
     }
 
+    func testRefreshDiagnosticsLightAndDarkAccessibility() throws {
+        for dark in [false, true] {
+            let app = XCUIApplication()
+            app.launchArguments = ["--demo-catalog", "-compactCatalogMuralEnabled", "NO", "--demo-history"]
+            if dark {
+                app.launchArguments += ["-AppleInterfaceStyle", "Dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+            }
+            app.launch()
+            XCTAssertTrue(app.buttons["add-item-button"].waitForExistence(timeout: 10))
+            let row = app.descendants(matching: .any)["item-row"].firstMatch
+            // At accessibility XXXL the catalog header can fill the viewport;
+            // materialize the lazy row by scrolling instead of assuming it exists.
+            for _ in 0..<8 {
+                if row.exists { break }
+                app.swipeUp()
+            }
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            row.tap()
+            app.buttons["Opciones del artículo"].tap()
+            app.buttons["Diagnóstico"].tap()
+            XCTAssertTrue(app.navigationBars["Diagnóstico"].waitForExistence(timeout: 5))
+            let report = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Price Bucket · diagnóstico local v1")).firstMatch
+            XCTAssertTrue(report.waitForExistence(timeout: 5))
+            XCTAssertTrue(report.label.contains("Sin intentos registrados"))
+            XCTAssertFalse(report.label.contains("https://"))
+            capture(app, dark ? "diagnostics_dark_accessibility" : "diagnostics_light")
+            let share = app.buttons["share-refresh-diagnostics"]
+            for _ in 0..<8 {
+                if share.isHittable { break }
+                app.swipeUp()
+            }
+            XCTAssertTrue(share.exists && share.isHittable)
+            XCTAssertFalse(share.label.isEmpty)
+            try app.performAccessibilityAudit(for: [.sufficientElementDescription])
+            app.buttons["Cerrar"].tap()
+            let refresh = app.buttons["Actualizar"]
+            for _ in 0..<8 {
+                if refresh.isHittable { break }
+                app.swipeUp()
+            }
+            XCTAssertTrue(refresh.isHittable)
+            refresh.tap()
+            XCTAssertTrue(app.staticTexts["Comprobado ahora"].firstMatch.waitForExistence(timeout: 5))
+            app.buttons["Opciones del artículo"].tap()
+            app.buttons["Diagnóstico"].tap()
+            let completed = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Price Bucket · diagnóstico local v1")).firstMatch
+            XCTAssertTrue(completed.waitForExistence(timeout: 5))
+            XCTAssertTrue(completed.label.contains("completado · success"))
+            XCTAssertFalse(completed.label.contains("https://"))
+            capture(app, dark ? "diagnostics_success_dark_accessibility" : "diagnostics_success_light")
+            app.buttons["Cerrar"].tap()
+            app.terminate()
+        }
+    }
+
     func testHistoryDoesNotInventOlderObservations() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--demo-catalog", "-compactCatalogMuralEnabled", "NO", "--demo-history", "--demo-history-empty"]

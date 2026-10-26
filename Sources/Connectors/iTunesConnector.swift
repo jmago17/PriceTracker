@@ -37,7 +37,7 @@ struct ITunesConnector: StoreConnector {
         let region = await storefrontRegionProvider.region(fallback: item.region)
         let result = try await lookup(id: item.storeItemID, region: region)
         guard let priceCents = Self.priceCents(from: result) else {
-            throw ConnectorError.decoding("La tienda no devolvió un precio para \(item.storeItemID)")
+            throw WebPriceError.missing
         }
         return FetchResult(
             priceCents: priceCents,
@@ -136,9 +136,11 @@ struct ITunesConnector: StoreConnector {
             // Apple may return a JSON error envelope instead of lookup results.
             // Check HTTP before decoding and preserve the request context.
             if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-                throw ConnectorError.network("iTunes devolvió HTTP \(http.statusCode) para country=\(safeCountry) [\(responseContext)]")
+                throw WebPriceError.response(http.statusCode)
             }
             data = payload
+        } catch let error as WebPriceError {
+            throw error
         } catch let error as ConnectorError {
             throw error
         } catch {

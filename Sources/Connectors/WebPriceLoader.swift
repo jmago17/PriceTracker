@@ -16,13 +16,15 @@ enum PublicWebSession {
 }
 
 enum WebPriceError: Error, LocalizedError {
-    case blocked, identity, variant, ambiguous, missing, currency, response(Int), rateLimited
+    case blocked, identity, variant, ambiguous, conflict, conditions, missing, currency, response(Int), rateLimited
     var errorDescription: String? {
         switch self {
         case .blocked: return "La tienda solicita acceso, inicio de sesión o CAPTCHA. No se ha comprobado el precio."
         case .identity: return "La página no identifica inequívocamente el producto guardado o redirige a otro producto."
         case .variant: return "No se puede confirmar el precio de la talla o variante guardada."
         case .ambiguous: return "La página muestra varios precios, un rango, cuotas o condiciones de compra sin un precio único del producto."
+        case .conflict: return "Las fuentes de la página muestran precios incompatibles. Se conserva el precio anterior."
+        case .conditions: return "El precio tiene cuotas o condiciones de compra y no es un total verificable."
         case .missing: return "No hay un precio verificable en el HTML público. La tienda puede requerir JavaScript o no ofrecer el producto."
         case .currency: return "La moneda del precio no coincide con la guardada o no se puede verificar."
         case .response(let code): return "La tienda respondió con HTTP \(code). No se ha comprobado el precio."
@@ -83,9 +85,9 @@ struct WebPriceLoader: Sendable {
         guard let http = response as? HTTPURLResponse else { throw WebPriceError.missing }
         if http.statusCode == 429 || http.statusCode == 503 {
             await throttle.limit(host: host, retryAfter: http.value(forHTTPHeaderField: "Retry-After"))
-            throw WebPriceError.rateLimited
+            throw WebPriceError.response(http.statusCode)
         }
-        if http.statusCode == 401 || http.statusCode == 403 { throw WebPriceError.blocked }
+        if http.statusCode == 401 || http.statusCode == 403 { throw WebPriceError.response(http.statusCode) }
         guard (200...299).contains(http.statusCode) else { throw WebPriceError.response(http.statusCode) }
         guard http.expectedContentLength <= 2_000_000 else { throw WebPriceError.missing }
         if let mime = http.mimeType, !["text/html", "application/xhtml+xml"].contains(mime) { throw WebPriceError.missing }

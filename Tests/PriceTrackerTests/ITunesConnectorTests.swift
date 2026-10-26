@@ -156,12 +156,11 @@ extension ITunesConnectorTests {
         do {
             _ = try await connector.resolve(url: url)
             Issue.record("Expected HTTP 400 to fail before decoding")
-        } catch ConnectorError.network(let message) {
-            #expect(message.hasPrefix("iTunes devolvió HTTP 400 para country=ES"))
-            #expect(message.contains("HTTP=400"))
-            #expect(message.contains("id=425073498&country=ES"))
+        } catch WebPriceError.response(let status) {
+            #expect(status == 400)
+            #expect(RefreshDiagnosticFailure.classify(WebPriceError.response(status), phase: .download).httpStatus == 400)
         } catch {
-            Issue.record("Expected a network error, received: \(error)")
+            Issue.record("Expected a typed HTTP error, received: \(error)")
         }
     }
 

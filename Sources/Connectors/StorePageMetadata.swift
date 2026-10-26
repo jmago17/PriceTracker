@@ -43,12 +43,12 @@ struct StorePageLoader: Sendable {
 
         if let httpResponse = response as? HTTPURLResponse,
            !(200...299).contains(httpResponse.statusCode) {
-            throw ConnectorError.network("La tienda respondió con HTTP \(httpResponse.statusCode)")
+            throw WebPriceError.response(httpResponse.statusCode)
         }
 
         let finalURL = response.url ?? url
         if WebPageInterruptionDetector.isLikely(pageURL: finalURL, title: nil) {
-            throw ConnectorError.network("La tienda ha mostrado una cola o comprobación de acceso")
+            throw WebPriceError.blocked
         }
         guard let metadata = StorePageParser.parse(data: data, fallbackURL: finalURL) else {
             throw ConnectorError.decoding("La página no contiene metadatos utilizables")
@@ -58,7 +58,7 @@ struct StorePageLoader: Sendable {
             title: metadata.title,
             description: metadata.description
         ) {
-            throw ConnectorError.network("La tienda ha mostrado una cola o comprobación de acceso")
+            throw WebPriceError.blocked
         }
         return metadata
     }

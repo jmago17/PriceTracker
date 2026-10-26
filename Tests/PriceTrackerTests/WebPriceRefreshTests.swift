@@ -106,6 +106,26 @@ struct WebPriceRefreshTests {
         await #expect(throws: (any Error).self) { try await task.value }
         #expect(WebFixtureProtocol.requests.count == 1)
     }
+    @Test(arguments: [403, 429, 503, 500])
+    func httpFailureReachesSafePerItemDiagnostic(status: Int) async throws {
+        var original = item()
+        // The production throttle is intentionally shared. Give each HTTP
+        // fixture its own host so a 429 cannot suppress a later scenario.
+        original.canonicalURL = URL(string: "https://http-\(status).example/product")!
+        let store = WebFixtureStore(original), diagnostics = RefreshDiagnostics()
+        let connector = GenericStoreConnector(session: session(html: "private-body-token", status: status), rendersDynamicPages: false)
+        let coordinator = RefreshCoordinator(itemStore: store, alertStore: WebFixtureAlerts(), connectorToFetch: { _ in connector }, diagnostics: diagnostics)
+        let result = await coordinator.refreshResult(id: original.id)
+        let entry = try #require(await diagnostics.snapshot(itemID: original.id).first)
+        #expect(result.error != nil && result.didPersist)
+        #expect(entry.failure?.httpStatus == status)
+        #expect(entry.failure?.phase == .download)
+        #expect(entry.failure?.code == (status == 403 ? .blocked : ([429, 503].contains(status) ? .rateLimited : .http)))
+        #expect(await store.loadAll().first?.lastSuccessAt == original.lastSuccessAt)
+        #expect(await store.history.isEmpty)
+        #expect(!RefreshDiagnostics.report([entry]).contains("private-body-token"))
+    }
+
     @Test func newlyAddedUnpricedWebItemGetsItsFirstVerifiedObservation() async throws {
         var original = item()
         original.priceCurrentCents = nil; original.lastSuccessAt = nil; original.priceLowCents = nil

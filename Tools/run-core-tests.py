@@ -15,11 +15,11 @@ files = ['App/AppGroup.swift', 'AppIntents/SearchCatalogIntent.swift', 'Models/I
          'Alerts/PriceDropDetector.swift', 'Alerts/AlertNotifier.swift', 'Refresh/RefreshCoordinator.swift',
          'Refresh/DailyRefreshSettings.swift', 'Refresh/ShortcutBridgeSettings.swift', 'AppIntents/ItemFilterEngine.swift', 'AppIntents/ItemEntity.swift',
          'AppIntents/ItemQuery.swift', 'AppIntents/RefreshItemIntent.swift', 'Views/MoneyFormatter.swift']
-files += ['Models/CategoryLabel.swift', 'Sync/CloudRecordCodec.swift', 'Sync/CloudRecordMerger.swift']
+files += ['Models/CategoryLabel.swift', 'Sync/CloudRecordCodec.swift', 'Sync/CloudRecordMerger.swift', 'Refresh/RefreshDiagnostics.swift']
+files += [str(p.relative_to(root/'Sources')) for p in (root/'Sources/Connectors').glob('*.swift') if p.name != 'StoreConnector.swift']
 test_names = ['AutomationTests.swift', 'ShortcutBridgeTests.swift', 'PriceDropDetectorTests.swift', 'ItemFilterEngineTests.swift']
 if os.environ.get('PRICETRACKER_EXTENDED_TESTS') == '1':
-    files += [str(p.relative_to(root/'Sources')) for p in (root/'Sources/Connectors').glob('*.swift') if p.name != 'StoreConnector.swift']
-    test_names += ['AmazonConnectorTests.swift', 'WebPriceParserTests.swift', 'AppleStoreConnectorTests.swift', 'RefreshFeedbackTests.swift',
+    test_names += ['RefreshDiagnosticsTests.swift', 'ITunesConnectorTests.swift', 'AmazonConnectorTests.swift', 'WebPriceParserTests.swift', 'AppleStoreConnectorTests.swift', 'RefreshFeedbackTests.swift',
                    'GenericStoreConnectorTests.swift', 'WebPriceRefreshTests.swift', 'SQLiteItemStoreTests.swift',
                    'JSONFileItemStoreTests.swift', 'SharedURLInboxTests.swift', 'CloudRecordMergerTests.swift',
                    'CloudRecordIdentityTests.swift', 'ISOCountryCodesTests.swift', 'MoneyFormatterTests.swift']

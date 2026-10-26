@@ -20,6 +20,7 @@ struct ItemDetailView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showingEdit = false
+    @State private var showingDiagnostics = false
     @State private var isRefreshing = false
 
     var body: some View {
@@ -54,6 +55,7 @@ struct ItemDetailView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Button("Diagnóstico", systemImage: "stethoscope") { showingDiagnostics = true }
                     Button("Editar", systemImage: "pencil") { showingEdit = true }
                     Button(pauseLabel, systemImage: "pause") { viewModel.togglePause(item) }
                     Button("Eliminar", systemImage: "trash", role: .destructive) { viewModel.delete(item) }
@@ -68,6 +70,9 @@ struct ItemDetailView: View {
         }
         .sheet(isPresented: $showingEdit) {
             EditItemView(item: item, viewModel: viewModel)
+        }
+        .sheet(isPresented: $showingDiagnostics) {
+            RefreshDiagnosticsView(item: item)
         }
     }
 
@@ -506,6 +511,11 @@ struct ItemDetailView: View {
                     .foregroundStyle(.red)
                     .textSelection(.enabled)
             }
+            Button("Ver diagnóstico de comprobación", systemImage: "stethoscope") {
+                showingDiagnostics = true
+            }
+            .font(.subheadline)
+            .accessibilityIdentifier("item-refresh-diagnostics")
             Button {
                 openInStore()
             } label: {
