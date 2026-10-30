@@ -3,7 +3,7 @@ import Foundation
 /// Closed vocabulary only: never serialize Error descriptions or request data.
 enum RefreshDiagnosticCode: String, Sendable {
     case success, blocked, rateLimited, http, identity, variant, currency, conflict, conditions
-    case ambiguous, missingPrice, decoding, network, cancelled, unsupported, persistence, alerts, missingItem, notFound, unknown
+    case ambiguous, missingPrice, noFeaturedOffer, decoding, network, cancelled, unsupported, persistence, alerts, missingItem, notFound, unknown
 
     var message: String {
         switch self {
@@ -17,7 +17,8 @@ enum RefreshDiagnosticCode: String, Sendable {
         case .conflict: return "Las fuentes muestran precios incompatibles; se conserva el anterior."
         case .conditions: return "Precio condicionado, cuotas o membresía; no hay un total verificable."
         case .ambiguous: return "Precio ambiguo, rango o condiciones no verificables."
-        case .missingPrice: return "Sin precio verificable; puede requerir JavaScript o no estar disponible."
+        case .missingPrice: return "No se encontró un precio verificable en la página."
+        case .noFeaturedOffer: return "Sin oferta destacada: la tienda no muestra un precio principal ahora mismo. Puede haber ofertas de otros vendedores; no es un fallo del parser."
         case .decoding: return "La respuesta no tiene el formato esperado."
         case .network: return "Fallo de conexión con la tienda. Revisa la red y reintenta."
         case .cancelled: return "Intento cancelado; no se ha confirmado un precio nuevo."
@@ -67,6 +68,7 @@ struct RefreshDiagnosticFailure: Error, LocalizedError, Sendable {
             case .conditions: return Self(code: .conditions, phase: .validation)
             case .ambiguous: return Self(code: .ambiguous, phase: .validation)
             case .missing: return Self(code: .missingPrice, phase: .extraction)
+            case .noOffer: return Self(code: .noFeaturedOffer, phase: .validation)
             }
         }
         if let connector = error as? ConnectorError {
