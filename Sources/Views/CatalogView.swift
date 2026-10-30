@@ -5,7 +5,7 @@ import SwiftUI
 /// selection, sharing, sheets and navigation.
 struct CatalogView: View {
     @Bindable var viewModel: ItemListViewModel
-    var syncViewModel: SyncViewModel
+    var syncViewModel: RemoteSyncViewModel
     @Binding var selectedTab: RootView.RootTab
 
     @AppStorage("compactCatalogMuralEnabled") private var compactCatalogMuralEnabled = false
@@ -64,7 +64,7 @@ struct CatalogView: View {
             }
             .sheet(isPresented: $showingSync) {
                 NavigationStack {
-                    SyncView(viewModel: syncViewModel)
+                    ServerSettingsView(viewModel: syncViewModel)
                         .toolbar {
                             ToolbarItem(placement: .cancellationAction) {
                                 Button("Cerrar") { showingSync = false }
@@ -90,6 +90,14 @@ struct CatalogView: View {
                 Button("OK") { viewModel.lastRefreshMessage = nil }
             } message: {
                 Text(viewModel.lastRefreshMessage ?? "")
+            }
+            .alert("Comprobación", isPresented: Binding(
+                get: { viewModel.refreshNotice != nil },
+                set: { if !$0 { viewModel.refreshNotice = nil } }
+            )) {
+                Button("OK") { viewModel.refreshNotice = nil }
+            } message: {
+                Text(viewModel.refreshNotice ?? "")
             }
             .refreshable { await viewModel.refreshCatalog() }
             .onChange(of: viewModel.filteredItems.map(\.id)) { _, visible in
@@ -156,7 +164,7 @@ struct CatalogView: View {
                     Button("Enlaces compartidos", systemImage: "tray.and.arrow.down") {
                         selectedTab = .inbox
                     }
-                    Button("Sincronizar con iCloud", systemImage: "icloud") {
+                    Button("Servidor PriceBucket", systemImage: "server.rack") {
                         showingSync = true
                     }
                     Button("Importar / exportar JSON", systemImage: "square.and.arrow.up.on.square") {
@@ -703,8 +711,27 @@ struct CatalogView: View {
 
     // MARK: Empty state
 
+    private var needsServerSetup: Bool {
+        viewModel.items.isEmpty && syncViewModel.isAvailable && !syncViewModel.isConfigured
+    }
+
     private var emptyState: some View {
         VStack(spacing: 20) {
+            if needsServerSetup {
+                ContentUnavailableView(
+                    "Configura el servidor",
+                    systemImage: "server.rack",
+                    description: Text("Los precios los comprueba tu servidor PriceBucket. Pega tu clave en Ajustes → Servidor PriceBucket para ver tu catálogo.")
+                )
+                Button {
+                    showingSync = true
+                } label: {
+                    Label("Configurar servidor", systemImage: "key")
+                        .frame(maxWidth: 280)
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("configure-server-button")
+            } else {
             ContentUnavailableView(
                 viewModel.items.isEmpty ? "Sin productos todavía" : "Sin resultados",
                 systemImage: viewModel.items.isEmpty ? "tag" : "line.3.horizontal.decrease.circle",
@@ -734,6 +761,7 @@ struct CatalogView: View {
                     .buttonStyle(.bordered)
                 }
                 .frame(maxWidth: 280)
+            }
             }
         }
         .frame(maxWidth: .infinity)

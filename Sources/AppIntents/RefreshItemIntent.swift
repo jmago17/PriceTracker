@@ -16,13 +16,37 @@ struct RefreshItemIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<RefreshResultEntity> & ProvidesDialog {
-        let outcome = await AppEnvironment.shared.refreshCoordinator.refreshResult(id: item.id)
+        let outcome: ItemRefreshOutcome
+        if let remote = AppEnvironment.shared.remoteStore {
+            guard remote.isConfigured else { throw PriceBucketError.notConfigured }
+            outcome = await Self.remoteOutcome(id: item.id, remote: remote)
+        } else {
+            outcome = await AppEnvironment.shared.refreshCoordinator.refreshResult(id: item.id)
+        }
         let text: String
         if let error = outcome.error { text = "No se pudo comprobar \(item.title): \(error)" }
         else if let cents = outcome.priceCents, let currency = outcome.currency {
             text = "\(item.title): \(MoneyFormatter.string(cents: cents, currency: currency)). \(outcome.changed ? "El precio ha cambiado." : "Sin cambios de precio.")"
         } else { text = "Comprobación terminada." }
         return .result(value: RefreshResultEntity(outcome: outcome), dialog: IntentDialog(stringLiteral: text))
+    }
+}
+
+extension RefreshItemIntent {
+    /// Server check mapped to the existing outcome. A deferred check (Amazon,
+    /// blocked pages) reports the stored price with no error and no change.
+    static func remoteOutcome(id: UUID, remote: RemoteItemStore) async -> ItemRefreshOutcome {
+        do {
+            let before = try await remote.item(id: id)
+            let result = try await remote.refresh(id: id)
+            let item = result.item
+            return ItemRefreshOutcome(
+                itemID: id, priceCents: item.priceCurrentCents, currency: item.currency,
+                changed: before?.priceCurrentCents != item.priceCurrentCents,
+                checkedAt: item.lastCheckedAt, error: item.lastError, dropped: false, didPersist: true)
+        } catch {
+            return ItemRefreshOutcome(itemID: id, error: error.localizedDescription)
+        }
     }
 }
 

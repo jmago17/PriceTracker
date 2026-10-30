@@ -28,6 +28,8 @@ final class ItemListViewModel {
     private(set) var refreshProgress: RefreshProgress?
     var lastErrorMessage: String?
     var lastRefreshMessage: String?
+    /// Informational result of a single-item server check (e.g. "deferred").
+    var refreshNotice: String?
     /// Items whose Apple Intelligence summary is being generated right now.
     private(set) var summarizingIDs: Set<UUID> = []
     private(set) var summaryErrors: [UUID: String] = [:]
@@ -98,7 +100,7 @@ final class ItemListViewModel {
             // A history-only CloudKit change need not modify the Item payload.
             // Refresh only histories already requested by an open detail.
             for item in items where histories[item.identityKey] != nil || historyErrors[item.identityKey] != nil {
-                await loadHistory(for: item)
+                await loadHistory(for: item, fetchRemote: false)
             }
         } catch {
             lastErrorMessage = error.localizedDescription
@@ -156,13 +158,33 @@ final class ItemListViewModel {
 
     func refreshSingle(_ item: Item) async {
         lastErrorMessage = nil
+        refreshNotice = nil
+        if let remote = environment.remoteStore {
+            do {
+                let result = try await remote.refresh(id: item.id)
+                if result.deferred {
+                    refreshNotice = "Este artículo no se puede comprobar al momento: lo comprueba la rutina de las 08:00."
+                        + (result.why?.trimmedNonEmpty.map { " (\($0))" } ?? "")
+                }
+            } catch {
+                lastErrorMessage = error.localizedDescription
+            }
+            await load()
+            await loadHistory(for: item)
+            return
+        }
         let result = await environment.refreshCoordinator.refreshResult(id: item.id)
         await load()
         await loadHistory(for: item)
         if let error = result.error { lastErrorMessage = error }
     }
 
-    func loadHistory(for item: Item) async {
+    /// Opening a ficha asks the server for the history first (and caches it);
+    /// without network the cached copy is shown.
+    func loadHistory(for item: Item, fetchRemote: Bool = true) async {
+        if fetchRemote, let remote = environment.remoteStore, remote.isConfigured {
+            try? await remote.refreshHistory(for: item)
+        }
         do {
             histories[item.identityKey] = try await environment.itemStore.observations(for: item.identityKey)
             historyErrors[item.identityKey] = nil
@@ -218,6 +240,10 @@ final class ItemListViewModel {
     }
 
     func refreshCategory(_ category: String?) {
+        if environment.isRemote {
+            startRefreshCatalog()
+            return
+        }
         Task {
             do {
                 let summary = try await environment.refreshCoordinator.refreshCategory(category)
@@ -237,6 +263,18 @@ final class ItemListViewModel {
         refreshProgress = nil
         lastErrorMessage = nil
         lastRefreshMessage = nil
+        if let remote = environment.remoteStore {
+            // The server does the price checks; "refresh" pulls its latest state.
+            refreshTask = Task {
+                do { try await remote.sync() }
+                catch is CancellationError {}
+                catch { lastErrorMessage = error.localizedDescription }
+                await load()
+                isRefreshingCatalog = false
+                refreshTask = nil
+            }
+            return
+        }
         refreshTask = Task {
             var completionMessage: String?
             do {

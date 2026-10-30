@@ -9,6 +9,15 @@ struct RefreshCatalogIntent: AppIntent {
     init() {}
 
     func perform() async throws -> some IntentResult & ReturnsValue<Int> & ProvidesDialog {
+        if let remote = AppEnvironment.shared.remoteStore {
+            // The server checks prices; this pulls its latest state.
+            guard remote.isConfigured else { throw PriceBucketError.notConfigured }
+            try await remote.sync()
+            let items = try await remote.loadAll()
+            let dropped = ShowPriceDropsIntent.discountedItems(in: items).count
+            return .result(value: dropped, dialog: IntentDialog(stringLiteral:
+                "Catálogo sincronizado: \(items.count) artículos, \(dropped) con precio por debajo del inicial. Los precios los comprueba el servidor."))
+        }
         let summary = try await AppEnvironment.shared.refreshCoordinator.refreshCatalog()
         return .result(value: summary.dropped, dialog: IntentDialog(stringLiteral: Self.spokenSummary(for: summary)))
     }

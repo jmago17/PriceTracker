@@ -33,6 +33,13 @@ enum AppGroup {
         containerURL.appendingPathComponent("catalog.sqlite")
     }
 
+    /// Read cache of the PriceBucket catalog. Deliberately NOT `catalog.sqlite`:
+    /// that file still holds the CloudKit-era data and sync state, and a server
+    /// reconciliation must not tombstone rows a later CloudKit run could upload.
+    static var remoteCacheURL: URL {
+        containerURL.appendingPathComponent("remote-cache.sqlite")
+    }
+
     static var alertsFileURL: URL {
         containerURL.appendingPathComponent("alerts.json")
     }

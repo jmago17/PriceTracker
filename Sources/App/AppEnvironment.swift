@@ -14,27 +14,46 @@ final class AppEnvironment: Sendable {
     let connectors: ConnectorRegistry
     let refreshCoordinator: RefreshCoordinator
     let alertNotifier: AlertNotifier
+    /// Server-backed catalog. nil in demo/XCTest, where the local store is used
+    /// and nothing touches the network.
+    let remoteStore: RemoteItemStore?
+    let settings: PriceBucketSettings
 
-    init(alertStore: any AlertStoring = JSONFileAlertStore(fileURL: AppGroup.alertsFileURL)) {
-        let localItemStore = SQLiteItemStore(databaseURL: AppGroup.databaseURL)
+    /// Remote mode: the PriceBucket server checks prices and sends the alerts.
+    /// The on-device RefreshCoordinator, daily task and Shortcuts bridge stay
+    /// compiled (removed in phase 2b) but must not run.
+    var isRemote: Bool { remoteStore != nil }
+
+    init(
+        alertStore: any AlertStoring = JSONFileAlertStore(fileURL: AppGroup.alertsFileURL),
+        isDemo: Bool = AppGroup.isDemo,
+        settings: PriceBucketSettings = PriceBucketSettings(),
+        transport: any PriceBucketTransport = URLSessionTransport(),
+        databaseURL: URL = AppGroup.databaseURL,
+        remoteCacheURL: URL = AppGroup.remoteCacheURL
+    ) {
+        let localItemStore = SQLiteItemStore(databaseURL: databaseURL)
         let syncStatusStore = CloudSyncStatusStore()
         let syncManager = CloudSyncManager(
             localStore: localItemStore,
             legacyJSONURL: AppGroup.itemsFileURL,
             statusStore: syncStatusStore
         )
-        let itemStore = CloudBackedItemStore(
-            localStore: localItemStore,
-            syncManager: syncManager,
-            legacyJSONURL: AppGroup.itemsFileURL
-        )
         self.localItemStore = localItemStore
         self.syncStatusStore = syncStatusStore
         self.syncManager = syncManager
-        if AppGroup.isDemo {
+        self.settings = settings
+        if isDemo {
             self.itemStore = localItemStore
+            self.remoteStore = nil
         } else {
-            self.itemStore = itemStore
+            let remote = RemoteItemStore(
+                cache: SQLiteItemStore(databaseURL: remoteCacheURL),
+                client: PriceBucketClient(transport: transport, configuration: { try settings.configuration() }),
+                settings: settings
+            )
+            self.itemStore = remote
+            self.remoteStore = remote
         }
         self.alertStore = alertStore
         let connectors = ConnectorRegistry()

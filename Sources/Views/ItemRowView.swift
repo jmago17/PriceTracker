@@ -52,10 +52,11 @@ struct ItemRowView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                Text(item.lastSuccessAt?.relativeSpanish ?? "Sin comprobar")
+                Text(item.isPendingFirstCheck ? Item.pendingFirstCheckText : (item.lastSuccessAt?.relativeSpanish ?? "Sin comprobar"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .accessibilityLabel(item.lastSuccessAt.map { "Comprobado \($0.relativeSpanish)" } ?? "Sin comprobación correcta")
+                    .multilineTextAlignment(.trailing)
+                    .accessibilityLabel(item.isPendingFirstCheck ? Item.pendingFirstCheckText : (item.lastSuccessAt.map { "Comprobado \($0.relativeSpanish)" } ?? "Sin comprobación correcta"))
             }
             .layoutPriority(1)
         }

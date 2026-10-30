@@ -40,6 +40,8 @@ final class DailyRefreshSettings {
              try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
          },
          refresh: @escaping @Sendable () async -> Void = {
+             // Remote mode: the server already checks prices every day.
+             guard !AppEnvironment.shared.isRemote else { return }
              _ = try? await AppEnvironment.shared.refreshCoordinator.refreshCatalog()
          },
          prepareNotifications: @escaping () async throws -> Void = {

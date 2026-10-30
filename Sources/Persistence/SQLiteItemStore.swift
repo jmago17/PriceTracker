@@ -351,6 +351,65 @@ actor SQLiteItemStore: AlertOutboxStoring {
         try stepDone(statement)
     }
 
+    /// Remote-cache write: the server is the authority, so rows are written with
+    /// the server's ids (unlike `upsert`, which keeps a local id for a known
+    /// identity). Deletions apply first, `replaceAll` tombstones whatever the
+    /// server did not send, and `metadata` commits in the same transaction.
+    func applyServerChanges(
+        upserts: [Item],
+        deletedIDs: [UUID],
+        replaceAll: Bool,
+        metadata: [String: Data]
+    ) throws {
+        _ = try connection()
+        try execute("BEGIN IMMEDIATE TRANSACTION")
+        do {
+            for id in deletedIDs {
+                let statement = try prepare(
+                    "UPDATE item_records SET tombstone = 1, dirty = 1 WHERE item_id = ? AND tombstone = 0"
+                )
+                defer { sqlite3_finalize(statement) }
+                bind(id.uuidString, to: 1, in: statement)
+                try stepDone(statement)
+            }
+            try write(upserts, deleteMissing: replaceAll)
+            for (key, value) in metadata { try setMetadataData(value, for: key) }
+            try execute("COMMIT")
+        } catch {
+            try? execute("ROLLBACK")
+            throw error
+        }
+    }
+
+    /// Replaces the cached history of one item with the server's list.
+    func replaceObservations(_ observations: [PriceObservation], identityKey: String) throws {
+        _ = try connection()
+        try execute("BEGIN IMMEDIATE TRANSACTION")
+        do {
+            let clear = try prepare("DELETE FROM price_observations WHERE identity_key = ?")
+            defer { sqlite3_finalize(clear) }
+            bind(identityKey, to: 1, in: clear)
+            try stepDone(clear)
+            let clearSync = try prepare("DELETE FROM observation_sync WHERE identity_key = ?")
+            defer { sqlite3_finalize(clearSync) }
+            bind(identityKey, to: 1, in: clearSync)
+            try stepDone(clearSync)
+            for observation in observations {
+                let statement = try prepare("INSERT OR REPLACE INTO price_observations (id, identity_key, checked_at, payload) VALUES (?, ?, ?, ?)")
+                defer { sqlite3_finalize(statement) }
+                bind(observation.id.uuidString, to: 1, in: statement)
+                bind(identityKey, to: 2, in: statement)
+                sqlite3_bind_double(statement, 3, observation.checkedAt.timeIntervalSince1970)
+                bind(try encoder.encode(observation), to: 4, in: statement)
+                try stepDone(statement)
+            }
+            try execute("COMMIT")
+        } catch {
+            try? execute("ROLLBACK")
+            throw error
+        }
+    }
+
     /// Idempotent migration from the former JSON source of truth. The original
     /// file is deliberately retained as a recovery copy. The completion marker
     /// is written only after every identity can be read back from SQLite.

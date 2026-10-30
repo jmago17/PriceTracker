@@ -79,9 +79,10 @@ struct AddItemView: View {
             .buttonStyle(GhostFieldButtonStyle())
 
             Button {
-                viewModel.lookUp()
+                if viewModel.isRemote { addToServer() } else { viewModel.lookUp() }
             } label: {
-                Label("Analizar enlace", systemImage: "magnifyingglass")
+                Label(viewModel.isRemote ? "Añadir enlace" : "Analizar enlace",
+                      systemImage: viewModel.isRemote ? "plus" : "magnifyingglass")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(FilledFieldButtonStyle())
@@ -94,9 +95,9 @@ struct AddItemView: View {
         HStack(spacing: 14) {
             ProgressView()
             VStack(alignment: .leading, spacing: 2) {
-                Text("Leyendo la página…")
+                Text(viewModel.isRemote ? "Enviando al servidor…" : "Leyendo la página…")
                     .font(.system(.body, weight: .semibold))
-                Text("\(hostText) · buscando nombre y precio")
+                Text(viewModel.isRemote ? "\(hostText) · el servidor busca nombre y precio" : "\(hostText) · buscando nombre y precio")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -172,15 +173,19 @@ struct AddItemView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             HStack(spacing: 20) {
-                Button("Reintentar") { viewModel.lookUp() }
-                Button("Guardar solo el enlace") {
-                    Task {
-                        do {
-                            let item = try await viewModel.saveLinkOnly()
-                            await onAdded(item, nil)
-                            dismiss()
-                        } catch {
-                            viewModel.errorMessage = error.localizedDescription
+                Button("Reintentar") {
+                    if viewModel.isRemote { addToServer() } else { viewModel.lookUp() }
+                }
+                if !viewModel.isRemote {
+                    Button("Guardar solo el enlace") {
+                        Task {
+                            do {
+                                let item = try await viewModel.saveLinkOnly()
+                                await onAdded(item, nil)
+                                dismiss()
+                            } catch {
+                                viewModel.errorMessage = error.localizedDescription
+                            }
                         }
                     }
                 }
@@ -198,7 +203,9 @@ struct AddItemView: View {
             Text("CÓMO FUNCIONA")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text("App Store, Apple Books, Apple Music y Apple Store se comprueban de forma periódica. Cualquier otra URL se guarda con el precio del momento; si la tienda no lo publica, el enlace se guarda igualmente.")
+            Text(viewModel.isRemote
+                 ? "El servidor lee la página y comprueba el precio cada día. App Store y las webs legibles se resuelven al momento; Amazon y las webs bloqueadas quedan pendientes de la primera comprobación (08:00)."
+                 : "App Store, Apple Books, Apple Music y Apple Store se comprueban de forma periódica. Cualquier otra URL se guarda con el precio del momento; si la tienda no lo publica, el enlace se guarda igualmente.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .padding(14)
@@ -221,6 +228,19 @@ struct AddItemView: View {
 
     private func format(_ cents: Int, _ currency: String) -> String {
         MoneyFormatter.string(cents: cents, currency: currency)
+    }
+
+    private func addToServer() {
+        viewModel.errorMessage = nil
+        Task {
+            do {
+                let item = try await viewModel.addToServer()
+                await onAdded(item, nil)
+                dismiss()
+            } catch {
+                viewModel.errorMessage = error.localizedDescription
+            }
+        }
     }
 
     private func confirmAdd() {

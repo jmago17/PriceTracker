@@ -529,6 +529,7 @@ struct ItemDetailView: View {
     }
 
     private var trackingHeadline: String {
+        if item.isPendingFirstCheck { return Item.pendingFirstCheckText }
         guard let checked = item.lastSuccessAt else { return "Todavía sin comprobación correcta" }
         return "Comprobado \(checked.relativeSpanish)"
     }

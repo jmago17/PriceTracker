@@ -15,6 +15,23 @@ final class AddItemViewModel {
         self.environment = environment
     }
 
+    /// Remote mode: the server resolves the link, so there is no local preview.
+    var isRemote: Bool { environment.isRemote }
+
+    /// `POST /items`. Amazon and blocked pages come back without a price and are
+    /// shown as "Pendiente de primera comprobación" until the server checks them.
+    @discardableResult
+    func addToServer() async throws -> Item {
+        guard let remote = environment.remoteStore else { throw AddItemError.nothingToAdd }
+        guard let url = URL(string: urlText.trimmingCharacters(in: .whitespacesAndNewlines)),
+              url.scheme != nil, url.host != nil else {
+            throw PriceBucketError.validation("Esa no es una URL válida.")
+        }
+        isResolving = true
+        defer { isResolving = false }
+        return try await remote.add(url: url)
+    }
+
     func lookUp() {
         errorMessage = nil
         preview = nil
