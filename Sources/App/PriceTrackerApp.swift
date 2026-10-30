@@ -10,11 +10,15 @@ struct PriceTrackerApp: App {
         PriceTrackerShortcuts.updateAppShortcutParameters()
     }
 
+    /// The server checks prices and sends the alerts; the on-device daily task
+    /// and Shortcuts bridge only run outside remote mode.
+    private var runsLocalChecks: Bool { !AppGroup.isDemo && !AppEnvironment.shared.isRemote }
+
     var body: some Scene {
         WindowGroup {
             RootView()
                 .task {
-                    guard !AppGroup.isDemo else { return }
+                    guard runsLocalChecks else { return }
                     await ShortcutBridgeSettings.shared.restore()
                 }
         }
@@ -22,8 +26,8 @@ struct PriceTrackerApp: App {
             await DailyRefreshSettings.shared.run()
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .background && !AppGroup.isDemo { DailyRefreshSettings.shared.schedule() }
-            if phase == .active && !AppGroup.isDemo {
+            if phase == .background && runsLocalChecks { DailyRefreshSettings.shared.schedule() }
+            if phase == .active && runsLocalChecks {
                 Task { await ShortcutBridgeSettings.shared.restore() }
             }
         }

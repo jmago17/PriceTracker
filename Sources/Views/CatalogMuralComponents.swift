@@ -246,7 +246,9 @@ struct CompactMuralCardView: View {
     }
 
     private var priceText: String {
-        guard let cents = item.priceCurrentCents else { return "Precio sin comprobar" }
+        guard let cents = item.priceCurrentCents else {
+            return item.isPendingFirstCheck ? Item.pendingFirstCheckText : "Precio sin comprobar"
+        }
         return cents == 0 ? "Gratis" : MoneyFormatter.string(cents: cents, currency: item.currency)
     }
 

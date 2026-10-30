@@ -42,11 +42,34 @@ final class SharedInboxViewModel {
         reload()
     }
 
+    /// Remote mode: the server resolves the link. Created or already-existing
+    /// links leave the inbox; failures stay there to be retried. Without a key
+    /// no request is made; the entry just records why it is waiting.
+    private func sendToServer(_ entry: SharedURLInbox.Entry, url: URL, remote: RemoteItemStore) async {
+        guard remote.isConfigured else {
+            inbox.markFailed(id: entry.id, error: PriceBucketError.notConfigured.localizedDescription)
+            return
+        }
+        do {
+            let stored = try await remote.add(url: url)
+            inbox.remove(id: entry.id)
+            await onItemAdded?(stored, nil)
+        } catch let error as PriceBucketError where error.isAlreadyExists {
+            inbox.remove(id: entry.id)
+        } catch {
+            inbox.markFailed(id: entry.id, error: error.localizedDescription)
+        }
+    }
+
     private func process(_ entry: SharedURLInbox.Entry) async {
         processingEntryID = entry.id
         defer { processingEntryID = nil }
         guard let url = URL(string: entry.urlString) else {
             inbox.markFailed(id: entry.id, error: "URL no válida")
+            return
+        }
+        if let remote = environment.remoteStore {
+            await sendToServer(entry, url: url, remote: remote)
             return
         }
         do {

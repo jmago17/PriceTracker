@@ -7,12 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		D1A600000000000000000001 /* RefreshDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000002 /* RefreshDiagnostics.swift */; };
-		D1A600000000000000000003 /* RefreshDiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000004 /* RefreshDiagnosticsView.swift */; };
-		D1A600000000000000000005 /* RefreshDiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000006 /* RefreshDiagnosticsTests.swift */; };
 		002C4B56F7326CBFB58023F4 /* PriceDropDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60266D4F355A9E5836E6A2D7 /* PriceDropDetector.swift */; };
 		012478E61403D339A4316D01 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1BC23428C4BB058140DA346 /* SettingsView.swift */; };
 		0229B36A783CEDB7D08E914F /* NotifyPriceDropsIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12446C7AB1B16B07338E8E14 /* NotifyPriceDropsIntent.swift */; };
+		05F000B3F5FBB1FB6C41053F /* RefreshDiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 729FA1BAB3FC9A0E5A9A9FD2 /* RefreshDiagnosticsView.swift */; };
 		064E02C4949ED2EF3D2B8D14 /* CloudRecordIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E56089249C8AE6D456CD8E57 /* CloudRecordIdentityTests.swift */; };
 		079AA079267604EEF151C7ED /* RenderedPageCaptureLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BD74527296F72E7DC60CDBE /* RenderedPageCaptureLoaderTests.swift */; };
 		0CB7D8EF389FEC04CF156BB2 /* ItemStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27899BDA6EB78D6B26F7CBA6 /* ItemStatus.swift */; };
@@ -24,8 +22,11 @@
 		186F4C4E4857D0E51FBEA45F /* MoneyFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD43EDEE2C4D24FAC4D5350 /* MoneyFormatterTests.swift */; };
 		1D12DE66C8C46C174E2E06FA /* GenericStoreConnectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A48F840352C5ED9F75860198 /* GenericStoreConnectorTests.swift */; };
 		1E71DEDCF83ED80E937A82F4 /* SyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE45DEDE6A2C09CD0FD9DD5 /* SyncView.swift */; };
+		1F204A089225FBFBC4DC8225 /* PriceBucketError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26BEC7EE1F3976AD8BC0DC2F /* PriceBucketError.swift */; };
 		1F34FC68EEE51E0DB473DAA2 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C011D7F5D054C7534388153 /* ShareViewController.swift */; };
 		21A96127298445FD6A6185D0 /* SearchCatalogIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BD438A92323AE91C3048D93 /* SearchCatalogIntent.swift */; };
+		244BC2D5074FD0E2D67331B1 /* RemoteBackendTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED5AACD34E0A7FCB87E9AD63 /* RemoteBackendTests.swift */; };
+		2494E3729966677B0FA2147C /* PriceBucketSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = F577CB3DAFF597783F89C723 /* PriceBucketSettings.swift */; };
 		25A7146F84FB6661E463F877 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B7FD4A4C320A92F785C5DCE4 /* Assets.xcassets */; };
 		272C15FC9F7592DDC0555F19 /* CategoryLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1625CCEF0D51916B71BDC8A4 /* CategoryLabel.swift */; };
 		2847729385A35024888BCE77 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2A27B39A0645C00F45A1A325 /* WebKit.framework */; };
@@ -38,9 +39,12 @@
 		2F3C8456701AFB778191C4C2 /* DisplayTitleCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36F2877A242B4BCAE149005E /* DisplayTitleCache.swift */; };
 		2FA65E02297F91DF03F76DD2 /* SetTargetPriceIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36860A58564943073FC3A0DE /* SetTargetPriceIntent.swift */; };
 		304EC3F7F32CFB1100B2C146 /* RefreshItemIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C26240AF37519032AB7B7B /* RefreshItemIntent.swift */; };
+		342694AD888B13AB82014FE9 /* PriceBucketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49AA4D1F38D1EDAACF6EEEA3 /* PriceBucketClient.swift */; };
 		36A46ED11B16C5B950542E36 /* ShareAndInsightTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E113659CAF4619697F4BD64 /* ShareAndInsightTests.swift */; };
+		3D5EC0892C1967158034543F /* RefreshDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2AC345AE5B77B47D69B148C /* RefreshDiagnostics.swift */; };
 		439E069FB35742896D5D8398 /* RefreshFeedbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA94F771A118C4030F08941C /* RefreshFeedbackTests.swift */; };
 		44B79353300C59F5E3E9CA0A /* ShowPriceDropsIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63EA031A361C4F59FBCA7B5F /* ShowPriceDropsIntent.swift */; };
+		47E2132C7B7CEB632D6E8663 /* RemoteItemStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05A3B8756196CC1A674A0B9B /* RemoteItemStore.swift */; };
 		50ED3D642102957A25201A30 /* WebPriceRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8C961E648BF522BD12068B /* WebPriceRefreshTests.swift */; };
 		518F32C7CED5BD6B6833DA11 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A870D5B3A3CB2311D185B47 /* AppGroup.swift */; };
 		525E39DAA5E9DC72415B9A55 /* AlertNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 696936ECA115522DFB3832DA /* AlertNotifier.swift */; };
@@ -55,10 +59,12 @@
 		5DE458A88C46D52C40CDAE5A /* PriceObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D58418AFC8B2E82EA09B2234 /* PriceObservation.swift */; };
 		5E6E70407AB813AF3377B19B /* AddItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E5EA2A5AFB4029A6F1C260 /* AddItemView.swift */; };
 		5F562334A9EC41EDA30CADA2 /* AppleStorefrontRegionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12A60E576F8A1DC3EBE4C666 /* AppleStorefrontRegionProvider.swift */; };
+		6110B84106E6F4F82B3C66EB /* ItemPendingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 159526997555062C9893D0FC /* ItemPendingState.swift */; };
 		642CD4D349D7CA3C922FD989 /* CloudRecordMergerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41EE6A199360D70C24723D3F /* CloudRecordMergerTests.swift */; };
 		6555F0953939C00DFC281872 /* DateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C3EC8FA85C629696AB9BED8 /* DateFormatting.swift */; };
 		6680A6C654D78A23F9E60AD7 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = E122E3902D45AC03172310A0 /* Store.swift */; };
 		6CB6A6A6A48F06768ED3B32D /* ShortcutBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81C803ACE7C7F278673D9E54 /* ShortcutBridgeTests.swift */; };
+		6DF20B9E06788473245A0577 /* ServerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFBE16B83551757E3DAFF857 /* ServerSettingsView.swift */; };
 		6EAE70B6A308177E77F6B716 /* Item.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960A1EE602900E5C8DCBCF5F /* Item.swift */; };
 		6FDFB54D9BB7AAD53DF3073D /* CloudBackedItemStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60AE5D3EBA4EABB8D61A15CF /* CloudBackedItemStore.swift */; };
 		74BC26982C60511F6C900BC2 /* WebPriceLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8DB3AA317D54339BF528DFC /* WebPriceLoader.swift */; };
@@ -73,6 +79,7 @@
 		98E858833B14E5E625C5E12F /* ItemListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEC123AC651FEA9420141DB6 /* ItemListViewModel.swift */; };
 		9A224CC7B210D47698588B02 /* EditItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F56A6DA35DCA062B3BA5A2C5 /* EditItemView.swift */; };
 		9B16BE22F5530F4A71D06069 /* WebPriceParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 407ADF00E5F6AAAE5CEB8FEE /* WebPriceParserTests.swift */; };
+		9CFB876647AC51E1B4984EFE /* RefreshDiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A3B7472E44CFF73EAF5D8D8 /* RefreshDiagnosticsTests.swift */; };
 		9E969D48AC11F5E70DA1FD12 /* DisplayTitleCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14BD07EFABA497468EF75A37 /* DisplayTitleCacheTests.swift */; };
 		9F00541C0DF4BDF536EAB91E /* SyncViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40E83730322301845E897BD6 /* SyncViewModel.swift */; };
 		9FA25EC2D50DBE7EE6E0EFD1 /* AmazonConnectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CCE1B48B43F6D6273C8588 /* AmazonConnectorTests.swift */; };
@@ -101,8 +108,10 @@
 		CD15068245467733AF28EDF8 /* SharedURLInboxTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A710F0C9A614146C953B7E8F /* SharedURLInboxTests.swift */; };
 		CD66C1AB0AFC1AB84915AC05 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C8F5EF03AED462A62C25F4F /* AppEnvironment.swift */; };
 		D21E6F7392010FCAE0636BDD /* CatalogPriceCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED13BB435EA03AC8A3281F26 /* CatalogPriceCheckTests.swift */; };
+		D457B39C36572F43110AE89F /* RemoteSyncViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1AA8ED5FDD23DFE7DED7E0 /* RemoteSyncViewModel.swift */; };
 		D7D0E4DC7F60C1BD15D1A9E4 /* RefreshCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F41F166AFD7754B4E097DFC0 /* RefreshCoordinator.swift */; };
 		D92D3845ABA2F0158BE413F8 /* PriceTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46426E104289A29B24DDAD88 /* PriceTrackerApp.swift */; };
+		D95F41E06EA98C9CD0721898 /* PriceBucketTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65E5896F0B117AA08B686B7 /* PriceBucketTransport.swift */; };
 		DA56AD62D86A5AAD175CD481 /* DailyRefreshSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5226F897246AAA4C4650DB24 /* DailyRefreshSettings.swift */; };
 		DD88003DCAAB4E0614EFC303 /* CategoryLabelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37809FBD7B28AA9191DEC1BF /* CategoryLabelTests.swift */; };
 		DE77F7D9DDE47A654713A774 /* ImportExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7DF267B444BA7390FFF69E /* ImportExportView.swift */; };
@@ -117,6 +126,7 @@
 		F9ABEF7EAC560DBC89FB56DF /* ItemRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C0908BD5E7076146315000 /* ItemRowView.swift */; };
 		FC4E65D51AEEFE3264D5F7C8 /* SiriIntentLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 995AA2AC7C87FA223627C746 /* SiriIntentLogicTests.swift */; };
 		FF2A252AB62D57E4748A56EA /* CloudRecordIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F1B728BFFB5DD6B9B817E16 /* CloudRecordIdentity.swift */; };
+		FFFE9CEBA7097B9A47F3550C /* PriceBucketModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CAD1E6E6FADEB89D01B2C6A /* PriceBucketModels.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -158,19 +168,19 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		D1A600000000000000000002 /* RefreshDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshDiagnostics.swift; sourceTree = "<group>"; };
-		D1A600000000000000000004 /* RefreshDiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshDiagnosticsView.swift; sourceTree = "<group>"; };
-		D1A600000000000000000006 /* RefreshDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshDiagnosticsTests.swift; sourceTree = "<group>"; };
+		05A3B8756196CC1A674A0B9B /* RemoteItemStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteItemStore.swift; sourceTree = "<group>"; };
 		08229F10EE93187FF28A9472 /* ShortcutBridgeSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBridgeSettings.swift; sourceTree = "<group>"; };
 		0EAAE31837A8756E74696CAA /* AppleStoreConnectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleStoreConnectorTests.swift; sourceTree = "<group>"; };
 		0ECACF9FC955FCD08F44AE70 /* PriceTrackerShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceTrackerShortcuts.swift; sourceTree = "<group>"; };
 		12446C7AB1B16B07338E8E14 /* NotifyPriceDropsIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifyPriceDropsIntent.swift; sourceTree = "<group>"; };
 		12A60E576F8A1DC3EBE4C666 /* AppleStorefrontRegionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleStorefrontRegionProvider.swift; sourceTree = "<group>"; };
 		14BD07EFABA497468EF75A37 /* DisplayTitleCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTitleCacheTests.swift; sourceTree = "<group>"; };
+		159526997555062C9893D0FC /* ItemPendingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemPendingState.swift; sourceTree = "<group>"; };
 		1625CCEF0D51916B71BDC8A4 /* CategoryLabel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryLabel.swift; sourceTree = "<group>"; };
 		1A349F6E555863F56E30DC47 /* ItemFilterEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemFilterEngineTests.swift; sourceTree = "<group>"; };
 		1AF7C23B00FC46BD6F061ADB /* ItemShareFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemShareFormatter.swift; sourceTree = "<group>"; };
 		208A25D3C0FF43BB570687B4 /* ConnectorRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectorRegistry.swift; sourceTree = "<group>"; };
+		26BEC7EE1F3976AD8BC0DC2F /* PriceBucketError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceBucketError.swift; sourceTree = "<group>"; };
 		27899BDA6EB78D6B26F7CBA6 /* ItemStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemStatus.swift; sourceTree = "<group>"; };
 		2A27B39A0645C00F45A1A325 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
 		2BD74527296F72E7DC60CDBE /* RenderedPageCaptureLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderedPageCaptureLoaderTests.swift; sourceTree = "<group>"; };
@@ -186,6 +196,7 @@
 		3C8F5EF03AED462A62C25F4F /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		3C96D14D727CE29B7813C3FA /* ItemEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemEntity.swift; sourceTree = "<group>"; };
 		3CA1825165B9C85078E3D4FF /* CatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogView.swift; sourceTree = "<group>"; };
+		3CAD1E6E6FADEB89D01B2C6A /* PriceBucketModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceBucketModels.swift; sourceTree = "<group>"; };
 		3F0F8F037CEDFE7F320AB5D8 /* StorePageMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorePageMetadata.swift; sourceTree = "<group>"; };
 		3FC57FDFBBEE310FA66C8361 /* GetItemPriceIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetItemPriceIntent.swift; sourceTree = "<group>"; };
 		407ADF00E5F6AAAE5CEB8FEE /* WebPriceParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebPriceParserTests.swift; sourceTree = "<group>"; };
@@ -194,6 +205,7 @@
 		43F0604D9CA65638B151DDF2 /* ISOCountryCodes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISOCountryCodes.swift; sourceTree = "<group>"; };
 		46426E104289A29B24DDAD88 /* PriceTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceTrackerApp.swift; sourceTree = "<group>"; };
 		46D46BE799AE62AD353CC772 /* ItemImportExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemImportExportTests.swift; sourceTree = "<group>"; };
+		49AA4D1F38D1EDAACF6EEEA3 /* PriceBucketClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceBucketClient.swift; sourceTree = "<group>"; };
 		4C3EC8FA85C629696AB9BED8 /* DateFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateFormatting.swift; sourceTree = "<group>"; };
 		4C7DF267B444BA7390FFF69E /* ImportExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportExportView.swift; sourceTree = "<group>"; };
 		5226F897246AAA4C4650DB24 /* DailyRefreshSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyRefreshSettings.swift; sourceTree = "<group>"; };
@@ -211,6 +223,7 @@
 		696936ECA115522DFB3832DA /* AlertNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertNotifier.swift; sourceTree = "<group>"; };
 		6F1B728BFFB5DD6B9B817E16 /* CloudRecordIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudRecordIdentity.swift; sourceTree = "<group>"; };
 		70C42D27B5A4F4E9C3DFC5D9 /* SQLiteItemStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteItemStoreTests.swift; sourceTree = "<group>"; };
+		729FA1BAB3FC9A0E5A9A9FD2 /* RefreshDiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshDiagnosticsView.swift; sourceTree = "<group>"; };
 		79C0908BD5E7076146315000 /* ItemRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemRowView.swift; sourceTree = "<group>"; };
 		7A98CFAFEEB36DA7EEC8F79D /* ProductInsightGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductInsightGenerator.swift; sourceTree = "<group>"; };
 		7BB4404890FAF52027ECE191 /* ItemQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemQuery.swift; sourceTree = "<group>"; };
@@ -220,17 +233,22 @@
 		8414352C60EB71983C543EC1 /* ItemFilterEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemFilterEngine.swift; sourceTree = "<group>"; };
 		8ACD2B4FE6DFF35D48398138 /* WebPriceParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebPriceParser.swift; sourceTree = "<group>"; };
 		8AE45DEDE6A2C09CD0FD9DD5 /* SyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncView.swift; sourceTree = "<group>"; };
+		8D1AA8ED5FDD23DFE7DED7E0 /* RemoteSyncViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteSyncViewModel.swift; sourceTree = "<group>"; };
 		8E75140F7D5E204EE342ACB8 /* PriceTrackerTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = PriceTrackerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8F94B11B1DA1B42CE2519DCF /* SharedInboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedInboxView.swift; sourceTree = "<group>"; };
 		9226E8FEDE85627854E203F9 /* JSONFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONFileStore.swift; sourceTree = "<group>"; };
 		92FA789D1AA2C7B84939AADF /* AmazonConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmazonConnector.swift; sourceTree = "<group>"; };
 		960A1EE602900E5C8DCBCF5F /* Item.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Item.swift; sourceTree = "<group>"; };
 		995AA2AC7C87FA223627C746 /* SiriIntentLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriIntentLogicTests.swift; sourceTree = "<group>"; };
+		9A3B7472E44CFF73EAF5D8D8 /* RefreshDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshDiagnosticsTests.swift; sourceTree = "<group>"; };
 		A0A08D78BAF12C25DE6B029C /* CloudRecordMerger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudRecordMerger.swift; sourceTree = "<group>"; };
 		A2652D45CA7F6CCED5129E4C /* CatalogMuralComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogMuralComponents.swift; sourceTree = "<group>"; };
+		A2AC345AE5B77B47D69B148C /* RefreshDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshDiagnostics.swift; sourceTree = "<group>"; };
 		A48F840352C5ED9F75860198 /* GenericStoreConnectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenericStoreConnectorTests.swift; sourceTree = "<group>"; };
+		A65E5896F0B117AA08B686B7 /* PriceBucketTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceBucketTransport.swift; sourceTree = "<group>"; };
 		A710F0C9A614146C953B7E8F /* SharedURLInboxTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedURLInboxTests.swift; sourceTree = "<group>"; };
 		ACB3D1E1BA0570ED8C902A00 /* PriceTrackerShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = PriceTrackerShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		AFBE16B83551757E3DAFF857 /* ServerSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSettingsView.swift; sourceTree = "<group>"; };
 		B1BC23428C4BB058140DA346 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B3EF9F6831373A85EDA3D1CA /* PriceDropDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceDropDetectorTests.swift; sourceTree = "<group>"; };
 		B564028C51BCEF7F0954C65E /* SharedInboxViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedInboxViewModel.swift; sourceTree = "<group>"; };
@@ -261,12 +279,14 @@
 		EA94F771A118C4030F08941C /* RefreshFeedbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshFeedbackTests.swift; sourceTree = "<group>"; };
 		EAB4DB9D0AA132E50FAEDEBC /* PageCapture.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = PageCapture.js; sourceTree = "<group>"; };
 		ED13BB435EA03AC8A3281F26 /* CatalogPriceCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogPriceCheckTests.swift; sourceTree = "<group>"; };
+		ED5AACD34E0A7FCB87E9AD63 /* RemoteBackendTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteBackendTests.swift; sourceTree = "<group>"; };
 		F10E15ED2FBBD928421B3577 /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = System/Library/Frameworks/CloudKit.framework; sourceTree = SDKROOT; };
 		F1CC6BBAA4BD56387E5F47AB /* StoreConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreConnector.swift; sourceTree = "<group>"; };
 		F41F166AFD7754B4E097DFC0 /* RefreshCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshCoordinator.swift; sourceTree = "<group>"; };
 		F42AB3605347032A9F3E60A4 /* CloudSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncManager.swift; sourceTree = "<group>"; };
 		F567E548AD3DB42514AED9B1 /* RenderedPageCaptureLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderedPageCaptureLoader.swift; sourceTree = "<group>"; };
 		F56A6DA35DCA062B3BA5A2C5 /* EditItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditItemView.swift; sourceTree = "<group>"; };
+		F577CB3DAFF597783F89C723 /* PriceBucketSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceBucketSettings.swift; sourceTree = "<group>"; };
 		F9F61B3ECC1457E7A5435904 /* ConnectorRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectorRegistryTests.swift; sourceTree = "<group>"; };
 		FCF35DEBDDF5060CFC8F03BD /* MoneyFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyFormatter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -412,16 +432,32 @@
 				4C3EC8FA85C629696AB9BED8 /* DateFormatting.swift */,
 				F56A6DA35DCA062B3BA5A2C5 /* EditItemView.swift */,
 				4C7DF267B444BA7390FFF69E /* ImportExportView.swift */,
-				D1A600000000000000000004 /* RefreshDiagnosticsView.swift */,
 				5DA22398C4968495785E9127 /* ItemDetailView.swift */,
 				79C0908BD5E7076146315000 /* ItemRowView.swift */,
 				FCF35DEBDDF5060CFC8F03BD /* MoneyFormatter.swift */,
+				729FA1BAB3FC9A0E5A9A9FD2 /* RefreshDiagnosticsView.swift */,
 				B889A31A68F6E4AD56591CD1 /* RootView.swift */,
+				AFBE16B83551757E3DAFF857 /* ServerSettingsView.swift */,
 				B1BC23428C4BB058140DA346 /* SettingsView.swift */,
 				8F94B11B1DA1B42CE2519DCF /* SharedInboxView.swift */,
 				8AE45DEDE6A2C09CD0FD9DD5 /* SyncView.swift */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		A5F30F53521CFF799951B181 /* Remote */ = {
+			isa = PBXGroup;
+			children = (
+				159526997555062C9893D0FC /* ItemPendingState.swift */,
+				49AA4D1F38D1EDAACF6EEEA3 /* PriceBucketClient.swift */,
+				26BEC7EE1F3976AD8BC0DC2F /* PriceBucketError.swift */,
+				3CAD1E6E6FADEB89D01B2C6A /* PriceBucketModels.swift */,
+				F577CB3DAFF597783F89C723 /* PriceBucketSettings.swift */,
+				A65E5896F0B117AA08B686B7 /* PriceBucketTransport.swift */,
+				05A3B8756196CC1A674A0B9B /* RemoteItemStore.swift */,
+				8D1AA8ED5FDD23DFE7DED7E0 /* RemoteSyncViewModel.swift */,
+			);
+			path = Remote;
 			sourceTree = "<group>";
 		};
 		ADB37DBCCF35161DA6516587 /* ImportExport */ = {
@@ -453,6 +489,7 @@
 				D88ADF8EF5678D108937F3E1 /* Models */,
 				8006D5603386ACCC3F9D13A4 /* Persistence */,
 				C1ABE267D0A0B5F5B871A9A3 /* Refresh */,
+				A5F30F53521CFF799951B181 /* Remote */,
 				4123B86D0D28A74FF4C01B59 /* Sharing */,
 				4AD74B8499D340177752BE28 /* Sync */,
 				9111E2D1B3105C28B240C033 /* ViewModels */,
@@ -475,8 +512,8 @@
 			isa = PBXGroup;
 			children = (
 				5226F897246AAA4C4650DB24 /* DailyRefreshSettings.swift */,
-				D1A600000000000000000002 /* RefreshDiagnostics.swift */,
 				F41F166AFD7754B4E097DFC0 /* RefreshCoordinator.swift */,
+				A2AC345AE5B77B47D69B148C /* RefreshDiagnostics.swift */,
 				08229F10EE93187FF28A9472 /* ShortcutBridgeSettings.swift */,
 			);
 			path = Refresh;
@@ -532,8 +569,9 @@
 				C58F737A508B6F23EA669FE1 /* JSONFileItemStoreTests.swift */,
 				2DD43EDEE2C4D24FAC4D5350 /* MoneyFormatterTests.swift */,
 				B3EF9F6831373A85EDA3D1CA /* PriceDropDetectorTests.swift */,
-				D1A600000000000000000006 /* RefreshDiagnosticsTests.swift */,
+				9A3B7472E44CFF73EAF5D8D8 /* RefreshDiagnosticsTests.swift */,
 				EA94F771A118C4030F08941C /* RefreshFeedbackTests.swift */,
+				ED5AACD34E0A7FCB87E9AD63 /* RemoteBackendTests.swift */,
 				2BD74527296F72E7DC60CDBE /* RenderedPageCaptureLoaderTests.swift */,
 				7E113659CAF4619697F4BD64 /* ShareAndInsightTests.swift */,
 				A710F0C9A614146C953B7E8F /* SharedURLInboxTests.swift */,
@@ -747,12 +785,12 @@
 				5B3466C497DA12639E9787A7 /* ISOCountryCodes.swift in Sources */,
 				DE77F7D9DDE47A654713A774 /* ImportExportView.swift in Sources */,
 				6EAE70B6A308177E77F6B716 /* Item.swift in Sources */,
-				D1A600000000000000000003 /* RefreshDiagnosticsView.swift in Sources */,
 				A7B8AEB7C341A8B0F1582988 /* ItemDetailView.swift in Sources */,
 				16276FCCFE3E07C7274A4308 /* ItemEntity.swift in Sources */,
 				526CC1A093FA750C4C45C8D5 /* ItemFilterEngine.swift in Sources */,
 				87FA1B0E4DDA59C7478C2A85 /* ItemImportExport.swift in Sources */,
 				98E858833B14E5E625C5E12F /* ItemListViewModel.swift in Sources */,
+				6110B84106E6F4F82B3C66EB /* ItemPendingState.swift in Sources */,
 				AD27B56D793C4BEA23AC2E89 /* ItemQuery.swift in Sources */,
 				F9ABEF7EAC560DBC89FB56DF /* ItemRowView.swift in Sources */,
 				C346E26B7EC731BDACEF4010 /* ItemShareFormatter.swift in Sources */,
@@ -762,19 +800,28 @@
 				2C558B449BED7A34811DD9E1 /* LegacyImport.swift in Sources */,
 				2C7475749DDFF200908EE9D3 /* MoneyFormatter.swift in Sources */,
 				0229B36A783CEDB7D08E914F /* NotifyPriceDropsIntent.swift in Sources */,
+				342694AD888B13AB82014FE9 /* PriceBucketClient.swift in Sources */,
+				1F204A089225FBFBC4DC8225 /* PriceBucketError.swift in Sources */,
+				FFFE9CEBA7097B9A47F3550C /* PriceBucketModels.swift in Sources */,
+				2494E3729966677B0FA2147C /* PriceBucketSettings.swift in Sources */,
+				D95F41E06EA98C9CD0721898 /* PriceBucketTransport.swift in Sources */,
 				002C4B56F7326CBFB58023F4 /* PriceDropDetector.swift in Sources */,
 				5DE458A88C46D52C40CDAE5A /* PriceObservation.swift in Sources */,
 				D92D3845ABA2F0158BE413F8 /* PriceTrackerApp.swift in Sources */,
 				F1252D92E2C20A35F92AFD8A /* PriceTrackerShortcuts.swift in Sources */,
 				C8867863D696C8C4F59EEA24 /* ProductInsightGenerator.swift in Sources */,
 				56B75E1799F7EC8C088F6750 /* RefreshCatalogIntent.swift in Sources */,
-				D1A600000000000000000001 /* RefreshDiagnostics.swift in Sources */,
 				D7D0E4DC7F60C1BD15D1A9E4 /* RefreshCoordinator.swift in Sources */,
+				3D5EC0892C1967158034543F /* RefreshDiagnostics.swift in Sources */,
+				05F000B3F5FBB1FB6C41053F /* RefreshDiagnosticsView.swift in Sources */,
 				304EC3F7F32CFB1100B2C146 /* RefreshItemIntent.swift in Sources */,
+				47E2132C7B7CEB632D6E8663 /* RemoteItemStore.swift in Sources */,
+				D457B39C36572F43110AE89F /* RemoteSyncViewModel.swift in Sources */,
 				9184B23386643CB73202F5A4 /* RenderedPageCaptureLoader.swift in Sources */,
 				F948E6E97F27D4485EEE09DC /* RootView.swift in Sources */,
 				8B880B4E47B73633D1BDB7DA /* SQLiteItemStore.swift in Sources */,
 				21A96127298445FD6A6185D0 /* SearchCatalogIntent.swift in Sources */,
+				6DF20B9E06788473245A0577 /* ServerSettingsView.swift in Sources */,
 				2FA65E02297F91DF03F76DD2 /* SetTargetPriceIntent.swift in Sources */,
 				012478E61403D339A4316D01 /* SettingsView.swift in Sources */,
 				2F0E44464CD742D8DEF27947 /* SharedInboxView.swift in Sources */,
@@ -814,8 +861,9 @@
 				B80516C492BB51475FD89602 /* JSONFileItemStoreTests.swift in Sources */,
 				186F4C4E4857D0E51FBEA45F /* MoneyFormatterTests.swift in Sources */,
 				8BB3A1914CC580EA745D8347 /* PriceDropDetectorTests.swift in Sources */,
-				D1A600000000000000000005 /* RefreshDiagnosticsTests.swift in Sources */,
+				9CFB876647AC51E1B4984EFE /* RefreshDiagnosticsTests.swift in Sources */,
 				439E069FB35742896D5D8398 /* RefreshFeedbackTests.swift in Sources */,
+				244BC2D5074FD0E2D67331B1 /* RemoteBackendTests.swift in Sources */,
 				079AA079267604EEF151C7ED /* RenderedPageCaptureLoaderTests.swift in Sources */,
 				15ADBC663EECAEE69EBC61C2 /* SQLiteItemStoreTests.swift in Sources */,
 				36A46ED11B16C5B950542E36 /* ShareAndInsightTests.swift in Sources */,

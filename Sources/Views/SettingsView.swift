@@ -5,7 +5,7 @@ import SwiftUI
 /// offers quick shortcuts to the same two screens for convenience.
 struct SettingsView: View {
     var viewModel: ItemListViewModel
-    var syncViewModel: SyncViewModel
+    var syncViewModel: RemoteSyncViewModel
 
     @State private var automation = DailyRefreshSettings.shared
     @State private var bridge = ShortcutBridgeSettings.shared
@@ -15,6 +15,9 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                if syncViewModel.isAvailable {
+                    serverSection
+                } else {
                 Section {
                     Toggle("Actualizar precios diariamente", isOn: Binding(
                         get: { automation.dailyEnabled }, set: { automation.setDailyEnabled($0) }))
@@ -40,6 +43,7 @@ struct SettingsView: View {
                     Text("iOS decide cuándo puede actualizar en segundo plano; no se garantiza una hora ni una ejecución diaria. Solo se comprueban tiendas compatibles. Los avisos también se aplican a las comprobaciones manuales y de Atajos.")
                 }
                 shortcutBridgeSection
+                }
                 Section("Apariencia") {
                     Toggle("Mural en iPhone", isOn: $compactCatalogMuralEnabled)
                         .accessibilityIdentifier("compact-catalog-mural-toggle")
@@ -53,21 +57,6 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    NavigationLink {
-                        SyncView(viewModel: syncViewModel)
-                    } label: {
-                        Label {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Sincronización")
-                                Text(syncSubtitle)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        } icon: {
-                            Image(systemName: "icloud")
-                        }
-                    }
-                    .accessibilityIdentifier("settings-sync-row")
 
                     NavigationLink {
                         ImportExportView(viewModel: viewModel)
@@ -129,9 +118,36 @@ struct SettingsView: View {
     }
 
     private var syncSubtitle: String {
-        let pending = syncViewModel.snapshot.pendingLocalChanges
-        if syncViewModel.snapshot.accountState == .signedOut { return "Sesión cerrada" }
-        return pending > 0 ? "\(pending) cambios pendientes" : "Al día"
+        guard syncViewModel.isConfigured else { return "Sin configurar" }
+        if let error = syncViewModel.lastError { return error }
+        return syncViewModel.lastSyncAt.map { "Sincronizado \($0.relativeSpanish)" } ?? "Sin sincronizar"
+    }
+
+    /// Prices are checked and alerts sent by the server, so the on-device
+    /// automation sections do not apply in remote mode.
+    private var serverSection: some View {
+        Section {
+            NavigationLink {
+                ServerSettingsView(viewModel: syncViewModel)
+            } label: {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Servidor PriceBucket")
+                        Text(syncSubtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                } icon: {
+                    Image(systemName: "server.rack")
+                }
+            }
+            .accessibilityIdentifier("settings-sync-row")
+        } header: {
+            Text("Precios y avisos")
+        } footer: {
+            Text("El servidor comprueba los precios cada día (y en la rutina de las 08:00) y envía los avisos. La app solo muestra el catálogo y lo edita.")
+        }
     }
 
     private var appVersion: String {

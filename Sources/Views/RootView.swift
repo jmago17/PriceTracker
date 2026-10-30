@@ -7,7 +7,7 @@ struct RootView: View {
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel = ItemListViewModel()
-    @State private var syncViewModel = SyncViewModel()
+    @State private var syncViewModel = RemoteSyncViewModel()
     @State private var sharedInbox = SharedInboxViewModel()
     @State private var searchNavigation = CatalogSearchNavigation.shared
     @State private var catalogPresentationID = UUID()
@@ -47,22 +47,23 @@ struct RootView: View {
                 await viewModel.loadDemo()
                 return
             }
-            await syncViewModel.start()
+            // Cache first (works offline), then send shared links, then pull.
+            await syncViewModel.load()
+            await viewModel.load()
             await sharedInbox.processAll()
+            await syncViewModel.sync()
             await viewModel.load()
-            await syncViewModel.syncNow()
-            await viewModel.load()
-            await syncViewModel.monitorStatus()
         }
         .onChange(of: scenePhase) { _, phase in
             guard !AppGroup.isDemo, phase == .active else { return }
             Task {
-                await syncViewModel.syncNow()
-                await viewModel.load()
                 sharedInbox.reload()
+                await sharedInbox.processAll()
+                await syncViewModel.sync(force: false)
+                await viewModel.load()
             }
         }
-        .onChange(of: syncViewModel.snapshot.catalogRevision) { _, _ in
+        .onChange(of: syncViewModel.catalogRevision) { _, _ in
             Task { await viewModel.load() }
         }
     }
