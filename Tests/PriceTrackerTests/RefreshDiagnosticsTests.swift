@@ -51,7 +51,7 @@ struct RefreshDiagnosticsTests {
             lastSuccessAt: old, failure: RefreshDiagnosticFailure(code: .identity, phase: .validation), alertFailure: nil)
     }
 
-    @Test(arguments: [WebPriceError.response(403), .response(429), .response(503), .blocked, .identity, .variant, .currency, .conflict, .conditions, .missing])
+    @Test(arguments: [WebPriceError.response(403), .response(429), .response(503), .blocked, .identity, .variant, .currency, .conflict, .conditions, .missing, .noOffer])
     func failuresKeepPricesHistoryAndSuccess(failure: WebPriceError) async throws {
         let original = item(), catalog = DiagnosticCatalog(item()), log = RefreshDiagnostics()
         // Use the same identity/UUID in the store and in the request.
@@ -74,6 +74,37 @@ struct RefreshDiagnosticsTests {
             #expect(!report.contains(secret))
         }
         #expect(report.contains(entry.id.uuidString))
+    }
+
+    @Test func noOfferClassifiesAsInformativeCodeWithoutSensitiveContent() {
+        let safe = RefreshDiagnosticFailure.classify(WebPriceError.noOffer, phase: .download)
+        #expect(safe.code == .noFeaturedOffer && safe.phase == .validation)
+        #expect(safe.errorDescription?.contains("JavaScript") == false)
+        #expect(RefreshDiagnosticFailure.classify(WebPriceError.missing, phase: .download).code == .missingPrice)
+        let attempt = RefreshDiagnosticAttempt(id: UUID(), itemID: UUID(), store: .amazon, startedAt: old, duration: 1.9,
+            lastSuccessAt: old, failure: safe, alertFailure: nil)
+        let report = RefreshDiagnostics.report([attempt])
+        #expect(report.contains("noFeaturedOffer") && report.contains("Sin oferta destacada"))
+        for secret in ["http", "€", "amazon."] { #expect(!report.contains(secret)) }
+    }
+
+    @Test func noOfferKeepsLastPriceWithoutAlertAndRecoveryIsNotAFalseChange() async throws {
+        let original = item(), catalog = DiagnosticCatalog(item())
+        try await catalog.save([original])
+        let alerts = DiagnosticAlerts()
+        let offline = DiagnosticConnector(.noOffer), online = DiagnosticConnector()
+        let date = old.addingTimeInterval(300)
+        let first = RefreshCoordinator(itemStore: catalog, alertStore: alerts, connectorToFetch: { _ in offline }, now: { date }, diagnostics: RefreshDiagnostics())
+        _ = await first.refreshResult(id: original.id)
+        var stored = try #require(await catalog.loadAll().first)
+        #expect(stored.priceCurrentCents == original.priceCurrentCents && stored.lastSuccessAt == old)
+        #expect(await alerts.loadAll().isEmpty)
+        #expect(await catalog.history.isEmpty)
+        // Al reaparecer el precio, se compara con el último precio conocido, sin cambio espurio.
+        let second = RefreshCoordinator(itemStore: catalog, alertStore: alerts, connectorToFetch: { _ in online }, now: { date.addingTimeInterval(60) }, diagnostics: RefreshDiagnostics())
+        _ = await second.refreshResult(id: original.id)
+        stored = try #require(await catalog.loadAll().first)
+        #expect(stored.priceCurrentCents == 900 && stored.consecutiveFailures == 0 && stored.lastError == nil)
     }
 
     @Test func arbitraryErrorsCannotEscapeTheClosedVocabulary() {

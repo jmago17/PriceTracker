@@ -210,6 +210,13 @@ enum WebPriceParser {
         }
     }
 
+    private static let unavailableMarkers = ["currently unavailable", "temporarily out", "no disponible", "agotado", "indisponible",
+        "derzeit nicht verfügbar", "attualmente non disponibile", "non disponibile"]
+    private static let noOfferMarkers = [
+        "ofertas destacadas no disponibles", "no hay ofertas destacadas", "no featured offers available", "no featured offer",
+        "derzeit keine hervorgehobenen angebote", "keine hervorgehobenen angebote", "offre vedette non disponible", "aucune offre vedette",
+        "nessuna offerta in evidenza", "offerte in evidenza non disponibili"]
+
     private static func amazon(_ document: PriceHTML, item: Item) throws -> FetchResult? {
         let selectedASINs = Set(document.nodes.filter {
             $0.tag == "input" && ($0.attributes["id"] == "ASIN" || $0.attributes["name"] == "ASIN")
@@ -223,12 +230,18 @@ enum WebPriceParser {
                normalized(selection.text) != normalized(expected) { throw WebPriceError.variant }
         }
         if let availability = document.nodes.first(where: { $0.attributes["id"] == "availability" })?.text.lowercased(),
-           ["currently unavailable", "temporarily out", "no disponible", "agotado", "indisponible"].contains(where: availability.contains) {
-            throw WebPriceError.missing
+           unavailableMarkers.contains(where: availability.contains) {
+            throw WebPriceError.noOffer
         }
         let blockIDs = ["corePriceDisplay_desktop_feature_div", "corePrice_feature_div", "apex_desktop", "apex_mobile", "priceblock_ourprice", "priceblock_dealprice"]
         let blocks = document.nodes.filter { !$0.isExcluded && blockIDs.contains($0.attributes["id"] ?? "") }
-        guard !blocks.isEmpty else { return nil }
+        guard !blocks.isEmpty else {
+            // Without a product price block, a stated absence of featured offer is a
+            // store state, not an extraction failure. Other prices are never used.
+            let visible = normalized(document.text)
+            if noOfferMarkers.contains(where: visible.contains) { throw WebPriceError.noOffer }
+            return nil
+        }
         guard selectedASINs == [item.storeItemID],
               document.nodes.contains(where: { !$0.isExcluded && $0.attributes["id"] == "productTitle" && !$0.text.isEmpty }) else { throw WebPriceError.identity }
         var amounts: [String] = []

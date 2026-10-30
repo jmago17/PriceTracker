@@ -198,6 +198,53 @@ struct WebPriceParserTests {
         }
     }
 
+
+    // MARK: sin oferta destacada
+
+    private let relatedCarousel = """
+    <div id="sims-consolidated-1_feature_div" data-asin="B0OTHER000"><span class="a-price"><span class="a-offscreen">594,99 €</span></span>
+    <span class="a-price"><span class="a-offscreen">16,99 €</span></span><span class="a-price"><span class="a-offscreen">1.118,10 €</span></span></div>
+    """
+    private func amazonPage(_ body: String) -> String {
+        "<span id='productTitle'>Cámara Demo</span><input id='ASIN' value='B012345678'>" + body + relatedCarousel
+    }
+    private func expectFailure(_ html: String, _ expected: WebPriceError, item selected: Item? = nil, sourceLocation: SourceLocation = #_sourceLocation) {
+        let selected = selected ?? item("https://www.amazon.es/dp/B012345678", store: .amazon)
+        do {
+            let value = try parse(html, item: selected)
+            Issue.record("Se esperaba \(expected) y devolvió \(value.priceCents)", sourceLocation: sourceLocation)
+        } catch let error as WebPriceError {
+            #expect(String(describing: error) == String(describing: expected), sourceLocation: sourceLocation)
+        } catch { Issue.record("Error inesperado \(error)", sourceLocation: sourceLocation) }
+    }
+
+    @Test func amazonWithoutFeaturedOfferIsNoOfferNotAPriceNorMissing() {
+        for (tld, phrase) in [("es", "Ofertas destacadas no disponibles"), ("es", "No hay ofertas destacadas disponibles"),
+                              ("com", "No featured offers available"), ("de", "Derzeit keine hervorgehobenen Angebote"),
+                              ("fr", "Offre vedette non disponible"), ("it", "Nessuna offerta in evidenza")] {
+            let selected = item("https://www.amazon.\(tld)/dp/B012345678", store: .amazon)
+            expectFailure(amazonPage("<div id='outOfStockBuyBox_feature_div'><h2>\(phrase)</h2><a href='#'>Ver todas las opciones de 2</a></div>"), .noOffer, item: selected)
+        }
+    }
+
+    @Test func amazonUnavailableAvailabilityIsNoOffer() {
+        for text in ["No disponible.", "Currently unavailable.", "Derzeit nicht verfügbar.", "Attualmente non disponibile.", "Actuellement indisponible."] {
+            expectFailure(amazonPage("<div id='availability'><span>\(text)</span></div>"), .noOffer)
+        }
+    }
+
+    @Test func amazonNormalPagePriceStillParsesAndIgnoresCarousel() throws {
+        let html = amazonPage("<div id='corePrice_feature_div'><span class='a-price'><span class='a-offscreen'>18,99 €</span></span></div>")
+        #expect(try parse(html, item: item("https://www.amazon.es/dp/B012345678", store: .amazon)).priceCents == 1899)
+    }
+
+    @Test func amazonNormalPageWithoutExtractablePriceStaysMissing() {
+        expectFailure(amazonPage("<div id='feature-bullets'>Descripción sin precio</div>"), .missing)
+    }
+
+    @Test func amazonCaptchaKeepsPriorityOverNoOffer() {
+        expectFailure(amazonPage("<title>Robot Check</title><h2>Ofertas destacadas no disponibles</h2>"), .blocked)
+    }
 }
 
 // Explicit synthetic fixtures, not the historical Amazon incident DOM.
@@ -267,4 +314,5 @@ struct AmazonPriceReconciliationTests {
         let conflict = page.replacingOccurrences(of: "\"price\":\"1090.99\"", with: "\"price\":\"12.39\"")
         #expect(StorePageParser.parse(data: Data(conflict.utf8), fallbackURL: url)?.priceCents == nil)
     }
+
 }

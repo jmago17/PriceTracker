@@ -16,7 +16,7 @@ enum PublicWebSession {
 }
 
 enum WebPriceError: Error, LocalizedError {
-    case blocked, identity, variant, ambiguous, conflict, conditions, missing, currency, response(Int), rateLimited
+    case blocked, identity, variant, ambiguous, conflict, conditions, missing, noOffer, currency, response(Int), rateLimited
     var errorDescription: String? {
         switch self {
         case .blocked: return "La tienda solicita acceso, inicio de sesión o CAPTCHA. No se ha comprobado el precio."
@@ -25,7 +25,8 @@ enum WebPriceError: Error, LocalizedError {
         case .ambiguous: return "La página muestra varios precios, un rango, cuotas o condiciones de compra sin un precio único del producto."
         case .conflict: return "Las fuentes de la página muestran precios incompatibles. Se conserva el precio anterior."
         case .conditions: return "El precio tiene cuotas o condiciones de compra y no es un total verificable."
-        case .missing: return "No hay un precio verificable en el HTML público. La tienda puede requerir JavaScript o no ofrecer el producto."
+        case .missing: return "No se encontró un precio verificable en la página."
+        case .noOffer: return "Sin oferta destacada: la tienda no muestra un precio principal ahora mismo. Se conserva el último precio."
         case .currency: return "La moneda del precio no coincide con la guardada o no se puede verificar."
         case .response(let code): return "La tienda respondió con HTTP \(code). No se ha comprobado el precio."
         case .rateLimited: return "La tienda ha limitado las solicitudes. Espera antes de volver a comprobar; se conserva el último precio."
