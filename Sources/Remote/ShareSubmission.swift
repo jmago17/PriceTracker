@@ -107,7 +107,7 @@ struct ShareSubmission: Sendable {
         } catch let error as PriceBucketError {
             if error.isAlreadyExists { return .alreadyExists }
             switch error {
-            case .offline: return queue(url, size: size, target: target, reason: .offline)
+            case .offline, .network: return queue(url, size: size, target: target, reason: .offline)
             case .notConfigured: return queue(url, size: size, target: target, reason: .notConfigured)
             default: throw error
             }

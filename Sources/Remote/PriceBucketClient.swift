@@ -91,8 +91,13 @@ struct PriceBucketClient: Sendable {
             throw error
         } catch let error as URLError where error.code == .cancelled {
             throw CancellationError()
-        } catch is URLError {
-            throw PriceBucketError.offline
+        } catch let error as URLError {
+            switch error.code {
+            case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed, .internationalRoamingOff, .timedOut:
+                throw PriceBucketError.offline
+            default:
+                throw PriceBucketError.network(code: error.code.rawValue, detail: error.localizedDescription)
+            }
         }
 
         switch response.statusCode {
