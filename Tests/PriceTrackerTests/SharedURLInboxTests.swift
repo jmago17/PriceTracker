@@ -30,42 +30,15 @@ struct SharedURLInboxTests {
         #expect(inbox.load().isEmpty)
     }
 
-    @Test func renderedCapturePersistsAndUpgradesDuplicateURL() throws {
+    @Test func duplicateURLKeepsOneEntryAndTakesNewestSheetValues() throws {
         let (inbox, _) = makeInbox()
-        let url = try #require(URL(string: "https://es.aliexpress.com/item/100500000000.html"))
+        let url = try #require(URL(string: "https://example.com/zapatillas"))
         inbox.enqueue(url)
-
-        let capture = SharedPageCapture(
-            pageURLString: url.absoluteString,
-            title: "Producto dinámico",
-            imageURLString: "https://example.com/product.jpg",
-            priceCents: 1_299,
-            currency: "EUR"
-        )
-        inbox.enqueue(url, pageCapture: capture)
+        inbox.enqueue(url, size: "42", targetPriceCents: 4_999)
 
         let entries = inbox.load()
         #expect(entries.count == 1)
-        #expect(entries[0].pageCapture == capture)
-    }
-
-    @Test func queueAndCaptchaPagesAreRejectedAsProductCaptures() throws {
-        let requestedURL = try #require(URL(string: "https://store.nintendo.com/es-es/producto"))
-        let queueCapture = SharedPageCapture(
-            pageURLString: "https://nintendostoreuk.queue-it.net/?c=nintendostoreuk",
-            title: "You are now in line"
-        )
-        let productCapture = SharedPageCapture(
-            pageURLString: requestedURL.absoluteString,
-            title: "The Legend of Zelda"
-        )
-        let captchaCapture = SharedPageCapture(
-            pageURLString: requestedURL.absoluteString,
-            title: "Verify you are human - CAPTCHA"
-        )
-
-        #expect(queueCapture.isLikelyAccessInterruption)
-        #expect(captchaCapture.isLikelyAccessInterruption)
-        #expect(!productCapture.isLikelyAccessInterruption)
+        #expect(entries[0].size == "42")
+        #expect(entries[0].targetPriceCents == 4_999)
     }
 }

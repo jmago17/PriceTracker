@@ -12,11 +12,6 @@ struct PriceTrackerShortcuts: AppShortcutsProvider {
             "Show price drops in \(.applicationName)"
         ], shortTitle: "Ver bajadas", systemImageName: "arrow.down.right.circle")
 
-        AppShortcut(intent: RefreshCatalogIntent(), phrases: [
-            "Comprueba los precios en \(.applicationName)", "Actualiza \(.applicationName)",
-            "Check prices in \(.applicationName)"
-        ], shortTitle: "Comprobar precios", systemImageName: "arrow.clockwise")
-
         AppShortcut(intent: GetItemPriceIntent(), phrases: [
             "Cuánto cuesta en \(.applicationName)", "Consulta un precio en \(.applicationName)",
             "Precio de \(\.$item) en \(.applicationName)"

@@ -25,14 +25,18 @@ final class ItemListViewModel {
     var categoryFilter: ItemCategoryFilter = .all
     var statusFilter: ItemStatusFilter = .active
     private(set) var isRefreshingCatalog = false
-    private(set) var refreshProgress: RefreshProgress?
     var lastErrorMessage: String?
-    var lastRefreshMessage: String?
     /// Informational result of a single-item server check (e.g. "deferred").
     var refreshNotice: String?
     /// Items whose Apple Intelligence summary is being generated right now.
     private(set) var summarizingIDs: Set<UUID> = []
     private(set) var summaryErrors: [UUID: String] = [:]
+
+    /// Items already tried by the automatic summaries this session, so an
+    /// unreadable page is not retried on every sync.
+    private var autoSummaryAttempted: Set<UUID> = []
+    /// At most this many new summaries per sync; the model is slow and local.
+    static let automaticSummariesPerSync = 3
 
     private let environment: AppEnvironment
     private var refreshTask: Task<Void, Never>?
@@ -97,7 +101,6 @@ final class ItemListViewModel {
         do {
             items = try await environment.itemStore.loadAll()
             reconcileCategoryFilter()
-            // A history-only CloudKit change need not modify the Item payload.
             // Refresh only histories already requested by an open detail.
             for item in items where histories[item.identityKey] != nil || historyErrors[item.identityKey] != nil {
                 await loadHistory(for: item, fetchRemote: false)
@@ -114,32 +117,48 @@ final class ItemListViewModel {
 
     /// Called after any add path. The summary is generated in the background
     /// so saving never waits for the model.
-    func didAdd(_ item: Item, pageText: String?) async {
+    func didAdd(_ item: Item) async {
         await load()
-        guard pageText?.trimmedNonEmpty != nil else { return }
-        Task { await summarize(item, pageText: pageText) }
+        guard !AppGroup.isDemo, canSummarize else { return }
+        autoSummaryAttempted.insert(item.id)
+        Task { await summarize(item, explicit: false) }
     }
 
-    /// "Generar resumen" in the ficha: reads the page again and summarizes it.
+    /// "Generar resumen" in the ficha: reads the page and summarizes it.
     func generateSummary(for item: Item) {
-        Task { await summarize(item, pageText: nil) }
+        Task { await summarize(item, explicit: true) }
     }
 
     var canSummarize: Bool { ProductInsightGenerator.isAvailable }
 
-    private func summarize(_ item: Item, pageText: String?) async {
+    /// After a sync: summarizes up to three new items that still have none.
+    /// Runs in the background and only when Apple Intelligence is available.
+    func summarizeMissing() {
+        guard !AppGroup.isDemo, canSummarize else { return }
+        let pending = items
+            .filter { $0.summary?.trimmedNonEmpty == nil && $0.status != .archived
+                && !autoSummaryAttempted.contains($0.id) && !summarizingIDs.contains($0.id) }
+            .prefix(Self.automaticSummariesPerSync)
+        guard !pending.isEmpty else { return }
+        autoSummaryAttempted.formUnion(pending.map(\.id))
+        Task {
+            for item in pending { await summarize(item, explicit: false) }
+        }
+    }
+
+    private func summarize(_ item: Item, explicit: Bool) async {
         guard !AppGroup.isDemo, !summarizingIDs.contains(item.id) else { return }
         summarizingIDs.insert(item.id)
         summaryErrors[item.id] = nil
         defer { summarizingIDs.remove(item.id) }
         do {
-            let enricher = ItemEnricher(itemStore: environment.itemStore, connectors: environment.connectors)
-            _ = try await enricher.enrich(item, pageText: pageText)
+            let enricher = ItemEnricher(itemStore: environment.itemStore)
+            _ = try await enricher.enrich(item)
             await load()
         } catch {
-            // Automatic runs after adding stay silent; only an explicit request
-            // shows why no summary was produced.
-            if pageText == nil {
+            // Automatic runs stay silent; only an explicit request shows why no
+            // summary was produced.
+            if explicit {
                 summaryErrors[item.id] = error.localizedDescription
             }
         }
@@ -159,24 +178,21 @@ final class ItemListViewModel {
     func refreshSingle(_ item: Item) async {
         lastErrorMessage = nil
         refreshNotice = nil
-        if let remote = environment.remoteStore {
-            do {
-                let result = try await remote.refresh(id: item.id)
-                if result.deferred {
-                    refreshNotice = "Este artículo no se puede comprobar al momento: lo comprueba la rutina de las 08:00."
-                        + (result.why?.trimmedNonEmpty.map { " (\($0))" } ?? "")
-                }
-            } catch {
-                lastErrorMessage = error.localizedDescription
-            }
-            await load()
-            await loadHistory(for: item)
+        guard let remote = environment.remoteStore else {
+            await refreshDemo(item)
             return
         }
-        let result = await environment.refreshCoordinator.refreshResult(id: item.id)
+        do {
+            let result = try await remote.refresh(id: item.id)
+            if result.deferred {
+                refreshNotice = "Este artículo no se puede comprobar al momento: lo comprueba la rutina de las 08:00."
+                    + (result.why?.trimmedNonEmpty.map { " (\($0))" } ?? "")
+            }
+        } catch {
+            lastErrorMessage = error.localizedDescription
+        }
         await load()
         await loadHistory(for: item)
-        if let error = result.error { lastErrorMessage = error }
     }
 
     /// Opening a ficha asks the server for the history first (and caches it);
@@ -230,8 +246,7 @@ final class ItemListViewModel {
     }
 
     /// "Pausar"/"Reanudar" in the ficha's bottom bar — reuses `.archived`, which
-    /// already excludes an item from refresh batches (RefreshCoordinator) and
-    /// from the default "Activos" chip.
+    /// the server skips when checking and the default "Activos" chip hides.
     func togglePause(_ item: Item) {
         var updated = item
         updated.status = item.status == .archived ? .active : .archived
@@ -239,58 +254,21 @@ final class ItemListViewModel {
         save(updated)
     }
 
-    func refreshCategory(_ category: String?) {
-        if environment.isRemote {
-            startRefreshCatalog()
-            return
-        }
-        Task {
-            do {
-                let summary = try await environment.refreshCoordinator.refreshCategory(category)
-                await load()
-                lastRefreshMessage = summary.completionMessage
-            } catch {
-                lastErrorMessage = error.localizedDescription
-            }
-        }
-    }
-
-    /// Manual "refresh everything" from the UI: a cancelable, progress-reporting
-    /// task that never blocks the main thread — see Refresh/RefreshCoordinator.swift.
+    /// Manual "refresh" from the UI: the server does the price checks, so this
+    /// pulls its latest state. Cancelable and never blocks the main thread.
     func startRefreshCatalog() {
         guard refreshTask == nil else { return }
         isRefreshingCatalog = true
-        refreshProgress = nil
         lastErrorMessage = nil
-        lastRefreshMessage = nil
-        if let remote = environment.remoteStore {
-            // The server does the price checks; "refresh" pulls its latest state.
-            refreshTask = Task {
+        refreshTask = Task {
+            if let remote = environment.remoteStore {
                 do { try await remote.sync() }
                 catch is CancellationError {}
                 catch { lastErrorMessage = error.localizedDescription }
-                await load()
-                isRefreshingCatalog = false
-                refreshTask = nil
-            }
-            return
-        }
-        refreshTask = Task {
-            var completionMessage: String?
-            do {
-                let summary = try await environment.refreshCoordinator.refreshCatalog { progress in
-                    self.refreshProgress = progress
-                }
-                completionMessage = summary.completionMessage
-            } catch is CancellationError {
-                // user-initiated cancel — not an error worth surfacing
-            } catch {
-                lastErrorMessage = error.localizedDescription
             }
             await load()
             isRefreshingCatalog = false
             refreshTask = nil
-            lastRefreshMessage = completionMessage
         }
     }
 
@@ -321,6 +299,25 @@ final class ItemListViewModel {
 
 #if DEBUG
 extension ItemListViewModel {
+    /// Demo/XCTest only (no server): a synthetic successful check at the same
+    /// price, so the freshness and history UI can be exercised without a network.
+    fileprivate func refreshDemo(_ item: Item) async {
+        do {
+            guard let current = try await environment.itemStore.item(id: item.id),
+                  let price = current.priceCurrentCents else { return }
+            var updated = current
+            let now = Date()
+            updated.lastCheckedAt = now
+            updated.lastSuccessAt = now
+            updated.updatedAt = now
+            let observation = PriceObservation(itemID: current.id, checkedAt: now, priceCents: price,
+                                               currency: current.currency, isOnSale: false)
+            try await environment.itemStore.upsert(updated, observation: observation)
+            await load()
+            await loadHistory(for: item)
+        } catch { lastErrorMessage = error.localizedDescription }
+    }
+
     func loadDemo() async {
         if ProcessInfo.processInfo.arguments.contains("--demo-history") {
             let old = Date().addingTimeInterval(-4 * 86400)
@@ -366,6 +363,7 @@ extension ItemListViewModel {
 }
 #else
 extension ItemListViewModel {
+    fileprivate func refreshDemo(_ item: Item) async {}
     func loadDemo() async {}
 }
 #endif

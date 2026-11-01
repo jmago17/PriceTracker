@@ -1,69 +1,63 @@
+import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-/// Native Share sheet endpoint. It deliberately does no network work: it stores
-/// the URL plus Safari's rendered snapshot in the App Group inbox and lets the
-/// main app resolve it next time it becomes active.
+/// Native Share sheet endpoint. Shows a small SwiftUI form and sends the link
+/// straight to the PriceBucket server; when that is impossible (no key, no
+/// network) `ShareSubmission` parks it in the App Group inbox instead.
 final class ShareViewController: UIViewController {
-    private let inbox = SharedURLInbox()
-
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
         Task { @MainActor in
-            let saved = await extractAndSaveURL()
-            showResult(saved: saved)
+            let shared = await extractSharedLink()
+            let model = ShareSheetModel(url: shared.url, pageTitle: shared.title) { [weak self] in
+                self?.extensionContext?.completeRequest(returningItems: nil)
+            }
+            embed(ShareSheetView(model: model))
         }
     }
 
-    private func extractAndSaveURL() async -> Bool {
-        guard let items = extensionContext?.inputItems as? [NSExtensionItem] else { return false }
+    private func embed(_ content: ShareSheetView) {
+        let host = UIHostingController(rootView: content)
+        addChild(host)
+        host.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(host.view)
+        NSLayoutConstraint.activate([
+            host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            host.view.topAnchor.constraint(equalTo: view.topAnchor),
+            host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        host.didMove(toParent: self)
+    }
+
+    /// The first http(s) URL among the shared items (a URL attachment, or plain
+    /// text that is a URL), with the page title Safari supplies when present.
+    private func extractSharedLink() async -> (url: URL?, title: String?) {
+        guard let items = extensionContext?.inputItems as? [NSExtensionItem] else { return (nil, nil) }
         for item in items {
+            let title = (item.attributedTitle?.string ?? item.attributedContentText?.string)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             for provider in item.attachments ?? [] {
-                if provider.hasItemConformingToTypeIdentifier(UTType.propertyList.identifier),
-                   let value = try? await provider.loadItem(forTypeIdentifier: UTType.propertyList.identifier),
-                   let dictionary = value as? [String: Any],
-                   let results = dictionary[NSExtensionJavaScriptPreprocessingResultsKey] as? [String: Any],
-                   let capture = SharedPageCapture(propertyList: results),
-                   let url = capture.pageURL ?? capture.canonicalURL {
-                    inbox.enqueue(url, pageCapture: capture)
-                    return true
-                }
                 if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier),
                    let value = try? await provider.loadItem(forTypeIdentifier: UTType.url.identifier),
-                   let url = value as? URL {
-                    inbox.enqueue(url)
-                    return true
+                   let url = value as? URL, Self.isWebURL(url) {
+                    return (url, title?.isEmpty == false ? title : nil)
                 }
                 if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier),
                    let value = try? await provider.loadItem(forTypeIdentifier: UTType.plainText.identifier),
                    let string = value as? String,
-                   let url = URL(string: string.trimmingCharacters(in: .whitespacesAndNewlines)),
-                   url.scheme != nil {
-                    inbox.enqueue(url)
-                    return true
+                   let url = URL(string: string.trimmingCharacters(in: .whitespacesAndNewlines)), Self.isWebURL(url) {
+                    return (url, nil)
                 }
             }
         }
-        return false
+        return (nil, nil)
     }
 
-    private func showResult(saved: Bool) {
-        let label = UILabel()
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.textAlignment = .center
-        label.numberOfLines = 0
-        label.font = .preferredFont(forTextStyle: .headline)
-        label.text = saved ? "Saved to PriceTracker" : "No URL to save"
-        view.addSubview(label)
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: view.layoutMarginsGuide.leadingAnchor),
-            label.trailingAnchor.constraint(equalTo: view.layoutMarginsGuide.trailingAnchor),
-            label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-        ])
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-            self?.extensionContext?.completeRequest(returningItems: nil)
-        }
+    private static func isWebURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased() else { return false }
+        return (scheme == "http" || scheme == "https") && url.host != nil
     }
 }

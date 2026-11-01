@@ -1,7 +1,7 @@
 import Foundation
 import FoundationModels
 
-/// A presentation-only input. Never changes Item, exports, search or CloudKit.
+/// A presentation-only input. Never changes Item, exports, search or the server catalog.
 struct DisplayTitleRequest: Codable, Hashable, Sendable {
     let version: Int
     let identity: String

@@ -99,9 +99,15 @@ actor RemoteItemStore: PriceHistoryStoring {
     // MARK: Mutations (write-through)
 
     /// `POST /items`. Amazon and blocked pages come back pending (no price).
+    /// A target price goes in a follow-up PATCH, whose unit is documented; if
+    /// that fails the item stays added without a target.
     @discardableResult
-    func add(url: URL, size: String? = nil, color: String? = nil) async throws -> Item {
-        let item = try await client.addItem(url: url, size: size, color: color)
+    func add(url: URL, size: String? = nil, color: String? = nil, targetPriceCents: Int? = nil) async throws -> Item {
+        var item = try await client.addItem(url: url, size: size, color: color)
+        if let targetPriceCents,
+           let patched = try? await client.patchItem(id: item.id, patch: ItemPatch(targetPriceCents: .set(targetPriceCents))) {
+            item = patched
+        }
         try await store(item)
         return item
     }

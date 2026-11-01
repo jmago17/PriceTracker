@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// "Servidor PriceBucket": URL, API key (Keychain), connection test and sync.
-/// Replaces the CloudKit sync screen in navigation.
+/// Server URL, API key and manual sync.
 struct ServerSettingsView: View {
     @Bindable var viewModel: RemoteSyncViewModel
 
@@ -36,7 +36,7 @@ struct ServerSettingsView: View {
                 } header: {
                     Text("Servidor PriceBucket")
                 } footer: {
-                    Text("La clave se guarda solo en el llavero de este dispositivo. El servidor comprueba los precios (cada día y en la rutina de las 08:00) y envía los avisos.")
+                    Text("La clave se guarda solo en el llavero de este dispositivo (la comparte la extensión de Compartir). El servidor comprueba los precios (cada día y en la rutina de las 08:00) y envía los avisos.")
                 }
 
                 Section {

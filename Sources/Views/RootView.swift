@@ -40,8 +40,8 @@ struct RootView: View {
         }
         .task {
             let viewModel = viewModel
-            sharedInbox.onItemAdded = { item, pageText in
-                await viewModel.didAdd(item, pageText: pageText)
+            sharedInbox.onItemAdded = { item in
+                await viewModel.didAdd(item)
             }
             if AppGroup.isDemo {
                 await viewModel.loadDemo()
@@ -53,6 +53,7 @@ struct RootView: View {
             await sharedInbox.processAll()
             await syncViewModel.sync()
             await viewModel.load()
+            viewModel.summarizeMissing()
         }
         .onChange(of: scenePhase) { _, phase in
             guard !AppGroup.isDemo, phase == .active else { return }
@@ -61,6 +62,7 @@ struct RootView: View {
                 await sharedInbox.processAll()
                 await syncViewModel.sync(force: false)
                 await viewModel.load()
+                viewModel.summarizeMissing()
             }
         }
         .onChange(of: syncViewModel.catalogRevision) { _, _ in

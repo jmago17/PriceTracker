@@ -20,12 +20,6 @@ struct SiriIntentLogicTests {
         #expect(result.map(\.title) == ["Grande", "Pequeña"])
     }
 
-    @Test func refreshSummaryIsConversational() {
-        #expect(RefreshCatalogIntent.spokenSummary(for: RefreshSummary()) == "No hay artículos que comprobar.")
-        #expect(RefreshCatalogIntent.spokenSummary(for: RefreshSummary(checked: 5, dropped: 1))
-            == "Comprobados 5 artículos. Uno ha bajado de precio.")
-    }
-
     private func sampleItem(title: String, current: Int, atAdd: Int) -> Item {
         Item(
             store: .appStore,

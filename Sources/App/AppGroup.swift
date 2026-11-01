@@ -25,190 +25,66 @@ enum AppGroup {
         return url
     }
 
-    static var itemsFileURL: URL {
-        containerURL.appendingPathComponent("items.json")
-    }
-
     static var databaseURL: URL {
         containerURL.appendingPathComponent("catalog.sqlite")
     }
 
     /// Read cache of the PriceBucket catalog. Deliberately NOT `catalog.sqlite`:
-    /// that file still holds the CloudKit-era data and sync state, and a server
-    /// reconciliation must not tombstone rows a later CloudKit run could upload.
+    /// that file holds the pre-server data and a server reconciliation must not
+    /// tombstone rows from it. `catalog.sqlite` is only the demo/XCTest store.
     static var remoteCacheURL: URL {
         containerURL.appendingPathComponent("remote-cache.sqlite")
     }
-
-    static var alertsFileURL: URL {
-        containerURL.appendingPathComponent("alerts.json")
-    }
 }
 
-/// Compact, store-agnostic product data captured from a rendered webpage. Safari
-/// can provide it to the Share extension; the main app produces the same shape
-/// through WebKit when a pasted URL has incomplete server-side metadata.
-struct SharedPageCapture: Codable, Hashable, Sendable {
-    /// A bounded, pricing-only DOM fragment from PageCapture.js. Never trust a
-    /// legacy Amazon priceCents without revalidating this evidence in Swift.
-    var amazonPriceHTML: String? = nil
-    var pageURLString: String?
-    var canonicalURLString: String?
-    var title: String?
-    var description: String?
-    var imageURLString: String?
-    var priceCents: Int?
-    var currency: String?
-    var category: String?
-    var size: String?
-    var color: String?
-    /// Main visible text of the rendered page, trimmed by PageCapture.js.
-    var pageText: String?
-
-    init(
-        pageURLString: String? = nil,
-        canonicalURLString: String? = nil,
-        title: String? = nil,
-        description: String? = nil,
-        imageURLString: String? = nil,
-        priceCents: Int? = nil,
-        currency: String? = nil,
-        category: String? = nil,
-        size: String? = nil,
-        color: String? = nil,
-        pageText: String? = nil
-    ) {
-        self.pageURLString = pageURLString
-        self.canonicalURLString = canonicalURLString
-        self.title = title
-        self.description = description
-        self.imageURLString = imageURLString
-        self.priceCents = priceCents
-        self.currency = currency
-        self.category = category
-        self.size = size
-        self.color = color
-        self.pageText = pageText
-    }
-
-    init?(propertyList: [String: Any]) {
-        func string(_ key: String) -> String? {
-            guard let value = propertyList[key] as? String else { return nil }
-            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-
-        pageURLString = string("pageURL")
-        canonicalURLString = string("canonicalURL")
-        title = string("title")
-        description = string("description")
-        imageURLString = string("imageURL")
-        priceCents = (propertyList["priceCents"] as? NSNumber)?.intValue
-        currency = string("currency")?.uppercased()
-        category = string("category")
-        size = string("size")
-        color = string("color")
-        pageText = string("pageText")
-        if let evidence = string("amazonPriceHTML"), evidence.utf8.count <= 128_000 {
-            amazonPriceHTML = evidence
-        }
-
-        guard pageURLString != nil || canonicalURLString != nil || title != nil else { return nil }
-    }
-
-    var pageURL: URL? {
-        pageURLString.flatMap(URL.init(string:))
-    }
-
-    var canonicalURL: URL? {
-        canonicalURLString.flatMap(URL.init(string:))
-    }
-
-    var imageURL: URL? {
-        imageURLString.flatMap(URL.init(string:))
-    }
-
-    var isLikelyAccessInterruption: Bool {
-        WebPageInterruptionDetector.isLikely(
-            pageURL: pageURL ?? canonicalURL,
-            title: title,
-            description: description
-        )
-    }
-}
-
-enum WebPageInterruptionDetector {
-    static func isLikely(
-        pageURL: URL?,
-        title: String?,
-        description: String? = nil
-    ) -> Bool {
-        let host = pageURL?.host?.lowercased() ?? ""
-        if host == "queue-it.net" || host.hasSuffix(".queue-it.net") {
-            return true
-        }
-
-        let text = [pageURL?.absoluteString, title, description]
-            .compactMap { $0 }
-            .joined(separator: " ")
-            .lowercased()
-        let markers = [
-            "queue-it", "waiting room", "sala de espera", "robot check",
-            "captcha", "verify you are human", "verifica que eres humano",
-            "access denied", "acceso denegado",
-        ]
-        if markers.contains(where: text.contains) {
-            return true
-        }
-
-        return false
-    }
-}
-
-/// Lightweight App Group inbox used by the Share extension. The extension only
-/// records URLs and optional rendered metadata; the main app owns resolution,
-/// persistence and user-visible errors.
-struct SharedURLInbox {
+/// Lightweight App Group inbox. The Share extension sends links straight to the
+/// server and only parks them here when it cannot (no key, no network); the main
+/// app drains the inbox to the server the next time it becomes active.
+struct SharedURLInbox: Sendable {
     struct Entry: Codable, Identifiable, Hashable, Sendable {
         let id: UUID
         let urlString: String
         let receivedAt: Date
         var lastError: String?
         var attempts: Int?
-        var pageCapture: SharedPageCapture?
+        /// Optional values typed in the Share sheet, applied when the link is sent.
+        var size: String?
+        var targetPriceCents: Int?
 
         init(
             urlString: String,
             receivedAt: Date = .now,
             lastError: String? = nil,
             attempts: Int = 0,
-            pageCapture: SharedPageCapture? = nil
+            size: String? = nil,
+            targetPriceCents: Int? = nil
         ) {
             self.id = UUID()
             self.urlString = urlString
             self.receivedAt = receivedAt
             self.lastError = lastError
             self.attempts = attempts
-            self.pageCapture = pageCapture
+            self.size = size
+            self.targetPriceCents = targetPriceCents
         }
     }
 
-    private let defaults: UserDefaults
+    // UserDefaults is documented thread-safe but not annotated Sendable.
+    nonisolated(unsafe) private let defaults: UserDefaults
     private let key = "shared-url-inbox-v1"
 
     init(defaults: UserDefaults? = UserDefaults(suiteName: AppGroup.identifier)) {
         self.defaults = defaults ?? .standard
     }
 
-    func enqueue(_ url: URL, pageCapture: SharedPageCapture? = nil) {
+    func enqueue(_ url: URL, size: String? = nil, targetPriceCents: Int? = nil) {
         var entries = load()
         if let index = entries.firstIndex(where: { $0.urlString == url.absoluteString }) {
-            guard let pageCapture else { return }
-            entries[index].pageCapture = pageCapture
-            entries[index].lastError = nil
-            entries[index].attempts = 0
+            // Same link shared again: keep one entry, taking the newest values.
+            if let size { entries[index].size = size }
+            if let targetPriceCents { entries[index].targetPriceCents = targetPriceCents }
         } else {
-            entries.append(Entry(urlString: url.absoluteString, pageCapture: pageCapture))
+            entries.append(Entry(urlString: url.absoluteString, size: size, targetPriceCents: targetPriceCents))
         }
         save(entries)
     }

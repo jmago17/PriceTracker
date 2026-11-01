@@ -36,27 +36,20 @@ targets:
       configs:
         Debug:
           APS_ENVIRONMENT: development
-          ICLOUD_CONTAINER_ENVIRONMENT: Development
         Release:
           APS_ENVIRONMENT: production
-          ICLOUD_CONTAINER_ENVIRONMENT: Production
     dependencies:
       - target: PriceTrackerShare
         embed: true
-      - sdk: CloudKit.framework
       - sdk: AppIntents.framework
-      - sdk: WebKit.framework
       - sdk: libsqlite3.tbd
     entitlements:
       path: PriceTracker.entitlements
       properties:
         com.apple.security.application-groups:
           - group.com.maromeapps.PriceTracker
-        com.apple.developer.icloud-container-identifiers:
-          - iCloud.com.maromeapps.PriceTracker
-        com.apple.developer.icloud-services:
-          - CloudKit
-        com.apple.developer.icloud-container-environment: $(ICLOUD_CONTAINER_ENVIRONMENT)
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)com.maromeapps.PriceTracker
         aps-environment: $(APS_ENVIRONMENT)
         com.apple.developer.usernotifications.time-sensitive: true
     info:
@@ -78,10 +71,8 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
-        BGTaskSchedulerPermittedIdentifiers:
-          - com.maromeapps.PriceTracker.daily-prices
+        PriceBucketKeychainGroup: $(AppIdentifierPrefix)com.maromeapps.PriceTracker
         UIBackgroundModes:
-          - fetch
           - remote-notification
         ITSAppUsesNonExemptEncryption: false
 
@@ -92,7 +83,17 @@ targets:
     sources:
       - path: ShareExtension
       - path: Sources/App/AppGroup.swift
-      - path: Resources/PageCapture.js
+      # Only what the server client needs; no views, stores or UIKit code.
+      - path: Sources/Remote/PriceBucketClient.swift
+      - path: Sources/Remote/PriceBucketError.swift
+      - path: Sources/Remote/PriceBucketModels.swift
+      - path: Sources/Remote/PriceBucketSettings.swift
+      - path: Sources/Remote/PriceBucketTransport.swift
+      - path: Sources/Remote/ShareSubmission.swift
+      - path: Sources/Models/Item.swift
+      - path: Sources/Models/ItemStatus.swift
+      - path: Sources/Models/PriceObservation.swift
+      - path: Sources/Models/Store.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.maromeapps.PriceTracker.Share
@@ -106,15 +107,17 @@ targets:
       properties:
         com.apple.security.application-groups:
           - group.com.maromeapps.PriceTracker
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)com.maromeapps.PriceTracker
     info:
       path: PriceTrackerShare-Info.plist
       properties:
         CFBundleDisplayName: PriceTracker
+        PriceBucketKeychainGroup: $(AppIdentifierPrefix)com.maromeapps.PriceTracker
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
           NSExtensionAttributes:
-            NSExtensionJavaScriptPreprocessingFile: PageCapture
             NSExtensionActivationRule:
               NSExtensionActivationSupportsWebPageWithMaxCount: 1
               NSExtensionActivationSupportsWebURLWithMaxCount: 1

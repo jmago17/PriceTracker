@@ -1,7 +1,7 @@
 import Foundation
 
 /// One immutable observation per successful price check, including unchanged
-/// prices. Failed checks do not create observations. Committed locally in SQLite, then synced as an independent CloudKit record.
+/// prices. The server owns the history; the app caches it in SQLite.
 struct PriceObservation: Identifiable, Codable, Hashable, Sendable {
     var id: UUID = UUID()
     var itemID: UUID
@@ -11,21 +11,6 @@ struct PriceObservation: Identifiable, Codable, Hashable, Sendable {
     var isOnSale: Bool
     var saleEndsAt: Date?
     var availability: String?
-}
-
-/// The dedup log. Without it the same drop would notify every day the sale lasts —
-/// see Alerts/PriceDropDetector.swift for the once-per-level / re-arm rule.
-struct PriceAlert: Identifiable, Codable, Hashable, Sendable {
-    var id: UUID = UUID()
-    var itemID: UUID
-    var kind: AlertKind
-    var priceFromCents: Int?
-    var priceToCents: Int?
-    var createdAt: Date = Date()
-    var sentAt: Date?
-    var confirmedSaleEndsAt: Date? = nil
-    var initialPriceAlertKey: String? = nil
-    var currency: String? = nil
 }
 
 /// Only connect the latest uninterrupted currency segment. A currency switch

@@ -20,7 +20,6 @@ struct ItemDetailView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showingEdit = false
-    @State private var showingDiagnostics = false
     @State private var isRefreshing = false
 
     var body: some View {
@@ -55,7 +54,6 @@ struct ItemDetailView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button("Diagnóstico", systemImage: "stethoscope") { showingDiagnostics = true }
                     Button("Editar", systemImage: "pencil") { showingEdit = true }
                     Button(pauseLabel, systemImage: "pause") { viewModel.togglePause(item) }
                     Button("Eliminar", systemImage: "trash", role: .destructive) { viewModel.delete(item) }
@@ -70,9 +68,6 @@ struct ItemDetailView: View {
         }
         .sheet(isPresented: $showingEdit) {
             EditItemView(item: item, viewModel: viewModel)
-        }
-        .sheet(isPresented: $showingDiagnostics) {
-            RefreshDiagnosticsView(item: item)
         }
     }
 
@@ -332,8 +327,8 @@ struct ItemDetailView: View {
             .disabled(!item.canUseCurrentPriceAsInitial)
             .accessibilityIdentifier("reset-initial-price")
             Text(CatalogLanguage.isSpanish
-                 ? "Cambia la comparación inicial y permite un nuevo aviso de subida. Conserva el historial y el mínimo observado."
-                 : "Changes the initial comparison and allows a new rise alert. Keeps history and the observed low.")
+                 ? "Cambia la comparación inicial. Conserva el historial y el mínimo observado."
+                 : "Changes the initial comparison. Keeps history and the observed low.")
                 .font(.caption).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.bottom, 12)
@@ -418,12 +413,12 @@ struct ItemDetailView: View {
                     if let changed = historySeries.lastPriceChangeAt {
                         Text("Último cambio observado \(changed.relativeSpanish)")
                     }
-                    Text("Comprobaciones en este dispositivo. Los puntos son precios observados; no se reconstruyen fechas anteriores.")
+                    Text("Comprobaciones registradas por el servidor. Los puntos son precios observados; no se reconstruyen fechas anteriores.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                if item.store == .amazon {
-                    Link(destination: AmazonConnector.keepaURL(asin: item.storeItemID, region: item.region)) {
+                if let keepaURL = item.keepaURL {
+                    Link(destination: keepaURL) {
                         Label("Ver histórico en Keepa", systemImage: "arrow.up.right")
                     }
                     .font(.subheadline)
@@ -437,12 +432,9 @@ struct ItemDetailView: View {
     }
 
     private var historyExplanation: String {
-        if Store.refreshableStores.contains(item.store) {
-            return CatalogLanguage.isSpanish
-                ? "Cada comprobación correcta guarda un punto, aunque el precio no cambie. Los puntos se conservan y sincronizan con iCloud, separados por moneda."
-                : "Each successful check records a point, even if the price is unchanged. Points are preserved and synced with iCloud, separated by currency."
-        }
-        return "Este enlace se guardó con el precio del momento y no se vuelve a comprobar automáticamente."
+        CatalogLanguage.isSpanish
+            ? "Cada comprobación correcta guarda un punto, aunque el precio no cambie. Los puntos los guarda el servidor, separados por moneda."
+            : "Each successful check records a point, even if the price is unchanged. Points are stored by the server, separated by currency."
     }
 
     // MARK: Tags & notes
@@ -492,18 +484,16 @@ struct ItemDetailView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                if Store.refreshableStores.contains(item.store) {
-                    Button {
-                        refresh()
-                    } label: {
-                        if isRefreshing {
-                            ProgressView()
-                        } else {
-                            Label("Actualizar", systemImage: "arrow.clockwise")
-                        }
+                Button {
+                    refresh()
+                } label: {
+                    if isRefreshing {
+                        ProgressView()
+                    } else {
+                        Label("Actualizar", systemImage: "arrow.clockwise")
                     }
-                    .disabled(isRefreshing)
                 }
+                .disabled(isRefreshing)
             }
             if let error = item.lastError {
                 Text(error)
@@ -511,11 +501,6 @@ struct ItemDetailView: View {
                     .foregroundStyle(.red)
                     .textSelection(.enabled)
             }
-            Button("Ver diagnóstico de comprobación", systemImage: "stethoscope") {
-                showingDiagnostics = true
-            }
-            .font(.subheadline)
-            .accessibilityIdentifier("item-refresh-diagnostics")
             Button {
                 openInStore()
             } label: {

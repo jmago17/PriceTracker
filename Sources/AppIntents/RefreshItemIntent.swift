@@ -3,7 +3,7 @@ import Foundation
 
 struct RefreshItemIntent: AppIntent {
     static let title: LocalizedStringResource = "Actualizar artículo"
-    static let description = IntentDescription("Comprueba el precio actual de un artículo y guarda el resultado.")
+    static let description = IntentDescription("Pide al servidor que compruebe el precio actual de un artículo y guarda el resultado.")
     static let supportedModes: IntentModes = .background
 
     @Parameter(title: "Artículo")
@@ -16,13 +16,10 @@ struct RefreshItemIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<RefreshResultEntity> & ProvidesDialog {
-        let outcome: ItemRefreshOutcome
-        if let remote = AppEnvironment.shared.remoteStore {
-            guard remote.isConfigured else { throw PriceBucketError.notConfigured }
-            outcome = await Self.remoteOutcome(id: item.id, remote: remote)
-        } else {
-            outcome = await AppEnvironment.shared.refreshCoordinator.refreshResult(id: item.id)
-        }
+        // The server checks the price (POST /items/:id/refresh); nothing is read on device.
+        guard let remote = AppEnvironment.shared.remoteStore else { throw PriceBucketError.notConfigured }
+        guard remote.isConfigured else { throw PriceBucketError.notConfigured }
+        let outcome = await Self.remoteOutcome(id: item.id, remote: remote)
         let text: String
         if let error = outcome.error { text = "No se pudo comprobar \(item.title): \(error)" }
         else if let cents = outcome.priceCents, let currency = outcome.currency {
@@ -32,9 +29,19 @@ struct RefreshItemIntent: AppIntent {
     }
 }
 
+/// Result of one server-side check, as reported to Shortcuts.
+struct ItemRefreshOutcome: Sendable {
+    var itemID: UUID
+    var priceCents: Int? = nil
+    var currency: String? = nil
+    var changed: Bool = false
+    var checkedAt: Date? = nil
+    var error: String? = nil
+}
+
 extension RefreshItemIntent {
-    /// Server check mapped to the existing outcome. A deferred check (Amazon,
-    /// blocked pages) reports the stored price with no error and no change.
+    /// Server check mapped to an outcome. A deferred check (Amazon, blocked
+    /// pages) reports the stored price with no error and no change.
     static func remoteOutcome(id: UUID, remote: RemoteItemStore) async -> ItemRefreshOutcome {
         do {
             let before = try await remote.item(id: id)
@@ -43,7 +50,7 @@ extension RefreshItemIntent {
             return ItemRefreshOutcome(
                 itemID: id, priceCents: item.priceCurrentCents, currency: item.currency,
                 changed: before?.priceCurrentCents != item.priceCurrentCents,
-                checkedAt: item.lastCheckedAt, error: item.lastError, dropped: false, didPersist: true)
+                checkedAt: item.lastCheckedAt, error: item.lastError)
         } catch {
             return ItemRefreshOutcome(itemID: id, error: error.localizedDescription)
         }

@@ -32,20 +32,10 @@ struct CategoryLabelTests {
         #expect(first.category == "Hogar y cocina")
     }
 
-    @Test func importAndRefreshPreserveOriginalGenreAndExistingIdentity() {
-        let raw = "Accesorios especiales para cámaras de cine"
-        var resolved = ResolvedItem(store: .generic, storeItemID: "new", region: "ES", currency: "EUR", canonicalURL: URL(string: "https://example.com/new")!, title: "Cámara", priceCents: 1000, storeGenre: raw)
-        let imported = Item(resolved: resolved)
-        #expect(imported.category == nil)
-        #expect(imported.storeGenre == raw)
-        resolved.storeGenre = "Hogar y cocina"
-        #expect(Item(resolved: resolved).category == "Hogar/Cocina")
-        var existing = imported
-        existing.category = raw
-        existing.categorySource = .mapped
-        let fetch = FetchResult(priceCents: 1000, currency: "EUR", isOnSale: false, availability: "available", storeGenre: "Hogar y cocina")
-        #expect(PriceDropDetector.evaluate(item: existing, fetch: fetch).updatedItem.category == raw)
-        #expect(PriceDropDetector.evaluate(item: imported, fetch: fetch).updatedItem.category == "Hogar/Cocina")
+    @Test func suggestionMapsKnownGenresAndLeavesUnknownOnesAlone() {
+        #expect(CategoryLabel.suggestion("Accesorios especiales para cámaras de cine") == nil)
+        #expect(CategoryLabel.suggestion("Hogar y cocina") == "Hogar/Cocina")
+        #expect(CategoryLabel.suggestion(nil) == nil)
     }
 
     @Test func longLabelsNormalizeWhitespaceAndKeepCollidingIdentities() {
