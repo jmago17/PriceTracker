@@ -4,6 +4,8 @@ import SwiftUI
 /// Server URL, API key and manual sync.
 struct ServerSettingsView: View {
     @Bindable var viewModel: RemoteSyncViewModel
+    @State private var diagnostic: String?
+    @State private var isDiagnosing = false
 
     var body: some View {
         Form {
@@ -52,6 +54,27 @@ struct ServerSettingsView: View {
                     if let message = viewModel.connectionMessage {
                         Text(message).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                     }
+                }
+
+                Section {
+                    Button {
+                        isDiagnosing = true
+                        Task {
+                            diagnostic = await NetworkDiagnostics.run(settings: PriceBucketSettings.forApp())
+                            isDiagnosing = false
+                        }
+                    } label: {
+                        HStack {
+                            Text("Diagnóstico de red")
+                            if isDiagnosing { Spacer(); ProgressView() }
+                        }
+                    }
+                    .disabled(isDiagnosing)
+                    if let diagnostic {
+                        Text(diagnostic).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+                    }
+                } footer: {
+                    Text("Prueba la red paso a paso (tarda hasta un minuto). Mantén pulsado el texto para copiarlo.")
                 }
 
                 Section {

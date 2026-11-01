@@ -90,6 +90,7 @@
 		F948E6E97F27D4485EEE09DC /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B889A31A68F6E4AD56591CD1 /* RootView.swift */; };
 		F9ABEF7EAC560DBC89FB56DF /* ItemRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C0908BD5E7076146315000 /* ItemRowView.swift */; };
 		FC4E65D51AEEFE3264D5F7C8 /* SiriIntentLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 995AA2AC7C87FA223627C746 /* SiriIntentLogicTests.swift */; };
+		FE7ED37BDF3237A86AA1E7B7 /* NetworkDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CF0DE9C7B0E1421957B6247 /* NetworkDiagnostics.swift */; };
 		FFE0FDDEC7B8168F47D181D5 /* Item.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960A1EE602900E5C8DCBCF5F /* Item.swift */; };
 		FFFE9CEBA7097B9A47F3550C /* PriceBucketModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CAD1E6E6FADEB89D01B2C6A /* PriceBucketModels.swift */; };
 /* End PBXBuildFile section */
@@ -134,6 +135,7 @@
 
 /* Begin PBXFileReference section */
 		05A3B8756196CC1A674A0B9B /* RemoteItemStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteItemStore.swift; sourceTree = "<group>"; };
+		0CF0DE9C7B0E1421957B6247 /* NetworkDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkDiagnostics.swift; sourceTree = "<group>"; };
 		0ECACF9FC955FCD08F44AE70 /* PriceTrackerShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceTrackerShortcuts.swift; sourceTree = "<group>"; };
 		1016CB6B27E44922D988B694 /* ShareSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheetView.swift; sourceTree = "<group>"; };
 		14BD07EFABA497468EF75A37 /* DisplayTitleCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTitleCacheTests.swift; sourceTree = "<group>"; };
@@ -323,6 +325,7 @@
 			isa = PBXGroup;
 			children = (
 				159526997555062C9893D0FC /* ItemPendingState.swift */,
+				0CF0DE9C7B0E1421957B6247 /* NetworkDiagnostics.swift */,
 				49AA4D1F38D1EDAACF6EEEA3 /* PriceBucketClient.swift */,
 				26BEC7EE1F3976AD8BC0DC2F /* PriceBucketError.swift */,
 				3CAD1E6E6FADEB89D01B2C6A /* PriceBucketModels.swift */,
@@ -617,6 +620,7 @@
 				C5A0392313D9AA9DD639FCCA /* ItemStoring.swift in Sources */,
 				2C558B449BED7A34811DD9E1 /* LegacyImport.swift in Sources */,
 				2C7475749DDFF200908EE9D3 /* MoneyFormatter.swift in Sources */,
+				FE7ED37BDF3237A86AA1E7B7 /* NetworkDiagnostics.swift in Sources */,
 				023C08CB6DB136F232DF39A6 /* PageTextLoader.swift in Sources */,
 				342694AD888B13AB82014FE9 /* PriceBucketClient.swift in Sources */,
 				1F204A089225FBFBC4DC8225 /* PriceBucketError.swift in Sources */,
