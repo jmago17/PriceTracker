@@ -55,8 +55,8 @@ struct CatalogView: View {
                 }
             }
             .sheet(isPresented: $showingAddItem) {
-                AddItemView(onAdded: { item, pageText in
-                    await viewModel.didAdd(item, pageText: pageText)
+                AddItemView(onAdded: { item in
+                    await viewModel.didAdd(item)
                 })
             }
             .sheet(isPresented: $showingImportExport) {
@@ -82,14 +82,6 @@ struct CatalogView: View {
                 Button("OK") { viewModel.lastErrorMessage = nil }
             } message: {
                 Text(viewModel.lastErrorMessage ?? "")
-            }
-            .alert("Resultado de la comprobación", isPresented: Binding(
-                get: { viewModel.lastRefreshMessage != nil },
-                set: { if !$0 { viewModel.lastRefreshMessage = nil } }
-            )) {
-                Button("OK") { viewModel.lastRefreshMessage = nil }
-            } message: {
-                Text(viewModel.lastRefreshMessage ?? "")
             }
             .alert("Comprobación", isPresented: Binding(
                 get: { viewModel.refreshNotice != nil },
@@ -260,8 +252,6 @@ struct CatalogView: View {
             .listRowBackground(Color.clear)
             .listSectionSeparator(.hidden)
 
-            refreshProgressSection
-
             ForEach(viewModel.categorySections) { section in
                 Section {
                     ForEach(section.items) { item in
@@ -336,20 +326,6 @@ struct CatalogView: View {
             .contextMenu {
                 ItemContextMenu(item: item, viewModel: viewModel) {
                     beginSelection(with: item)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var refreshProgressSection: some View {
-        if let progress = viewModel.refreshProgress, viewModel.isRefreshingCatalog {
-            Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    ProgressView(value: Double(progress.completed), total: Double(max(progress.total, 1)))
-                    Text(progress.currentTitle.map { "Comprobando: \($0)" } ?? "Comprobando \(progress.completed) de \(progress.total)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -464,16 +440,6 @@ struct CatalogView: View {
                         .id("mural-search-header")
                     lastPriceCheckLine
                     muralChips
-
-                    if let progress = viewModel.refreshProgress, viewModel.isRefreshingCatalog {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ProgressView(value: Double(progress.completed), total: Double(max(progress.total, 1)))
-                            Text(progress.currentTitle.map { "Comprobando: \($0)" } ?? "Comprobando \(progress.completed) de \(progress.total)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: 420, alignment: .leading)
-                    }
 
                     if viewModel.filteredItems.isEmpty {
                         emptyState

@@ -4,22 +4,19 @@ import UIKit
 struct AddItemView: View {
     @State private var viewModel = AddItemViewModel()
     @Environment(\.dismiss) private var dismiss
-    /// The saved item and, when available, the page text captured while resolving.
-    var onAdded: (Item, String?) async -> Void
+    var onAdded: (Item) async -> Void
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     urlField
-                    if viewModel.preview == nil && viewModel.errorMessage == nil {
+                    if viewModel.errorMessage == nil {
                         actionButtons
                     }
 
                     if viewModel.isResolving {
                         resolvingCard
-                    } else if let preview = viewModel.preview {
-                        resolvedCard(preview)
                     } else if let error = viewModel.errorMessage {
                         errorCard(error)
                     } else {
@@ -54,12 +51,12 @@ struct AddItemView: View {
                 .overlay {
                     RoundedRectangle(cornerRadius: 14)
                         .strokeBorder(Color.accentColor, lineWidth: 2)
-                        .opacity(viewModel.preview == nil && viewModel.errorMessage == nil ? 1 : 0)
+                        .opacity(viewModel.errorMessage == nil ? 1 : 0)
                 }
 
-            if viewModel.preview != nil || viewModel.errorMessage != nil {
+            if viewModel.errorMessage != nil {
                 Button("Cambiar enlace") {
-                    viewModel.reset()
+                    viewModel.errorMessage = nil
                 }
                 .font(.subheadline)
             }
@@ -79,10 +76,9 @@ struct AddItemView: View {
             .buttonStyle(GhostFieldButtonStyle())
 
             Button {
-                if viewModel.isRemote { addToServer() } else { viewModel.lookUp() }
+                add()
             } label: {
-                Label(viewModel.isRemote ? "Añadir enlace" : "Analizar enlace",
-                      systemImage: viewModel.isRemote ? "plus" : "magnifyingglass")
+                Label("Añadir enlace", systemImage: "plus")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(FilledFieldButtonStyle())
@@ -95,9 +91,9 @@ struct AddItemView: View {
         HStack(spacing: 14) {
             ProgressView()
             VStack(alignment: .leading, spacing: 2) {
-                Text(viewModel.isRemote ? "Enviando al servidor…" : "Leyendo la página…")
+                Text("Enviando al servidor…")
                     .font(.system(.body, weight: .semibold))
-                Text(viewModel.isRemote ? "\(hostText) · el servidor busca nombre y precio" : "\(hostText) · buscando nombre y precio")
+                Text("\(hostText) · el servidor busca nombre y precio")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -108,89 +104,16 @@ struct AddItemView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    private func resolvedCard(_ preview: ResolvedItem) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 14) {
-                AsyncImage(url: preview.imageURL) { image in
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    RoundedRectangle(cornerRadius: 14).fill(.quaternary)
-                        .overlay { Image(systemName: "photo").foregroundStyle(.tertiary) }
-                }
-                .frame(width: 76, height: 76)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(preview.title)
-                        .font(.system(.body, weight: .semibold))
-                        .lineLimit(2)
-                    if let subtitle = preview.subtitle, !subtitle.isEmpty {
-                        Text(subtitle)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    Text(storeCategoryText(preview))
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
-                    if let variant = Item(resolved: preview).variantDescription {
-                        Text(variant)
-                            .font(.footnote.weight(.medium))
-                            .foregroundStyle(Color.accentColor)
-                    }
-                }
-            }
-
-            if let cents = preview.priceCents {
-                Divider()
-                HStack {
-                    Text("Precio detectado")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(cents == 0 ? "Gratis" : format(cents, preview.currency))
-                        .font(.system(.title3, weight: .bold))
-                }
-            } else {
-                Divider()
-                Label("Sin precio publicado", systemImage: "exclamationmark.circle")
-                    .foregroundStyle(.orange)
-                Text("Guardaremos el enlace, el nombre y la imagen. Podrás escribir el precio a mano cuando lo sepas.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .modifier(AddButtonBelow(action: confirmAdd))
-    }
-
     private func errorCard(_ message: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("No hemos podido leer esta página", systemImage: "xmark.circle")
+            Label("No se pudo añadir el enlace", systemImage: "xmark.circle")
                 .font(.system(.body, weight: .semibold))
                 .foregroundStyle(.red)
             Text(message)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            HStack(spacing: 20) {
-                Button("Reintentar") {
-                    if viewModel.isRemote { addToServer() } else { viewModel.lookUp() }
-                }
-                if !viewModel.isRemote {
-                    Button("Guardar solo el enlace") {
-                        Task {
-                            do {
-                                let item = try await viewModel.saveLinkOnly()
-                                await onAdded(item, nil)
-                                dismiss()
-                            } catch {
-                                viewModel.errorMessage = error.localizedDescription
-                            }
-                        }
-                    }
-                }
-            }
-            .font(.subheadline)
+            Button("Reintentar") { add() }
+                .font(.subheadline)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -203,9 +126,7 @@ struct AddItemView: View {
             Text("CÓMO FUNCIONA")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text(viewModel.isRemote
-                 ? "El servidor lee la página y comprueba el precio cada día. App Store y las webs legibles se resuelven al momento; Amazon y las webs bloqueadas quedan pendientes de la primera comprobación (08:00)."
-                 : "App Store, Apple Books, Apple Music y Apple Store se comprueban de forma periódica. Cualquier otra URL se guarda con el precio del momento; si la tienda no lo publica, el enlace se guarda igualmente.")
+            Text("El servidor lee la página y comprueba el precio cada día. App Store y las webs legibles se resuelven al momento; Amazon y las webs bloqueadas quedan pendientes de la primera comprobación (08:00).")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .padding(14)
@@ -219,58 +140,16 @@ struct AddItemView: View {
         URL(string: viewModel.urlText.trimmingCharacters(in: .whitespacesAndNewlines))?.host ?? "la tienda"
     }
 
-    private func storeCategoryText(_ preview: ResolvedItem) -> String {
-        if let genre = preview.storeGenre, !genre.isEmpty {
-            return "\(preview.store.displayName) · \(genre)"
-        }
-        return preview.store.displayName
-    }
-
-    private func format(_ cents: Int, _ currency: String) -> String {
-        MoneyFormatter.string(cents: cents, currency: currency)
-    }
-
-    private func addToServer() {
+    private func add() {
         viewModel.errorMessage = nil
         Task {
             do {
-                let item = try await viewModel.addToServer()
-                await onAdded(item, nil)
+                let item = try await viewModel.add()
+                await onAdded(item)
                 dismiss()
             } catch {
                 viewModel.errorMessage = error.localizedDescription
             }
-        }
-    }
-
-    private func confirmAdd() {
-        Task {
-            do {
-                let pageText = viewModel.preview?.pageText
-                let item = try await viewModel.confirmAdd()
-                await onAdded(item, pageText)
-                dismiss()
-            } catch {
-                viewModel.errorMessage = error.localizedDescription
-            }
-        }
-    }
-}
-
-/// Keeps the "Añadir al catálogo" CTA visually tied to the resolved-preview
-/// card without another indirection layer inside `resolvedCard`.
-private struct AddButtonBelow: ViewModifier {
-    let action: () -> Void
-
-    func body(content: Content) -> some View {
-        VStack(spacing: 12) {
-            content
-            Button(action: action) {
-                Text("Añadir al catálogo")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(FilledFieldButtonStyle())
-            .frame(height: 50)
         }
     }
 }

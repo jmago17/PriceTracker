@@ -4,7 +4,7 @@ import Testing
 
 // MARK: - Test doubles (no network, no real key)
 
-private final class FakeTransport: PriceBucketTransport, @unchecked Sendable {
+final class FakeTransport: PriceBucketTransport, @unchecked Sendable {
     typealias Handler = @Sendable (URLRequest) throws -> (Int, String)
 
     private let lock = NSLock()
@@ -29,7 +29,7 @@ private final class FakeTransport: PriceBucketTransport, @unchecked Sendable {
     }
 }
 
-private final class MemoryKeyStore: KeyStoring, @unchecked Sendable {
+final class MemoryKeyStore: KeyStoring, @unchecked Sendable {
     private let lock = NSLock()
     private var value: String?
     init(_ value: String? = nil) { self.value = value }
@@ -37,7 +37,7 @@ private final class MemoryKeyStore: KeyStoring, @unchecked Sendable {
     func write(_ newValue: String?) throws { lock.withLock { value = newValue } }
 }
 
-private let testKey = "test-key-not-a-secret"
+let testKey = "test-key-not-a-secret"
 
 private func makeSettings(key: String? = testKey) -> PriceBucketSettings {
     PriceBucketSettings(defaults: UserDefaults(suiteName: "remote-tests-\(UUID().uuidString)")!, keyStore: MemoryKeyStore(key))
@@ -58,7 +58,7 @@ private func makeRemote(_ transport: FakeTransport, key: String? = testKey) -> (
     return (remote, cache)
 }
 
-private func itemJSON(
+func itemJSON(
     id: UUID = UUID(),
     store: String = "appStore",
     storeItemID: String = "100",

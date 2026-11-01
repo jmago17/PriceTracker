@@ -1,9 +1,8 @@
 import Foundation
 
 /// Minimal, testable persistence contract. Row-level mutations are requirements
-/// so the production SQLite store can update atomically across app/App Intent
-/// processes; the defaults retain the simple whole-array behavior for fakes and
-/// the legacy JSON store used by migration tests.
+/// so the SQLite store can update atomically across app/App Intent processes;
+/// the defaults retain the simple whole-array behavior for in-memory fakes.
 protocol ItemStoring: Sendable {
     func loadAll() async throws -> [Item]
     func save(_ items: [Item]) async throws
@@ -11,8 +10,8 @@ protocol ItemStoring: Sendable {
     func delete(id: UUID) async throws
 }
 
-/// Successful checks commit the item and its observation together. History is
-/// local to this device; it is not embedded in the CloudKit item payload.
+/// Items plus their price history. In production the history is owned by the
+/// server and cached locally.
 protocol PriceHistoryStoring: ItemStoring {
     @discardableResult func upsert(_ item: Item, observation: PriceObservation) async throws -> Item
     func observations(for identityKey: String) async throws -> [PriceObservation]
@@ -29,14 +28,6 @@ extension PriceHistoryStoring {
         if let observation { return try await upsert(item, observation: observation) }
         return try await upsert(item)
     }
-}
-
-/// Production stores must persist these drafts in the SAME transaction as the
-/// observation and dedupe markers. The outbox is device-local, never CloudKit.
-protocol AlertOutboxStoring: PriceHistoryStoring {
-    @discardableResult func commitRefresh(_ item: Item, expected: Item, observation: PriceObservation?, alerts: [PriceAlert]) async throws -> Item
-    func pendingAlertDeliveries() async throws -> [PriceAlert]
-    func acknowledgeAlertDelivery(id: UUID) async throws
 }
 
 enum RefreshCommitError: Error, LocalizedError {
@@ -79,35 +70,5 @@ extension ItemStoring {
         var items = try await loadAll()
         items.removeAll { $0.id == id }
         try await save(items)
-    }
-}
-
-protocol AlertStoring: Sendable {
-    func loadAll() async throws -> [PriceAlert]
-    func save(_ alerts: [PriceAlert]) async throws
-    @discardableResult func append(_ alert: PriceAlert) async throws -> PriceAlert
-    func markSent(ids: Set<UUID>, at date: Date) async throws
-}
-
-extension AlertStoring {
-    @discardableResult
-    func append(_ alert: PriceAlert) async throws -> PriceAlert {
-        var alerts = try await loadAll()
-        if let existing = alerts.first(where: { $0.id == alert.id }) { return existing }
-        alerts.append(alert)
-        try await save(alerts)
-        return alert
-    }
-
-    func pendingAlerts() async throws -> [PriceAlert] {
-        try await loadAll().filter { $0.sentAt == nil }
-    }
-
-    func markSent(ids: Set<UUID>, at date: Date = Date()) async throws {
-        var alerts = try await loadAll()
-        for index in alerts.indices where ids.contains(alerts[index].id) {
-            alerts[index].sentAt = date
-        }
-        try await save(alerts)
     }
 }

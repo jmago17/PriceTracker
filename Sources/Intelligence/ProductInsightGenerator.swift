@@ -35,7 +35,7 @@ enum ProductInsightError: Error, LocalizedError {
     }
 }
 
-/// Summarizes scraped page text with Apple Intelligence (Foundation Models),
+/// Summarizes page text with Apple Intelligence (Foundation Models),
 /// entirely on device. Nothing is sent to a server.
 struct ProductInsightGenerator: Sendable {
     /// The on-device model has a small context window (≈4K tokens shared by
@@ -134,41 +134,37 @@ struct ProductInsightGenerator: Sendable {
     }
 }
 
-/// Fills `summary` (and missing size/color) after an item is saved. Runs in
-/// the app only; failures leave the item untouched.
+/// Fills `summary` (and missing size/color) for an item. Runs in the app only;
+/// the result is saved through the item store, which PATCHes the server.
 struct ItemEnricher: Sendable {
     let itemStore: any PriceHistoryStoring
-    let connectors: ConnectorRegistry
+    var pageLoader = PageTextLoader()
     var generator = ProductInsightGenerator()
 
-    /// - Parameters:
-    ///   - pageText: text captured while adding. When nil, the page is read again.
-    /// - Returns: the stored item with its new summary.
-    func enrich(_ item: Item, pageText: String?) async throws -> Item {
-        var text = pageText
-        var resolvedSize: String?
-        var resolvedColor: String?
-        if text?.trimmedNonEmpty == nil {
-            let resolved = try? await connectors.resolve(url: item.canonicalURL)
-            text = resolved?.pageText
-            resolvedSize = resolved?.size
-            resolvedColor = resolved?.color
-        }
-        let fallback = [item.title, item.subtitle].compactMap { $0 }.joined(separator: "\n")
-        let source = text?.trimmedNonEmpty ?? fallback
+    /// Text the model reads: the page when it can be read, otherwise what the
+    /// catalog already knows about the item (title, subtitle, category).
+    static func source(page: PageText?, item: Item) -> String {
+        if let text = page?.combined().trimmedNonEmpty { return text }
+        return [item.title, item.subtitle, item.category]
+            .compactMap { $0?.trimmedNonEmpty }
+            .joined(separator: "\n")
+    }
 
+    /// - Returns: the stored item with its new summary.
+    func enrich(_ item: Item) async throws -> Item {
+        let page = try? await pageLoader.load(url: item.canonicalURL)
         let insight = try await generator.insight(
             title: item.title,
             storeName: item.store.displayName,
             url: item.canonicalURL,
-            pageText: source
+            pageText: Self.source(page: page, item: item)
         )
 
-        // Re-read so a concurrent edit or refresh is not overwritten.
+        // Re-read so a concurrent edit or server sync is not overwritten.
         var current = try await itemStore.item(id: item.id) ?? item
         current.summary = insight.summary ?? current.summary
-        if current.size?.trimmedNonEmpty == nil { current.size = resolvedSize ?? insight.size }
-        if current.color?.trimmedNonEmpty == nil { current.color = resolvedColor ?? insight.color }
+        if current.size?.trimmedNonEmpty == nil { current.size = insight.size }
+        if current.color?.trimmedNonEmpty == nil { current.color = insight.color }
         current.updatedAt = Date()
         return try await itemStore.upsert(current)
     }

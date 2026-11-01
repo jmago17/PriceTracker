@@ -2,9 +2,9 @@ import Foundation
 import Testing
 @testable import PriceTracker
 
-private func makeTempStore() -> JSONFileItemStore {
+private func makeTempStore() -> SQLiteItemStore {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    return JSONFileItemStore(fileURL: dir.appendingPathComponent("items.json"))
+    return SQLiteItemStore(databaseURL: dir.appendingPathComponent("catalog.sqlite"))
 }
 
 private func makeItem(title: String, storeItemID: String) -> Item {

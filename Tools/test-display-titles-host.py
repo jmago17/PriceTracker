@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Run production title, card, category and refresh tests on macOS without a simulator.
+"""Run production title, card and category tests on macOS without a simulator.
 
-Copies production models, persistence contracts, connector contracts and the refresh
-coordinator verbatim into a temporary Swift package. Only the iOS title layout test
-and its UIKit/SwiftUI imports are excluded. Network and storage fakes live in tests.
+Copies the production models and title cache verbatim into a temporary Swift
+package. Only the iOS title layout test and its UIKit/SwiftUI imports are excluded.
 """
 import os
 from pathlib import Path
@@ -37,23 +36,9 @@ let package = Package(
         "Sources/Models/CategoryLabel.swift",
         "Sources/AppIntents/ItemFilterEngine.swift",
         "Sources/Views/MoneyFormatter.swift",
-        "Sources/Alerts/PriceDropDetector.swift",
         "Sources/Models/Store.swift",
         "Sources/Models/PriceObservation.swift",
         "Sources/Persistence/ItemStoring.swift",
-        "Sources/Refresh/RefreshCoordinator.swift",
-        "Sources/Connectors/StoreConnector.swift",
-        "Sources/Connectors/ConnectorRegistry.swift",
-        "Sources/Connectors/iTunesConnector.swift",
-        "Sources/Connectors/AppleStoreConnector.swift",
-        "Sources/Connectors/AppleStorefrontRegionProvider.swift",
-        "Sources/Connectors/ISOCountryCodes.swift",
-        "Sources/Connectors/WebPriceLoader.swift",
-        "Sources/Connectors/WebPriceParser.swift",
-        "Sources/Connectors/StorePageMetadata.swift",
-        "Sources/Connectors/AmazonConnector.swift",
-        "Sources/Connectors/GenericStoreConnector.swift",
-        "Sources/Connectors/RenderedPageCaptureLoader.swift",
         "Sources/App/AppGroup.swift",
         "Sources/Models/ItemStatus.swift",
         "Sources/Sharing/ItemShareFormatter.swift",
@@ -62,11 +47,6 @@ let package = Package(
     shutil.copy2(root / "Tests/PriceTrackerTests/CatalogPriceCheckTests.swift", tests)
     shutil.copy2(root / "Tests/PriceTrackerTests/CatalogCardDetailsTests.swift", tests)
     shutil.copy2(root / "Tests/PriceTrackerTests/CategoryLabelTests.swift", tests)
-    shutil.copy2(root / "Tests/PriceTrackerTests/RefreshFeedbackTests.swift", tests)
-    shutil.copy2(root / "Tests/PriceTrackerTests/WebPriceParserTests.swift", tests)
-    shutil.copy2(root / "Tests/PriceTrackerTests/WebPriceRefreshTests.swift", tests)
-    for name in ["AmazonConnectorTests", "GenericStoreConnectorTests", "ConnectorRegistryTests"]:
-        shutil.copy2(root / f"Tests/PriceTrackerTests/{name}.swift", tests)
     test_source = (root / "Tests/PriceTrackerTests/DisplayTitleCacheTests.swift").read_text()
     pure_tests, marker, _ = test_source.partition("\n@MainActor\nstruct CatalogTitleLayoutTests")
     assert marker, "UI test boundary changed; update the host harness"

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import SQLite3
 
@@ -6,43 +7,26 @@ struct LocalItemRecord: Sendable {
     var identityKey: String
     var item: Item?
     var isTombstone: Bool
-    var isDirty: Bool
-    var systemFields: Data?
-}
-
-enum LegacyCatalogMigrationResult: Equatable, Sendable {
-    case alreadyCompleted
-    case noLegacyCatalog
-    case migrated(Int)
 }
 
 enum SQLiteStoreError: Error, LocalizedError {
     case open(String)
     case execute(String)
     case corruptRow(String)
-    case migrationVerificationFailed
 
     var errorDescription: String? {
         switch self {
         case .open(let message): return "No se pudo abrir el catálogo local: \(message)"
         case .execute(let message): return "Error en el catálogo local: \(message)"
         case .corruptRow(let recordName): return "El registro local \(recordName) está dañado."
-        case .migrationVerificationFailed: return "La migración del catálogo JSON no se pudo verificar."
         }
     }
 }
 
-/// Record-oriented local source of truth. Every app-facing write commits here
-/// before CloudKit is notified, so reads and writes remain available offline.
+/// Local SQLite catalog. In production it is the read cache of the PriceBucket
+/// catalog (`remote-cache.sqlite`); in demo/XCTest mode it is the whole store.
 /// WAL plus SQLite's process locks make separate app/App Intent processes safe.
-actor SQLiteItemStore: AlertOutboxStoring {
-    static let migrationMetadataKey = "items-json-migration-v1"
-    // New record types require a full bootstrap. A separate key also prevents
-    // downgraded clients from advancing past history records they ignore.
-    static let syncStateMetadataKey = "ck-sync-engine-state-history-v2"
-    static let accountMetadataKey = "ck-account-record-name-v1"
-    static let lastSuccessfulSyncMetadataKey = "ck-last-successful-sync-v1"
-
+actor SQLiteItemStore: PriceHistoryStoring {
     private let databaseURL: URL
     private var database: OpaquePointer?
     private let encoder: JSONEncoder
@@ -57,6 +41,13 @@ actor SQLiteItemStore: AlertOutboxStoring {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .secondsSince1970
         self.decoder = decoder
+    }
+
+    /// Stable row key derived from the logical identity. Existing caches already
+    /// use it as the primary key, so it must not change.
+    static func recordName(for identityKey: String) -> String {
+        let digest = SHA256.hash(data: Data(identityKey.utf8))
+        return "item_" + digest.map { String(format: "%02x", $0) }.joined()
     }
 
     func loadAll() throws -> [Item] {
@@ -78,8 +69,7 @@ actor SQLiteItemStore: AlertOutboxStoring {
         return items
     }
 
-    /// Reconciles the complete active catalog. Missing rows become tombstones;
-    /// unchanged rows are left clean and are not uploaded again.
+    /// Reconciles the complete active catalog. Missing rows become tombstones.
     func save(_ items: [Item]) throws {
         _ = try connection()
         try execute("BEGIN IMMEDIATE TRANSACTION")
@@ -107,33 +97,10 @@ actor SQLiteItemStore: AlertOutboxStoring {
         try upsert(item, observation: observation, expected: expected)
     }
 
-    func commitRefresh(_ item: Item, expected: Item, observation: PriceObservation?, alerts: [PriceAlert]) throws -> Item {
-        try upsert(item, observation: observation, expected: expected, alerts: alerts)
-    }
-
-    func pendingAlertDeliveries() throws -> [PriceAlert] {
-        let statement = try prepare("SELECT o.payload FROM alert_outbox o JOIN item_records i ON i.identity_key = o.identity_key WHERE i.tombstone = 0 AND i.item_id = o.item_id ORDER BY o.rowid")
-        defer { sqlite3_finalize(statement) }
-        var values: [PriceAlert] = []
-        while sqlite3_step(statement) == SQLITE_ROW {
-            guard let data = columnData(statement, index: 0) else { throw SQLiteStoreError.corruptRow("alert_outbox") }
-            values.append(try decoder.decode(PriceAlert.self, from: data))
-        }
-        try checkStatement(statement)
-        return values
-    }
-
-    func acknowledgeAlertDelivery(id: UUID) throws {
-        let statement = try prepare("DELETE FROM alert_outbox WHERE id = ?")
-        defer { sqlite3_finalize(statement) }
-        bind(id.uuidString, to: 1, in: statement)
-        try stepDone(statement)
-    }
-
-    private func upsert(_ item: Item, observation: PriceObservation?, expected: Item? = nil, alerts: [PriceAlert] = []) throws -> Item {
+    private func upsert(_ item: Item, observation: PriceObservation?, expected: Item? = nil) throws -> Item {
         try execute("BEGIN IMMEDIATE TRANSACTION")
         do {
-            let recordName = CloudRecordIdentity.recordName(for: item.identityKey)
+            let recordName = Self.recordName(for: item.identityKey)
             let record = try localRecord(named: recordName)
             if let expected {
                 guard record?.isTombstone == false, record?.item == expected else {
@@ -156,16 +123,6 @@ actor SQLiteItemStore: AlertOutboxStoring {
                 bind(try encoder.encode(observation), to: 4, in: statement)
                 try stepDone(statement)
             }
-            for alert in alerts {
-                guard alert.itemID == value.id else { throw RefreshCommitError.itemChanged }
-                let statement = try prepare("INSERT INTO alert_outbox (id, identity_key, item_id, payload) VALUES (?, ?, ?, ?)")
-                defer { sqlite3_finalize(statement) }
-                bind(alert.id.uuidString, to: 1, in: statement)
-                bind(value.identityKey, to: 2, in: statement)
-                bind(value.id.uuidString, to: 3, in: statement)
-                bind(try encoder.encode(alert), to: 4, in: statement)
-                try stepDone(statement)
-            }
             try execute("COMMIT")
             return value
         } catch {
@@ -175,9 +132,9 @@ actor SQLiteItemStore: AlertOutboxStoring {
     }
 
     func observations(for identityKey: String) throws -> [PriceObservation] {
-        let item = try localRecord(named: CloudRecordIdentity.recordName(for: identityKey))
+        let item = try localRecord(named: Self.recordName(for: identityKey))
         if item?.isTombstone == true { return [] }
-        let statement = try prepare("SELECT p.payload FROM price_observations p LEFT JOIN observation_sync s ON s.observation_id = p.id WHERE p.identity_key = ? AND COALESCE(s.tombstone, 0) = 0 ORDER BY p.checked_at, p.id")
+        let statement = try prepare("SELECT payload FROM price_observations WHERE identity_key = ? ORDER BY checked_at, id")
         defer { sqlite3_finalize(statement) }
         bind(identityKey, to: 1, in: statement)
         var result: [PriceObservation] = []
@@ -191,160 +148,9 @@ actor SQLiteItemStore: AlertOutboxStoring {
         return result
     }
 
-    /// Incremental migration also discovers observations written by an older
-    /// app/Shortcut process after this version first opened the database.
-    func prepareObservationSync() throws {
-        // Bound memory and group durable writes; old writers remain discoverable.
-        while true {
-            try execute("BEGIN IMMEDIATE TRANSACTION")
-            do {
-                let query = try prepare("SELECT p.id, p.identity_key FROM price_observations p LEFT JOIN observation_sync s ON s.observation_id = p.id WHERE s.observation_id IS NULL LIMIT 500")
-                var missing: [(String, String)] = []
-                while sqlite3_step(query) == SQLITE_ROW {
-                    guard let id = columnString(query, index: 0), let key = columnString(query, index: 1) else {
-                        sqlite3_finalize(query)
-                        throw SQLiteStoreError.corruptRow("history migration")
-                    }
-                    missing.append((id, key))
-                }
-                defer { sqlite3_finalize(query) }
-                try checkStatement(query)
-                let insert = try prepare("INSERT INTO observation_sync (record_name, observation_id, identity_key) VALUES (?, ?, ?) ON CONFLICT(record_name) DO UPDATE SET observation_id = COALESCE(observation_sync.observation_id, excluded.observation_id), identity_key = COALESCE(observation_sync.identity_key, excluded.identity_key)")
-                defer { sqlite3_finalize(insert) }
-                for (id, key) in missing {
-                    guard let uuid = UUID(uuidString: id) else { throw SQLiteStoreError.corruptRow(id) }
-                    sqlite3_reset(insert); sqlite3_clear_bindings(insert)
-                    bind(CloudObservationCodec.recordName(identityKey: key, id: uuid), to: 1, in: insert)
-                    bind(id, to: 2, in: insert); bind(key, to: 3, in: insert)
-                    try stepDone(insert)
-                }
-                try execute("COMMIT")
-                if missing.count < 500 { return }
-            } catch { try? execute("ROLLBACK"); throw error }
-        }
-    }
-
-    func dirtyObservationNames() throws -> [String] {
-        try prepareObservationSync()
-        let query = try prepare("SELECT record_name FROM observation_sync WHERE dirty = 1")
-        defer { sqlite3_finalize(query) }
-        var result: [String] = []
-        while sqlite3_step(query) == SQLITE_ROW {
-            if let name = columnString(query, index: 0) { result.append(name) }
-        }
-        try checkStatement(query)
-        return result
-    }
-
-    func dirtyObservationCount() throws -> Int {
-        let query = try prepare("SELECT COUNT(*) FROM observation_sync WHERE dirty = 1")
-        defer { sqlite3_finalize(query) }
-        guard sqlite3_step(query) == SQLITE_ROW else { try checkStatement(query); return 0 }
-        return Int(sqlite3_column_int64(query, 0))
-    }
-
-    func observationRecords(dirtyOnly: Bool = false, named: String? = nil) throws -> [LocalObservationRecord] {
-        if named == nil { try prepareObservationSync() }
-        let condition = named != nil ? "s.record_name = ?" : (dirtyOnly ? "s.dirty = 1" : "1 = 1")
-        let statement = try prepare("SELECT s.record_name, s.identity_key, p.payload, s.tombstone, s.dirty, s.system_fields FROM observation_sync s LEFT JOIN price_observations p ON p.id = s.observation_id WHERE " + condition)
-        defer { sqlite3_finalize(statement) }
-        if let named { bind(named, to: 1, in: statement) }
-        var result: [LocalObservationRecord] = []
-        while sqlite3_step(statement) == SQLITE_ROW {
-            let observation = try columnData(statement, index: 2).map { try decoder.decode(PriceObservation.self, from: $0) }
-            guard let name = columnString(statement, index: 0) else { throw SQLiteStoreError.corruptRow("observation name") }
-            result.append(LocalObservationRecord(recordName: name,
-                identityKey: columnString(statement, index: 1), observation: observation,
-                isTombstone: sqlite3_column_int(statement, 3) != 0,
-                isDirty: sqlite3_column_int(statement, 4) != 0, systemFields: columnData(statement, index: 5)))
-        }
-        try checkStatement(statement)
-        return result
-    }
-
-    /// Union by immutable UUID. Repeated downloads are no-ops; disagreement
-    /// about one UUID is surfaced, never resolved by discarding a real sample.
-    func applyRemoteObservation(_ remote: LocalObservationRecord) throws {
-        try execute("BEGIN IMMEDIATE TRANSACTION")
-        do {
-            let local = try observationRecords(named: remote.recordName).first
-            if let a = local?.observation, let b = remote.observation,
-               !CloudObservationCodec.sameSample(a, b) {
-                throw SQLiteStoreError.corruptRow("Conflicto en observación \(a.id)")
-            }
-            let tombstone = remote.isTombstone || local?.isTombstone == true
-            if let observation = remote.observation, let key = remote.identityKey {
-                let existing = try prepare("SELECT identity_key, payload FROM price_observations WHERE id = ?")
-                defer { sqlite3_finalize(existing) }
-                bind(observation.id.uuidString, to: 1, in: existing)
-                if sqlite3_step(existing) == SQLITE_ROW {
-                    guard columnString(existing, index: 0) == key,
-                          let data = columnData(existing, index: 1),
-                          CloudObservationCodec.sameSample(try decoder.decode(PriceObservation.self, from: data), observation) else {
-                        throw SQLiteStoreError.corruptRow("Observation UUID collision")
-                    }
-                } else {
-                    try checkStatement(existing)
-                }
-                let insert = try prepare("INSERT OR IGNORE INTO price_observations (id, identity_key, checked_at, payload) VALUES (?, ?, ?, ?)")
-                defer { sqlite3_finalize(insert) }
-                bind(observation.id.uuidString, to: 1, in: insert); bind(key, to: 2, in: insert)
-                sqlite3_bind_double(insert, 3, observation.checkedAt.timeIntervalSince1970)
-                bind(try encoder.encode(observation), to: 4, in: insert)
-                try stepDone(insert)
-            }
-            let statement = try prepare("INSERT INTO observation_sync (record_name, observation_id, identity_key, tombstone, dirty, system_fields) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(record_name) DO UPDATE SET observation_id = COALESCE(observation_sync.observation_id, excluded.observation_id), identity_key = COALESCE(observation_sync.identity_key, excluded.identity_key), tombstone = excluded.tombstone, dirty = excluded.dirty, system_fields = excluded.system_fields")
-            defer { sqlite3_finalize(statement) }
-            bind(remote.recordName, to: 1, in: statement)
-            bind((remote.observation ?? local?.observation)?.id.uuidString, to: 2, in: statement)
-            bind(remote.identityKey ?? local?.identityKey, to: 3, in: statement)
-            sqlite3_bind_int(statement, 4, tombstone ? 1 : 0)
-            sqlite3_bind_int(statement, 5, tombstone && !remote.isTombstone ? 1 : 0)
-            bind(remote.systemFields, to: 6, in: statement)
-            try stepDone(statement)
-            try execute("COMMIT")
-        } catch { try? execute("ROLLBACK"); throw error }
-    }
-
-    func retainIncomingRecord(named name: String, archive: Data) throws {
-        let query = try prepare("INSERT INTO incoming_sync_records (record_name, archive) VALUES (?, ?) ON CONFLICT(record_name) DO UPDATE SET archive = excluded.archive")
-        defer { sqlite3_finalize(query) }
-        bind(name, to: 1, in: query); bind(archive, to: 2, in: query)
-        try stepDone(query)
-    }
-
-    func retainedIncomingRecords() throws -> [Data] {
-        let query = try prepare("SELECT archive FROM incoming_sync_records")
-        defer { sqlite3_finalize(query) }
-        var result: [Data] = []
-        while sqlite3_step(query) == SQLITE_ROW {
-            if let archive = columnData(query, index: 0) { result.append(archive) }
-        }
-        try checkStatement(query)
-        return result
-    }
-
-    func removeRetainedIncomingRecord(named name: String) throws {
-        let query = try prepare("DELETE FROM incoming_sync_records WHERE record_name = ?")
-        defer { sqlite3_finalize(query) }
-        bind(name, to: 1, in: query); try stepDone(query)
-    }
-
-    func resetObservationSystemFields(named name: String) throws {
-        let statement = try prepare("UPDATE observation_sync SET system_fields = NULL, dirty = 1 WHERE record_name = ?")
-        defer { sqlite3_finalize(statement) }
-        bind(name, to: 1, in: statement); try stepDone(statement)
-    }
-
-    func tombstoneObservation(named name: String) throws {
-        let statement = try prepare("INSERT INTO observation_sync (record_name, tombstone, dirty) VALUES (?, 1, 1) ON CONFLICT(record_name) DO UPDATE SET tombstone = 1, dirty = 1, system_fields = NULL")
-        defer { sqlite3_finalize(statement) }
-        bind(name, to: 1, in: statement); try stepDone(statement)
-    }
-
     func delete(id: UUID) throws {
         let statement = try prepare(
-            "UPDATE item_records SET tombstone = 1, dirty = 1 WHERE item_id = ? AND tombstone = 0"
+            "UPDATE item_records SET tombstone = 1 WHERE item_id = ? AND tombstone = 0"
         )
         defer { sqlite3_finalize(statement) }
         bind(id.uuidString, to: 1, in: statement)
@@ -366,7 +172,7 @@ actor SQLiteItemStore: AlertOutboxStoring {
         do {
             for id in deletedIDs {
                 let statement = try prepare(
-                    "UPDATE item_records SET tombstone = 1, dirty = 1 WHERE item_id = ? AND tombstone = 0"
+                    "UPDATE item_records SET tombstone = 1 WHERE item_id = ? AND tombstone = 0"
                 )
                 defer { sqlite3_finalize(statement) }
                 bind(id.uuidString, to: 1, in: statement)
@@ -390,10 +196,6 @@ actor SQLiteItemStore: AlertOutboxStoring {
             defer { sqlite3_finalize(clear) }
             bind(identityKey, to: 1, in: clear)
             try stepDone(clear)
-            let clearSync = try prepare("DELETE FROM observation_sync WHERE identity_key = ?")
-            defer { sqlite3_finalize(clearSync) }
-            bind(identityKey, to: 1, in: clearSync)
-            try stepDone(clearSync)
             for observation in observations {
                 let statement = try prepare("INSERT OR REPLACE INTO price_observations (id, identity_key, checked_at, payload) VALUES (?, ?, ?, ?)")
                 defer { sqlite3_finalize(statement) }
@@ -410,41 +212,9 @@ actor SQLiteItemStore: AlertOutboxStoring {
         }
     }
 
-    /// Idempotent migration from the former JSON source of truth. The original
-    /// file is deliberately retained as a recovery copy. The completion marker
-    /// is written only after every identity can be read back from SQLite.
-    func migrateLegacyJSONIfNeeded(from legacyURL: URL) throws -> LegacyCatalogMigrationResult {
-        if try metadataData(for: Self.migrationMetadataKey) != nil {
-            return .alreadyCompleted
-        }
-
-        guard FileManager.default.fileExists(atPath: legacyURL.path) else {
-            try setMetadataData(Data("no-legacy-catalog".utf8), for: Self.migrationMetadataKey)
-            return .noLegacyCatalog
-        }
-
-        let data = try Data(contentsOf: legacyURL)
-        let items = data.isEmpty ? [] : try decoder.decode([Item].self, from: data)
-        try execute("BEGIN IMMEDIATE TRANSACTION")
-        do {
-            try write(items, deleteMissing: false)
-            let expectedIdentities = Set(items.map(\.identityKey))
-            let storedIdentities = try activeIdentityKeys()
-            guard expectedIdentities.isSubset(of: storedIdentities) else {
-                throw SQLiteStoreError.migrationVerificationFailed
-            }
-            try setMetadataData(Data("completed".utf8), for: Self.migrationMetadataKey)
-            try execute("COMMIT")
-        } catch {
-            try? execute("ROLLBACK")
-            throw error
-        }
-        return .migrated(Set(items.map(\.identityKey)).count)
-    }
-
     func localRecord(named recordName: String) throws -> LocalItemRecord? {
         let statement = try prepare(
-            "SELECT identity_key, payload, tombstone, dirty, system_fields FROM item_records WHERE record_name = ?"
+            "SELECT identity_key, payload, tombstone FROM item_records WHERE record_name = ?"
         )
         defer { sqlite3_finalize(statement) }
         bind(recordName, to: 1, in: statement)
@@ -453,124 +223,6 @@ actor SQLiteItemStore: AlertOutboxStoring {
             return nil
         }
         return try decodeLocalRecord(statement, recordName: recordName)
-    }
-
-    func dirtyRecords() throws -> [LocalItemRecord] {
-        let statement = try prepare(
-            "SELECT record_name, identity_key, payload, tombstone, dirty, system_fields FROM item_records WHERE dirty = 1"
-        )
-        defer { sqlite3_finalize(statement) }
-        var records: [LocalItemRecord] = []
-        while sqlite3_step(statement) == SQLITE_ROW {
-            let recordName = columnString(statement, index: 0) ?? "unknown"
-            records.append(try decodeLocalRecord(statement, recordName: recordName, offset: 1))
-        }
-        try checkStatement(statement)
-        return records
-    }
-
-    func dirtyCount() throws -> Int {
-        let statement = try prepare("SELECT COUNT(*) FROM item_records WHERE dirty = 1")
-        defer { sqlite3_finalize(statement) }
-        guard sqlite3_step(statement) == SQLITE_ROW else {
-            try checkStatement(statement)
-            return 0
-        }
-        return Int(sqlite3_column_int64(statement, 0))
-    }
-
-    /// Applies a server record while retaining its system fields as the next
-    /// three-way-merge ancestor. `dirty` remains true when local edits must be
-    /// sent back after the merge.
-    func applyRemote(
-        recordName: String,
-        identityKey: String,
-        item: Item?,
-        isTombstone: Bool,
-        systemFields: Data,
-        dirty: Bool
-    ) throws {
-        try execute("BEGIN IMMEDIATE TRANSACTION")
-        do {
-            // Device-local identity must survive remote updates, including callers
-            // that did not pass through CloudRecordCodec's device-field merge.
-            var value = item
-            if let localID = try localRecord(named: recordName)?.item?.id {
-                value?.id = localID
-            }
-            let payload = try value.map { try encoder.encode($0) }
-            let itemID = value?.id.uuidString ?? recordName
-            let statement = try prepare(
-                """
-                INSERT INTO item_records
-                    (record_name, identity_key, item_id, payload, tombstone, dirty, system_fields)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(record_name) DO UPDATE SET
-                    identity_key = excluded.identity_key,
-                    item_id = CASE WHEN excluded.payload IS NULL THEN item_records.item_id ELSE excluded.item_id END,
-                    payload = COALESCE(excluded.payload, item_records.payload),
-                    tombstone = excluded.tombstone,
-                    dirty = excluded.dirty,
-                    system_fields = excluded.system_fields
-                """
-            )
-            defer { sqlite3_finalize(statement) }
-            bind(recordName, to: 1, in: statement)
-            bind(identityKey, to: 2, in: statement)
-            bind(itemID, to: 3, in: statement)
-            bind(payload, to: 4, in: statement)
-            sqlite3_bind_int(statement, 5, isTombstone ? 1 : 0)
-            sqlite3_bind_int(statement, 6, dirty ? 1 : 0)
-            bind(systemFields, to: 7, in: statement)
-            try stepDone(statement)
-            try execute("COMMIT")
-        } catch {
-            try? execute("ROLLBACK")
-            throw error
-        }
-    }
-
-    /// Records the server's new changeTag. A newer local edit keeps the row
-    /// dirty and will be sent in a subsequent batch.
-    func acknowledgeSavedRecord(
-        named recordName: String,
-        systemFields: Data,
-        matchesCurrentLocalValue: Bool
-    ) throws -> Bool {
-        let statement = try prepare(
-            "UPDATE item_records SET system_fields = ?, dirty = CASE WHEN ? = 1 THEN 0 ELSE dirty END WHERE record_name = ?"
-        )
-        defer { sqlite3_finalize(statement) }
-        bind(systemFields, to: 1, in: statement)
-        sqlite3_bind_int(statement, 2, matchesCurrentLocalValue ? 1 : 0)
-        bind(recordName, to: 3, in: statement)
-        try stepDone(statement)
-        return try localRecord(named: recordName)?.isDirty ?? false
-    }
-
-    /// Discards a server version that no longer exists while preserving the
-    /// local payload, tombstone and pending state. The next encoded CKRecord is
-    /// therefore a creation without a stale recordChangeTag.
-    func clearSystemFields(named recordName: String) throws {
-        let statement = try prepare(
-            "UPDATE item_records SET system_fields = NULL WHERE record_name = ?"
-        )
-        defer { sqlite3_finalize(statement) }
-        bind(recordName, to: 1, in: statement)
-        try stepDone(statement)
-    }
-
-    /// A physical server deletion is unexpected because this app uploads
-    /// tombstones. If the row is known, recreate it as a tombstone so an old
-    /// device cannot later resurrect it.
-    func turnPhysicalServerDeletionIntoTombstone(recordName: String) throws -> Bool {
-        let statement = try prepare(
-            "UPDATE item_records SET tombstone = 1, dirty = 1 WHERE record_name = ?"
-        )
-        defer { sqlite3_finalize(statement) }
-        bind(recordName, to: 1, in: statement)
-        try stepDone(statement)
-        return sqlite3_changes(try connection()) > 0
     }
 
     func metadataData(for key: String) throws -> Data? {
@@ -604,21 +256,18 @@ actor SQLiteItemStore: AlertOutboxStoring {
     private func write(_ items: [Item], deleteMissing: Bool) throws {
         let incoming = Dictionary(items.map { ($0.identityKey, $0) }, uniquingKeysWith: { _, newest in newest })
         for (identityKey, item) in incoming {
-            let recordName = CloudRecordIdentity.recordName(for: identityKey)
+            let recordName = Self.recordName(for: identityKey)
             let payload = try encoder.encode(item)
-            let existing = try localRecord(named: recordName)
-            let changed = existing?.item != item || existing?.isTombstone == true
             let statement = try prepare(
                 """
                 INSERT INTO item_records
-                    (record_name, identity_key, item_id, payload, tombstone, dirty)
-                VALUES (?, ?, ?, ?, 0, 1)
+                    (record_name, identity_key, item_id, payload, tombstone)
+                VALUES (?, ?, ?, ?, 0)
                 ON CONFLICT(record_name) DO UPDATE SET
                     identity_key = excluded.identity_key,
                     item_id = excluded.item_id,
                     payload = excluded.payload,
-                    tombstone = 0,
-                    dirty = CASE WHEN ? = 1 THEN 1 ELSE item_records.dirty END
+                    tombstone = 0
                 """
             )
             defer { sqlite3_finalize(statement) }
@@ -626,16 +275,15 @@ actor SQLiteItemStore: AlertOutboxStoring {
             bind(identityKey, to: 2, in: statement)
             bind(item.id.uuidString, to: 3, in: statement)
             bind(payload, to: 4, in: statement)
-            sqlite3_bind_int(statement, 5, changed ? 1 : 0)
             try stepDone(statement)
         }
 
         guard deleteMissing else { return }
         let active = try activeRecordNames()
-        let incomingRecordNames = Set(incoming.keys.map(CloudRecordIdentity.recordName(for:)))
+        let incomingRecordNames = Set(incoming.keys.map(Self.recordName(for:)))
         for recordName in active.subtracting(incomingRecordNames) {
             let statement = try prepare(
-                "UPDATE item_records SET tombstone = 1, dirty = 1 WHERE record_name = ? AND tombstone = 0"
+                "UPDATE item_records SET tombstone = 1 WHERE record_name = ? AND tombstone = 0"
             )
             defer { sqlite3_finalize(statement) }
             bind(recordName, to: 1, in: statement)
@@ -643,16 +291,8 @@ actor SQLiteItemStore: AlertOutboxStoring {
         }
     }
 
-    private func activeIdentityKeys() throws -> Set<String> {
-        try stringSet(query: "SELECT identity_key FROM item_records WHERE tombstone = 0")
-    }
-
     private func activeRecordNames() throws -> Set<String> {
-        try stringSet(query: "SELECT record_name FROM item_records WHERE tombstone = 0")
-    }
-
-    private func stringSet(query: String) throws -> Set<String> {
-        let statement = try prepare(query)
+        let statement = try prepare("SELECT record_name FROM item_records WHERE tombstone = 0")
         defer { sqlite3_finalize(statement) }
         var values = Set<String>()
         while sqlite3_step(statement) == SQLITE_ROW {
@@ -662,23 +302,17 @@ actor SQLiteItemStore: AlertOutboxStoring {
         return values
     }
 
-    private func decodeLocalRecord(
-        _ statement: OpaquePointer,
-        recordName: String,
-        offset: Int32 = 0
-    ) throws -> LocalItemRecord {
-        guard let identityKey = columnString(statement, index: offset) else {
+    private func decodeLocalRecord(_ statement: OpaquePointer, recordName: String) throws -> LocalItemRecord {
+        guard let identityKey = columnString(statement, index: 0) else {
             throw SQLiteStoreError.corruptRow(recordName)
         }
-        let payload = columnData(statement, index: offset + 1)
+        let payload = columnData(statement, index: 1)
         let item = try payload.map { try decoder.decode(Item.self, from: $0) }
         return LocalItemRecord(
             recordName: recordName,
             identityKey: identityKey,
             item: item,
-            isTombstone: sqlite3_column_int(statement, offset + 2) != 0,
-            isDirty: sqlite3_column_int(statement, offset + 3) != 0,
-            systemFields: columnData(statement, index: offset + 4)
+            isTombstone: sqlite3_column_int(statement, 2) != 0
         )
     }
 
@@ -704,6 +338,9 @@ actor SQLiteItemStore: AlertOutboxStoring {
         sqlite3_busy_timeout(opened, 5_000)
         try execute("PRAGMA journal_mode = WAL")
         try execute("PRAGMA synchronous = FULL")
+        // Caches created before the CloudKit removal still carry the extra
+        // `dirty`/`system_fields` columns and unused sync tables; they are
+        // ignored (the columns have defaults), so no migration is needed.
         try execute(
             """
             CREATE TABLE IF NOT EXISTS item_records (
@@ -711,9 +348,7 @@ actor SQLiteItemStore: AlertOutboxStoring {
                 identity_key TEXT UNIQUE NOT NULL,
                 item_id TEXT NOT NULL,
                 payload BLOB,
-                tombstone INTEGER NOT NULL DEFAULT 0,
-                dirty INTEGER NOT NULL DEFAULT 1,
-                system_fields BLOB
+                tombstone INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS item_records_item_id ON item_records(item_id);
             CREATE TABLE IF NOT EXISTS price_observations (
@@ -723,24 +358,6 @@ actor SQLiteItemStore: AlertOutboxStoring {
                 payload BLOB NOT NULL
             );
             CREATE INDEX IF NOT EXISTS price_observations_identity_time ON price_observations(identity_key, checked_at);
-            CREATE TABLE IF NOT EXISTS incoming_sync_records (
-                record_name TEXT PRIMARY KEY NOT NULL,
-                archive BLOB NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS observation_sync (
-                record_name TEXT PRIMARY KEY NOT NULL,
-                observation_id TEXT UNIQUE,
-                identity_key TEXT,
-                tombstone INTEGER NOT NULL DEFAULT 0,
-                dirty INTEGER NOT NULL DEFAULT 1,
-                system_fields BLOB
-            );
-            CREATE TABLE IF NOT EXISTS alert_outbox (
-                id TEXT PRIMARY KEY NOT NULL,
-                identity_key TEXT NOT NULL,
-                item_id TEXT NOT NULL,
-                payload BLOB NOT NULL
-            );
             CREATE TABLE IF NOT EXISTS metadata (
                 key TEXT PRIMARY KEY NOT NULL,
                 value BLOB NOT NULL

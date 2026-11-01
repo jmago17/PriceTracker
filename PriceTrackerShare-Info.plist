@@ -33,13 +33,13 @@
 				<key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
 				<integer>1</integer>
 			</dict>
-			<key>NSExtensionJavaScriptPreprocessingFile</key>
-			<string>PageCapture</string>
 		</dict>
 		<key>NSExtensionPointIdentifier</key>
 		<string>com.apple.share-services</string>
 		<key>NSExtensionPrincipalClass</key>
 		<string>$(PRODUCT_MODULE_NAME).ShareViewController</string>
 	</dict>
+	<key>PriceBucketKeychainGroup</key>
+	<string>$(AppIdentifierPrefix)com.maromeapps.PriceTracker</string>
 </dict>
 </plist>

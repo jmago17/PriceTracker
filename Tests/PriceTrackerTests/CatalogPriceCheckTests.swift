@@ -25,21 +25,30 @@ struct CatalogPriceCheckTests {
 
     @Test func samePriceSuccessAdvancesTimestamp() {
         let original = item(success: first)
-        let fetch = FetchResult(priceCents: 1299, currency: "EUR", isOnSale: false, availability: "available")
-        let refreshed = PriceDropDetector.evaluate(item: original, fetch: fetch, now: later).updatedItem
+        // A server check at the same price moves the success date only.
+        var refreshed = original
+        refreshed.lastCheckedAt = later
+        refreshed.lastSuccessAt = later
         #expect(refreshed.priceCurrentCents == original.priceCurrentCents)
         #expect(refreshed.priceLowAt == first)
         #expect(CatalogPriceCheck.latestSuccess(in: [refreshed]) == later)
     }
 
     @Test func failedOrPartialRefreshDoesNotPretendToBeAFullSuccessfulBatch() {
-        enum Offline: Error { case unavailable }
+        // A failed check records the attempt and the error, never a success.
+        func failure(of item: Item, at date: Date) -> Item {
+            var failed = item
+            failed.lastCheckedAt = date
+            failed.consecutiveFailures += 1
+            failed.lastError = "Sin conexión"
+            return failed
+        }
         let original = item(success: first)
-        let failed = PriceDropDetector.applyFailure(to: original, error: Offline.unavailable, now: later)
+        let failed = failure(of: original, at: later)
         #expect(failed.lastCheckedAt == later)
         #expect(CatalogPriceCheck.latestSuccess(in: [failed]) == first)
         let successfulSubset = item(success: later)
-        let laterFailure = PriceDropDetector.applyFailure(to: successfulSubset, error: Offline.unavailable, now: later.addingTimeInterval(60))
+        let laterFailure = failure(of: successfulSubset, at: later.addingTimeInterval(60))
         #expect(CatalogPriceCheck.latestSuccess(in: [failed, laterFailure, item()]) == later)
         #expect(failed.lastSuccessAt == first) // Other items were not refreshed successfully.
     }

@@ -23,8 +23,8 @@ struct Item: Identifiable, Codable, Hashable, Sendable {
     var priceLowCents: Int?
     var priceLowAt: Date?
     var targetPriceCents: Int?
-    /// The price level a drop/target alert already fired for. Cleared (re-armed)
-    /// once the price rises back above it — see Alerts/PriceDropDetector.swift.
+    /// Server-side alert state (the price level an alert already fired for).
+    /// Kept only so catalog payloads keep decoding; the app never uses it.
     var lastAlertedPriceCents: Int?
     var onSaleUntil: Date?
 
@@ -127,13 +127,6 @@ struct Item: Identifiable, Codable, Hashable, Sendable {
     var isStale: Bool { consecutiveFailures >= 3 }
 }
 
-extension Store {
-    /// Web connectors attempt public, verifiable prices; unsupported pages report
-    /// per-item errors instead of silently skipping entire storefronts.
-    static var refreshableStores: Set<Store> { Set(Store.allCases) }
-}
-
-
 extension Item {
     /// Historical comparison only. Neither persistence nor a lower reference price
     /// proves a promotion, or that a reduction is permanent. No time-based reset.
@@ -146,6 +139,27 @@ extension Item {
 
 
 extension Item {
+    /// Keepa price-history page for an Amazon item (`storeItemID` is the ASIN).
+    /// Keepa takes its own marketplace number, not the country code.
+    var keepaURL: URL? {
+        guard store == .amazon else { return nil }
+        let domainID = switch region.uppercased() {
+        case "GB": 2
+        case "DE": 3
+        case "FR": 4
+        case "JP": 5
+        case "CA": 6
+        case "IT": 8
+        case "ES": 9
+        case "IN": 10
+        case "MX": 11
+        default: 1
+        }
+        return URL(string: "https://keepa.com/#!product/\(domainID)-\(storeItemID)")
+    }
+}
+
+extension Item {
     /// "Talla M · Verde oliva" — only the parts that exist.
     var variantDescription: String? {
         let parts = [
@@ -153,32 +167,6 @@ extension Item {
             color.flatMap { $0.trimmedNonEmpty },
         ].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
-    }
-
-    /// Builds a new catalog entry from a connector's one-time resolution.
-    init(resolved: ResolvedItem, at date: Date = Date()) {
-        self.init(
-            store: resolved.store,
-            storeItemID: resolved.storeItemID,
-            region: resolved.region,
-            currency: resolved.currency,
-            canonicalURL: resolved.canonicalURL,
-            title: resolved.title,
-            subtitle: resolved.subtitle,
-            imageURL: resolved.imageURL,
-            category: CategoryLabel.suggestion(resolved.storeGenre),
-            categorySource: CategoryLabel.suggestion(resolved.storeGenre) == nil ? .none : .mapped,
-            storeGenre: resolved.storeGenre,
-            priceCurrentCents: resolved.priceCents,
-            priceAtAddCents: resolved.priceCents,
-            priceReferenceCents: resolved.priceReferenceCents,
-            priceLowCents: resolved.priceCents,
-            priceLowAt: resolved.priceCents != nil ? date : nil,
-            lastCheckedAt: resolved.priceCents != nil ? date : nil,
-            lastSuccessAt: resolved.priceCents != nil ? date : nil,
-            size: resolved.size,
-            color: resolved.color
-        )
     }
 }
 
@@ -189,8 +177,7 @@ extension String {
     }
 }
 
-// Namespaced metadata uses the existing synced dictionary, so this feature does
-// not require adding fields to the production CloudKit schema. Tokens distinguish
+// Namespaced metadata uses the existing external-ID dictionary. Tokens distinguish
 // explicit resets even when the user selects the same initial amount again.
 extension Item {
     static let initialPriceGenerationKey = "PriceTracker.initialPriceGeneration"
