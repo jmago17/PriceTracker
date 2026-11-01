@@ -9,6 +9,8 @@ enum PriceBucketError: Error, LocalizedError, Equatable, Sendable {
     case storeUnreachable(String?)
     case server(Int)
     case offline
+    /// A transport failure that is not plain lack of connectivity (TLS, DNS, bad URL…); carries the URLError code for diagnosis.
+    case network(code: Int, detail: String)
     case invalidResponse
     case unexpectedStatus(Int)
     case unsupported(String)
@@ -30,6 +32,8 @@ enum PriceBucketError: Error, LocalizedError, Equatable, Sendable {
             return "El servidor ha fallado (código \(code)). Inténtalo de nuevo en unos minutos."
         case .offline:
             return "Sin conexión con el servidor. Comprueba tu conexión e inténtalo de nuevo."
+        case .network(let code, let detail):
+            return "No se pudo conectar con el servidor (error \(code): \(detail))."
         case .invalidResponse:
             return "El servidor devolvió una respuesta que la app no entiende."
         case .unexpectedStatus(let code):

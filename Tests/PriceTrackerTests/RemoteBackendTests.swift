@@ -234,6 +234,14 @@ struct PriceBucketClientTests {
         transport.respond { _ in throw URLError(.notConnectedToInternet) }
         await #expect(throws: PriceBucketError.offline) { try await client.me() }
 
+        transport.respond { _ in throw URLError(.secureConnectionFailed) }
+        await #expect(throws: PriceBucketError.self) { try await client.me() }
+        do { _ = try await client.me() } catch let error as PriceBucketError {
+            guard case .network(let code, _) = error else { Issue.record("expected .network, got \(error)"); return }
+            #expect(code == URLError.secureConnectionFailed.rawValue)
+            #expect(error.localizedDescription.contains("\(code)"))
+        }
+
         transport.respond { _ in (200, "not json") }
         await #expect(throws: PriceBucketError.invalidResponse) { try await client.me() }
     }
