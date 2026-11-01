@@ -3,6 +3,10 @@ import Charts
 
 /// Shows successful check freshness separately from observed price changes.
 /// History contains real recorded observations, merged across devices.
+///
+/// Layering follows iOS 26: content sits on grouped cards, and only the
+/// controls (the floating primary action, the toolbar) are Liquid Glass.
+/// Sections with nothing to show collapse to one line or disappear.
 struct ItemDetailView: View {
     private let initialItem: Item
     let viewModel: ItemListViewModel
@@ -17,27 +21,36 @@ struct ItemDetailView: View {
         viewModel.items.first { $0.id == initialItem.id } ?? initialItem
     }
 
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @ScaledMetric(relativeTo: .largeTitle) private var priceSize: CGFloat = 54
     @State private var showingEdit = false
+    @State private var showingDeleteConfirmation = false
     @State private var isRefreshing = false
+
+    private var isRegularLayout: Bool {
+        horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
+    }
 
     var body: some View {
         ScrollView {
             Group {
-                if horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize {
+                if isRegularLayout {
                     regularLayout
                 } else {
                     compactLayout
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.top, 16)
-            .padding(.bottom, 100)
+            .padding(.top, 8)
+            .padding(.bottom, 24)
         }
+        .scrollEdgeEffectStyle(.soft, for: .bottom)
+        .background(alignment: .top) { backdrop }
         .background(Color(.systemGroupedBackground))
         .task(id: item) { await viewModel.loadHistory(for: item) }
-        .navigationTitle(item.title)
+        .navigationTitle(item.store.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
@@ -52,91 +65,165 @@ struct ItemDetailView: View {
                 .accessibilityLabel("Compartir artículo")
                 .accessibilityIdentifier("share-item-button")
             }
+            ToolbarSpacer(.fixed, placement: .topBarTrailing)
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button("Editar", systemImage: "pencil") { showingEdit = true }
-                    Button(pauseLabel, systemImage: "pause") { viewModel.togglePause(item) }
-                    Button("Eliminar", systemImage: "trash", role: .destructive) { viewModel.delete(item) }
+                    Button(pauseLabel, systemImage: item.status == .archived ? "play" : "pause") {
+                        viewModel.togglePause(item)
+                    }
+                    Divider()
+                    Button("Eliminar", systemImage: "trash", role: .destructive) {
+                        showingDeleteConfirmation = true
+                    }
                 } label: {
-                    Image(systemName: "ellipsis.circle")
+                    Image(systemName: "ellipsis")
                 }
                 .accessibilityLabel("Opciones del artículo")
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            bottomBar
-        }
+        .safeAreaInset(edge: .bottom) { openInStoreBar }
         .sheet(isPresented: $showingEdit) {
             EditItemView(item: item, viewModel: viewModel)
+        }
+        .confirmationDialog("¿Eliminar este artículo?", isPresented: $showingDeleteConfirmation,
+                            titleVisibility: .visible) {
+            Button("Eliminar", role: .destructive) {
+                viewModel.delete(item)
+                dismiss()
+            }
+        } message: {
+            Text("Se dejará de seguir y se borrará de tu catálogo.")
+        }
+    }
+
+    /// A soft wash of the product image behind the top of the page, so the
+    /// glass toolbar has something to refract. Decorative only.
+    @ViewBuilder
+    private var backdrop: some View {
+        if let url = item.imageURL {
+            AsyncImage(url: url) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                Color.clear
+            }
+            .frame(height: 380)
+            .clipped()
+            .blur(radius: 70)
+            .opacity(0.35)
+            .mask(LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom))
+            .ignoresSafeArea(edges: .top)
+            .accessibilityHidden(true)
         }
     }
 
     // MARK: Layouts
 
     private var compactLayout: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 16) {
             header
             priceBlock
-            summaryCard
-            comparisonCard
-            historyCard
-            if item.tags?.isEmpty == false || item.notes?.isEmpty == false {
-                tagsAndNotesCard
-            }
-            statusRow
+            summarySection
+            pricesCard
+            historySection
+            tagsAndNotesCard
+            trackingCard
         }
         .frame(maxWidth: 760)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 16)
     }
 
     /// iPad: the product image and its price history on the left, everything
     /// you read or act on in a column on the right.
     private var regularLayout: some View {
-        HStack(alignment: .top, spacing: 36) {
-            VStack(alignment: .leading, spacing: 20) {
-                Color.white
-                    .aspectRatio(1, contentMode: .fit)
-                    .overlay {
-                        AsyncImage(url: item.imageURL) { image in
-                            image.resizable().scaledToFit().padding(28)
-                        } placeholder: {
-                            Image(systemName: "photo")
-                                .font(.largeTitle)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .accessibilityHidden(true)
-                historyCard
+        HStack(alignment: .top, spacing: 28) {
+            VStack(alignment: .leading, spacing: 16) {
+                if item.imageURL != nil {
+                    productImage(height: 420)
+                }
+                historySection
+                tagsAndNotesCard
             }
             .frame(maxWidth: .infinity)
 
-            VStack(alignment: .leading, spacing: 18) {
-                Text(storeAndCategoryText.uppercased())
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(item.title)
-                    .font(.system(size: 40, weight: .regular, design: .serif))
-                    .fixedSize(horizontal: false, vertical: true)
-                if let subtitle = item.subtitle, !subtitle.isEmpty, item.summary == nil {
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(4)
-                }
-                variantChips
+            VStack(alignment: .leading, spacing: 16) {
+                titleBlock(largeTitle: true)
                 priceBlock
-                summaryCard
-                comparisonCard
-                if item.tags?.isEmpty == false || item.notes?.isEmpty == false {
-                    tagsAndNotesCard
-                }
-                statusRow
+                summarySection
+                pricesCard
+                trackingCard
             }
             .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: 1180)
-        .padding(.horizontal, 40)
+        .padding(.horizontal, 32)
+    }
+
+    // MARK: Header
+
+    @ViewBuilder
+    private var header: some View {
+        if item.imageURL != nil {
+            VStack(alignment: .leading, spacing: 14) {
+                productImage(height: 240)
+                titleBlock(largeTitle: false)
+                    .padding(.horizontal, 4)
+            }
+        } else {
+            // No image: a compact tile beside the title instead of an empty hero.
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+                : AnyLayout(HStackLayout(alignment: .center, spacing: 14))
+            layout {
+                Image(systemName: "bag")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 64, height: 64)
+                    .background(Color(.secondarySystemGroupedBackground),
+                                in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .accessibilityHidden(true)
+                titleBlock(largeTitle: false)
+            }
+            .padding(.horizontal, 4)
+        }
+    }
+
+    private func productImage(height: CGFloat) -> some View {
+        AsyncImage(url: item.imageURL) { image in
+            image.resizable().scaledToFit().padding(20)
+        } placeholder: {
+            ProgressView()
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
+        .accessibilityHidden(true)
+    }
+
+    private func titleBlock(largeTitle: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(storeAndCategoryText)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(item.title)
+                .font(.system(largeTitle ? .largeTitle : .title2, design: .serif, weight: .semibold))
+                .fixedSize(horizontal: false, vertical: true)
+            if let subtitle = item.subtitle, !subtitle.isEmpty, item.summary == nil {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+            }
+            variantChips
+        }
+    }
+
+    private var storeAndCategoryText: String {
+        if let category = item.category, !category.isEmpty {
+            return "\(item.store.displayName) · \(category)"
+        }
+        return item.store.displayName
     }
 
     @ViewBuilder
@@ -150,123 +237,53 @@ struct ItemDetailView: View {
                     VariantChip(label: "Color", value: color)
                 }
             }
+            .padding(.top, 2)
         }
-    }
-
-    // MARK: Summary (Apple Intelligence)
-
-    private var isSummarizing: Bool { viewModel.summarizingIDs.contains(item.id) }
-
-    @ViewBuilder
-    private var summaryCard: some View {
-        let unavailableReason = ProductInsightGenerator.unavailableReason
-        if item.summary != nil || isSummarizing || unavailableReason == nil {
-            VStack(alignment: .leading, spacing: 10) {
-                Label("Resumen", systemImage: "sparkles")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-                if isSummarizing {
-                    HStack(spacing: 10) {
-                        ProgressView()
-                        Text("Leyendo la página con Apple Intelligence…")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                } else if let summary = item.summary {
-                    Text(summary)
-                        .font(.system(.body, design: .serif))
-                        .textSelection(.enabled)
-                    Text("Generado en el dispositivo con Apple Intelligence a partir de la página de la tienda.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(viewModel.summaryErrors[item.id] ?? "Todavía sin resumen de esta ficha.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                if !isSummarizing, unavailableReason == nil {
-                    Button(item.summary == nil ? "Generar resumen" : "Volver a generar", systemImage: "arrow.clockwise") {
-                        viewModel.generateSummary(for: item)
-                    }
-                    .font(.subheadline)
-                    .accessibilityIdentifier("generate-summary-button")
-                } else if let unavailableReason, item.summary != nil {
-                    Text(unavailableReason)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-        }
-    }
-
-    // MARK: Header
-
-    private var header: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16)) : AnyLayout(HStackLayout(alignment: .top, spacing: 16))
-        return layout {
-            AsyncImage(url: item.imageURL) { image in
-                image.resizable().aspectRatio(contentMode: .fill)
-            } placeholder: {
-                RoundedRectangle(cornerRadius: 16).fill(.quaternary)
-                    .overlay { Image(systemName: "photo").foregroundStyle(.tertiary) }
-            }
-            .frame(width: 104, height: 104)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(.system(.title2, weight: .bold))
-                if let subtitle = item.subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Text(storeAndCategoryText)
-                    .font(.footnote)
-                    .foregroundStyle(.tertiary)
-                variantChips
-                    .padding(.top, 4)
-            }
-        }
-    }
-
-    private var storeAndCategoryText: String {
-        if let category = item.category, !category.isEmpty {
-            return "\(item.store.displayName) · \(category)"
-        }
-        return item.store.displayName
     }
 
     // MARK: Price
 
+    @ViewBuilder
     private var priceBlock: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(priceText)
-                    .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                    .monospacedDigit()
-                if let percent = discountPercent {
-                    Label("\(percent) %", systemImage: "arrow.down")
-                        .font(.system(.subheadline, weight: .semibold))
-                        .foregroundStyle(.green)
+        VStack(alignment: .leading, spacing: 8) {
+            if item.priceCurrentCents != nil {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(priceText)
+                        .font(.system(size: priceSize, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.6)
+                        .lineLimit(1)
+                    if let percent = discountPercent {
+                        Label("\(percent) %", systemImage: "arrow.down")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.green)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(.green.opacity(0.15), in: Capsule())
+                    }
                 }
-            }
-            Text(item.lastSuccessAt.map { "Comprobado \($0.relativeSpanish)" } ?? "Precio sin comprobación correcta")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            if let savingsMessage {
-                Text(savingsMessage)
-                    .font(.system(.body, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                Text("Comparación histórica; no confirma una promoción de la tienda.")
-                    .font(.footnote)
+                if let savingsMessage {
+                    Text(savingsMessage)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                    Text("Comparación histórica; no confirma una promoción de la tienda.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } else if item.isPendingFirstCheck {
+                StatusChip(text: Item.pendingFirstCheckText, systemImage: "clock.badge", tint: .orange)
+                Text("Se comprobará en la próxima pasada del servidor.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                StatusChip(text: "Sin precio comprobado", systemImage: "exclamationmark.triangle", tint: .red)
+                Text("La última comprobación no devolvió un precio. Detalles más abajo.")
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 4)
     }
 
     private var priceText: String {
@@ -291,88 +308,139 @@ struct ItemDetailView: View {
             : "\(format(atAdd - current)) below the initial price"
     }
 
-    // MARK: Comparison
+    // MARK: Summary (Apple Intelligence)
+
+    private var isSummarizing: Bool { viewModel.summarizingIDs.contains(item.id) }
 
     @ViewBuilder
-    private var comparisonCard: some View {
-        VStack(spacing: 0) {
-            if let atAdd = item.priceAtAddCents {
-                comparisonRow(label: CatalogLanguage.isSpanish ? "Precio inicial" : "Initial price", value: format(atAdd))
-            }
-            HStack {
-                Text(CatalogLanguage.isSpanish ? "Prioridad" : "Priority")
-                Spacer()
-                Picker(CatalogLanguage.isSpanish ? "Prioridad" : "Priority",
-                       selection: Binding(get: { item.priority }, set: { priority in
-                    Task { await viewModel.setPriority(priority, for: item) }
-                })) {
-                    ForEach(ItemPriority.allCases, id: \.self) { priority in
-                        Text(priority.title).tag(priority)
-                    }
+    private var summarySection: some View {
+        let unavailableReason = ProductInsightGenerator.unavailableReason
+        if isSummarizing {
+            DetailCard(title: "Resumen", systemImage: "sparkles") {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("Leyendo la página con Apple Intelligence…")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .accessibilityIdentifier("item-priority")
             }
-            .padding(.vertical, 12)
-            Button {
-                Task { await viewModel.useCurrentPriceAsInitial(item) }
-            } label: {
-                Label(CatalogLanguage.isSpanish
-                      ? "Usar precio actual como inicial" : "Use current price as initial",
-                      systemImage: "arrow.counterclockwise")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.vertical, 12)
-            .disabled(!item.canUseCurrentPriceAsInitial)
-            .accessibilityIdentifier("reset-initial-price")
-            Text(CatalogLanguage.isSpanish
-                 ? "Cambia la comparación inicial. Conserva el historial y el mínimo observado."
-                 : "Changes the initial comparison. Keeps history and the observed low.")
-                .font(.caption).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 12)
-            if let reference = item.priceReferenceCents {
-                comparisonRow(label: "Referencia capturada", value: format(reference))
-            }
-            if let low = item.priceLowCents {
-                comparisonRow(label: "Mínimo observado", value: format(low))
-            }
-            if let target = item.targetPriceCents {
-                VStack(alignment: .leading, spacing: 6) {
-                    comparisonRow(label: "Precio objetivo", value: format(target), showDivider: false)
-                    if let current = item.priceCurrentCents {
-                        // How much of the gap from "current" down to "target" is
-                        // already closed — 100% only once current <= target, not
-                        // whenever current is merely nonzero.
-                        let progress = current > 0 ? min(1, Double(target) / Double(current)) : 1
-                        ProgressView(value: max(0, min(1, progress)))
-                            .tint(.orange)
-                        let remaining = current - target
-                        Text(remaining > 0 ? "faltan \(format(remaining))" : "objetivo alcanzado")
+        } else if let summary = item.summary {
+            DetailCard(title: "Resumen", systemImage: "sparkles") {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(summary)
+                        .font(.body)
+                        .textSelection(.enabled)
+                    Text("Generado en el dispositivo con Apple Intelligence a partir de la página de la tienda.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if unavailableReason == nil {
+                        generateSummaryButton(title: "Volver a generar")
+                    } else if let unavailableReason {
+                        Text(unavailableReason)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
-                .padding(.vertical, 12)
             }
+        } else if unavailableReason == nil {
+            // Nothing generated yet: one compact row, not a card of explanation.
+            VStack(alignment: .leading, spacing: 4) {
+                generateSummaryButton(title: "Generar resumen")
+                if let error = viewModel.summaryErrors[item.id] {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 4)
         }
-        .padding(.horizontal, 14)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    private func comparisonRow(label: String, value: String, showDivider: Bool = true) -> some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text(label)
-                Spacer()
-                Text(value).foregroundStyle(.secondary)
+    private func generateSummaryButton(title: LocalizedStringKey) -> some View {
+        Button(title, systemImage: "sparkles") {
+            viewModel.generateSummary(for: item)
+        }
+        .font(.subheadline.weight(.medium))
+        .accessibilityIdentifier("generate-summary-button")
+    }
+
+    // MARK: Prices
+
+    @ViewBuilder
+    private var pricesCard: some View {
+        let rows = priceRows
+        let showsTarget = item.targetPriceCents != nil && item.priceCurrentCents != nil
+        if !rows.isEmpty || showsTarget || item.canUseCurrentPriceAsInitial {
+            DetailCard(title: "Precios", systemImage: "eurosign.circle") {
+                VStack(spacing: 0) {
+                    ForEach(rows.indices, id: \.self) { index in
+                        if index > 0 { Divider() }
+                        HStack {
+                            Text(rows[index].label)
+                            Spacer()
+                            Text(rows[index].value).foregroundStyle(.secondary).monospacedDigit()
+                        }
+                        .padding(.vertical, 10)
+                    }
+                    if let target = item.targetPriceCents, let current = item.priceCurrentCents {
+                        if !rows.isEmpty { Divider() }
+                        targetProgress(target: target, current: current)
+                            .padding(.vertical, 10)
+                    }
+                    if item.canUseCurrentPriceAsInitial {
+                        if !rows.isEmpty || showsTarget { Divider() }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Button {
+                                Task { await viewModel.useCurrentPriceAsInitial(item) }
+                            } label: {
+                                Label(CatalogLanguage.isSpanish
+                                      ? "Usar precio actual como inicial" : "Use current price as initial",
+                                      systemImage: "arrow.counterclockwise")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .accessibilityIdentifier("reset-initial-price")
+                            Text(CatalogLanguage.isSpanish
+                                 ? "Conserva el historial y el mínimo observado."
+                                 : "Keeps history and the observed low.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 10)
+                    }
+                }
             }
-            .padding(.vertical, 12)
-            if showDivider {
-                Divider()
-            }
+        }
+    }
+
+    private var priceRows: [(label: String, value: String)] {
+        var rows: [(label: String, value: String)] = []
+        if let atAdd = item.priceAtAddCents {
+            rows.append((CatalogLanguage.isSpanish ? "Precio inicial" : "Initial price", format(atAdd)))
+        }
+        if let reference = item.priceReferenceCents {
+            rows.append(("Referencia capturada", format(reference)))
+        }
+        if let low = item.priceLowCents {
+            rows.append(("Mínimo observado", format(low)))
+        }
+        if let target = item.targetPriceCents {
+            rows.append(("Precio objetivo", format(target)))
+        }
+        return rows
+    }
+
+    @ViewBuilder
+    private func targetProgress(target: Int, current: Int) -> some View {
+        // How much of the gap from "current" down to "target" is already
+        // closed — 100% only once current <= target.
+        let progress = current > 0 ? min(1, Double(target) / Double(current)) : 1
+        let remaining = current - target
+        VStack(alignment: .leading, spacing: 6) {
+            ProgressView(value: max(0, min(1, progress)))
+                .tint(remaining > 0 ? .orange : .green)
+            Text(remaining > 0 ? "Faltan \(format(remaining)) para el objetivo" : "Objetivo alcanzado")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -382,26 +450,18 @@ struct ItemDetailView: View {
         PriceHistorySeries(observations: viewModel.histories[item.identityKey] ?? [], currency: item.currency)
     }
 
-    private var historyCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Evolución del precio")
-                .font(.system(.title3, design: .serif, weight: .semibold))
-                .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 8) {
-                if viewModel.historyErrors[item.identityKey] != nil {
-                    Text("No se pudo cargar el historial. Vuelve a abrir la ficha para reintentarlo.")
-                } else if viewModel.histories[item.identityKey] == nil {
-                    ProgressView("Cargando historial")
-                } else if historySeries.observations.isEmpty {
-                    Text("Todavía sin observaciones")
-                        .font(.system(.body, weight: .bold))
-                    Text(historyExplanation)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                } else {
+    @ViewBuilder
+    private var historySection: some View {
+        let loaded = viewModel.histories[item.identityKey] != nil
+        let hasFailed = viewModel.historyErrors[item.identityKey] != nil
+        let hasPoints = loaded && !historySeries.observations.isEmpty
+        if hasPoints {
+            DetailCard(title: "Evolución del precio", systemImage: "chart.xyaxis.line") {
+                VStack(alignment: .leading, spacing: 8) {
                     PriceHistoryChart(series: historySeries, currency: item.currency)
                     if !historySeries.hasTimeSpan {
                         Text("Una comprobación: todavía no hay un intervalo que comparar.")
+                            .font(.subheadline)
                         if let observation = historySeries.observations.first {
                             Text(observation.checkedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(Locale(identifier: "es_ES"))))
                                 .font(.caption)
@@ -409,108 +469,128 @@ struct ItemDetailView: View {
                         }
                     } else if historySeries.isUnchanged {
                         Text("Mismo precio en las comprobaciones registradas.")
+                            .font(.subheadline)
                     }
                     if let changed = historySeries.lastPriceChangeAt {
                         Text("Último cambio observado \(changed.relativeSpanish)")
+                            .font(.subheadline)
                     }
                     Text("Comprobaciones registradas por el servidor. Los puntos son precios observados; no se reconstruyen fechas anteriores.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                }
-                if let keepaURL = item.keepaURL {
-                    Link(destination: keepaURL) {
-                        Label("Ver histórico en Keepa", systemImage: "arrow.up.right")
-                    }
-                    .font(.subheadline)
+                    keepaLink
                 }
             }
-            .padding(14)
+        } else if hasFailed || !loaded || !item.isPendingFirstCheck || item.keepaURL != nil {
+            // Compact single rows instead of a card full of explanation.
+            VStack(alignment: .leading, spacing: 10) {
+                if hasFailed {
+                    Label("No se pudo cargar el historial. Vuelve a abrir la ficha para reintentarlo.",
+                          systemImage: "exclamationmark.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else if !loaded {
+                    ProgressView("Cargando historial")
+                        .font(.subheadline)
+                } else if !item.isPendingFirstCheck {
+                    Label("Todavía sin observaciones", systemImage: "chart.xyaxis.line")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                keepaLink
+            }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .padding(.horizontal, 4)
         }
     }
 
-    private var historyExplanation: String {
-        CatalogLanguage.isSpanish
-            ? "Cada comprobación correcta guarda un punto, aunque el precio no cambie. Los puntos los guarda el servidor, separados por moneda."
-            : "Each successful check records a point, even if the price is unchanged. Points are stored by the server, separated by currency."
+    @ViewBuilder
+    private var keepaLink: some View {
+        if let keepaURL = item.keepaURL {
+            Link(destination: keepaURL) {
+                Label("Ver histórico en Keepa", systemImage: "arrow.up.right")
+            }
+            .font(.subheadline)
+        }
     }
 
     // MARK: Tags & notes
 
+    @ViewBuilder
     private var tagsAndNotesCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("ETIQUETAS Y NOTAS")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 10) {
-                if let tags = item.tags, !tags.isEmpty {
-                    HStack {
-                        ForEach(tags, id: \.self) { tag in
-                            Text(tag)
-                                .font(.subheadline)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Color(.tertiarySystemFill))
-                                .clipShape(Capsule())
-                        }
-                        Spacer()
+        let tags = item.tags ?? []
+        let notes = item.notes ?? ""
+        if !tags.isEmpty || !notes.isEmpty {
+            DetailCard(title: "Etiquetas y notas", systemImage: "tag") {
+                VStack(alignment: .leading, spacing: 10) {
+                    if !tags.isEmpty {
+                        TagRow(tags: tags)
+                    }
+                    if !notes.isEmpty {
+                        Text(notes)
+                            .font(.body)
+                            .foregroundStyle(.secondary)
                     }
                 }
-                if let notes = item.notes, !notes.isEmpty {
-                    Text(notes)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                }
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
         }
     }
 
     // MARK: Tracking status
 
-    private var statusRow: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(trackingHeadline)
-                        .font(.system(.body, weight: .medium))
-                    Text(trackingSubline)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button {
-                    refresh()
-                } label: {
-                    if isRefreshing {
-                        ProgressView()
-                    } else {
-                        Label("Actualizar", systemImage: "arrow.clockwise")
+    private var trackingCard: some View {
+        DetailCard(title: "Seguimiento", systemImage: "scope") {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text(CatalogLanguage.isSpanish ? "Prioridad" : "Priority")
+                    Spacer()
+                    Picker(CatalogLanguage.isSpanish ? "Prioridad" : "Priority",
+                           selection: Binding(get: { item.priority }, set: { priority in
+                        Task { await viewModel.setPriority(priority, for: item) }
+                    })) {
+                        ForEach(ItemPriority.allCases, id: \.self) { priority in
+                            Text(priority.title).tag(priority)
+                        }
                     }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .accessibilityIdentifier("item-priority")
                 }
-                .disabled(isRefreshing)
+                .padding(.bottom, 10)
+                Divider()
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(trackingHeadline)
+                            .font(.body.weight(.medium))
+                        Text(trackingSubline)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button {
+                        refresh()
+                    } label: {
+                        if isRefreshing {
+                            ProgressView()
+                        } else {
+                            Label("Actualizar", systemImage: "arrow.clockwise")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.small)
+                    .disabled(isRefreshing)
+                }
+                .padding(.top, 10)
+                if let error = item.lastError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .textSelection(.enabled)
+                        .padding(.top, 8)
+                }
             }
-            if let error = item.lastError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .textSelection(.enabled)
-            }
-            Button {
-                openInStore()
-            } label: {
-                Text("Abrir en \(item.store.displayName)")
-            }
-            .font(.subheadline)
         }
-        .padding(14)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
     private var trackingHeadline: String {
@@ -531,38 +611,22 @@ struct ItemDetailView: View {
         item.status == .archived ? "Reanudar" : "Pausar"
     }
 
-    // MARK: Bottom bar
+    // MARK: Primary action
 
-    private var bottomBar: some View {
-        HStack(spacing: 12) {
-            Button {
-                showingEdit = true
-            } label: {
-                Text("Editar")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(GhostButtonStyle(tint: .blue))
-
-            Button {
-                viewModel.togglePause(item)
-            } label: {
-                Text(pauseLabel)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(GhostButtonStyle(tint: .blue))
-
-            Button(role: .destructive) {
-                viewModel.delete(item)
-            } label: {
-                Image(systemName: "trash")
-                    .frame(width: 48, height: 48)
-            }
-            .buttonStyle(GhostButtonStyle(tint: .red))
-            .accessibilityLabel("Eliminar artículo")
+    /// The one primary action. Edit/pause/delete live in the ··· menu only.
+    private var openInStoreBar: some View {
+        Button {
+            openInStore()
+        } label: {
+            Label("Abrir en \(item.store.displayName)", systemImage: "arrow.up.forward.app")
+                .font(.body.weight(.semibold))
+                .frame(maxWidth: .infinity)
         }
+        .buttonStyle(.glassProminent)
+        .controlSize(.large)
+        .frame(maxWidth: 420)
         .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(.bar)
+        .padding(.bottom, 8)
     }
 
     private func refresh() {
@@ -584,18 +648,59 @@ struct ItemDetailView: View {
     }
 }
 
-/// The 10%-tint pill used across the ficha's bottom bar: filled enough to read
-/// as a button, quiet enough that the destructive action still stands apart.
-private struct GhostButtonStyle: ButtonStyle {
+// MARK: - Building blocks
+
+/// Grouped-style content card with a quiet system-font header.
+private struct DetailCard<Content: View>: View {
+    let title: LocalizedStringKey
+    let systemImage: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            content
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+/// Tinted status capsule (pending first check, no price).
+private struct StatusChip: View {
+    let text: String
+    let systemImage: String
     let tint: Color
 
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(.body, weight: .semibold))
+    var body: some View {
+        Label(text, systemImage: systemImage)
+            .font(.subheadline.weight(.semibold))
             .foregroundStyle(tint)
-            .frame(height: 48)
-            .background(tint.opacity(configuration.isPressed ? 0.18 : 0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(tint.opacity(0.14), in: Capsule())
+    }
+}
+
+private struct TagRow: View {
+    let tags: [String]
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(tags, id: \.self) { tag in
+                    Text(tag)
+                        .font(.subheadline)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color(.tertiarySystemFill), in: Capsule())
+                }
+            }
+        }
     }
 }
 
