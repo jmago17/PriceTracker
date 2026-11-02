@@ -5,8 +5,9 @@ import Charts
 /// History contains real recorded observations, merged across devices.
 ///
 /// Layering follows iOS 26: content sits on grouped cards, and only the
-/// controls (the floating primary action, the toolbar) are Liquid Glass.
-/// Sections with nothing to show collapse to one line or disappear.
+/// controls (the system bottom bar, the toolbar) are Liquid Glass. The
+/// frequent actions live in the bottom bar so they stay visible while
+/// scrolling; deleting lives in its own section at the end.
 struct ItemDetailView: View {
     private let initialItem: Item
     let viewModel: ItemListViewModel
@@ -65,24 +66,8 @@ struct ItemDetailView: View {
                 .accessibilityLabel("Compartir artículo")
                 .accessibilityIdentifier("share-item-button")
             }
-            ToolbarSpacer(.fixed, placement: .topBarTrailing)
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button("Editar", systemImage: "pencil") { showingEdit = true }
-                    Button(pauseLabel, systemImage: item.status == .archived ? "play" : "pause") {
-                        viewModel.togglePause(item)
-                    }
-                    Divider()
-                    Button("Eliminar", systemImage: "trash", role: .destructive) {
-                        showingDeleteConfirmation = true
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                }
-                .accessibilityLabel("Opciones del artículo")
-            }
         }
-        .safeAreaInset(edge: .bottom) { openInStoreBar }
+        .safeAreaInset(edge: .bottom) { actionBar }
         .sheet(isPresented: $showingEdit) {
             EditItemView(item: item, viewModel: viewModel)
         }
@@ -95,6 +80,36 @@ struct ItemDetailView: View {
         } message: {
             Text("Se dejará de seguir y se borrará de tu catálogo.")
         }
+    }
+
+    /// Frequent actions, always visible while scrolling: labelled Liquid Glass
+    /// buttons grouped in one container (system toolbars render icon-only).
+    private var actionBar: some View {
+        GlassEffectContainer(spacing: 10) {
+            HStack(spacing: 10) {
+                Button { showingEdit = true } label: {
+                    Label("Editar", systemImage: "pencil").lineLimit(1)
+                }
+                .buttonStyle(.glass)
+                .accessibilityIdentifier("edit-item-button")
+                Button { viewModel.togglePause(item) } label: {
+                    Label(pauseLabel, systemImage: item.status == .archived ? "play" : "pause").lineLimit(1)
+                }
+                .buttonStyle(.glass)
+                .accessibilityIdentifier("pause-item-button")
+                Button { openInStore() } label: {
+                    Label("Abrir tienda", systemImage: "arrow.up.forward.app")
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.glassProminent)
+                .accessibilityIdentifier("open-in-store-button")
+            }
+            .font(.subheadline.weight(.semibold))
+            .controlSize(.large)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 6)
     }
 
     /// A soft wash of the product image behind the top of the page, so the
@@ -121,37 +136,34 @@ struct ItemDetailView: View {
 
     private var compactLayout: some View {
         VStack(alignment: .leading, spacing: 16) {
-            header
-            priceBlock
+            headerCard(imageHeight: 220)
+            historySection
             summarySection
             pricesCard
-            historySection
             tagsAndNotesCard
             trackingCard
+            dangerZone
         }
         .frame(maxWidth: 760)
         .padding(.horizontal, 16)
     }
 
-    /// iPad: the product image and its price history on the left, everything
-    /// you read or act on in a column on the right.
+    /// iPad: the identity of the product on the left, the data you compare
+    /// and adjust on the right.
     private var regularLayout: some View {
-        HStack(alignment: .top, spacing: 28) {
+        HStack(alignment: .top, spacing: 24) {
             VStack(alignment: .leading, spacing: 16) {
-                if item.imageURL != nil {
-                    productImage(height: 420)
-                }
-                historySection
+                headerCard(imageHeight: 320)
+                summarySection
                 tagsAndNotesCard
             }
             .frame(maxWidth: .infinity)
 
             VStack(alignment: .leading, spacing: 16) {
-                titleBlock(largeTitle: true)
-                priceBlock
-                summarySection
+                historySection
                 pricesCard
                 trackingCard
+                dangerZone
             }
             .frame(maxWidth: .infinity)
         }
@@ -161,53 +173,70 @@ struct ItemDetailView: View {
 
     // MARK: Header
 
-    @ViewBuilder
-    private var header: some View {
-        if item.imageURL != nil {
-            VStack(alignment: .leading, spacing: 14) {
-                productImage(height: 240)
-                titleBlock(largeTitle: false)
-                    .padding(.horizontal, 4)
+    /// One visual unit: image, identity, price and verdict. If the image is
+    /// missing or fails to load, no hero is reserved: a compact tile sits
+    /// beside the title instead.
+    private func headerCard(imageHeight: CGFloat) -> some View {
+        AsyncImage(url: item.imageURL) { phase in
+            VStack(alignment: .leading, spacing: 0) {
+                switch phase {
+                case .success(let image):
+                    image.resizable().scaledToFit()
+                        .padding(16)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: imageHeight)
+                        .background(Color(.secondarySystemFill))
+                        .accessibilityHidden(true)
+                    headerBody(showsTile: false)
+                case .empty where item.imageURL != nil:
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: imageHeight * 0.6)
+                        .background(Color(.secondarySystemFill))
+                        .accessibilityHidden(true)
+                    headerBody(showsTile: false)
+                default:
+                    headerBody(showsTile: true)
+                }
             }
-        } else {
-            // No image: a compact tile beside the title instead of an empty hero.
-            let layout = dynamicTypeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
-                : AnyLayout(HStackLayout(alignment: .center, spacing: 14))
-            layout {
-                Image(systemName: "bag")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 64, height: 64)
-                    .background(Color(.secondarySystemGroupedBackground),
-                                in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .accessibilityHidden(true)
-                titleBlock(largeTitle: false)
-            }
-            .padding(.horizontal, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
     }
 
-    private func productImage(height: CGFloat) -> some View {
-        AsyncImage(url: item.imageURL) { image in
-            image.resizable().scaledToFit().padding(20)
-        } placeholder: {
-            ProgressView()
+    private func headerBody(showsTile: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if showsTile {
+                let layout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+                    : AnyLayout(HStackLayout(alignment: .top, spacing: 14))
+                layout {
+                    Image(systemName: "bag")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 56, height: 56)
+                        .background(Color(.secondarySystemFill),
+                                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .accessibilityHidden(true)
+                    titleBlock
+                }
+            } else {
+                titleBlock
+            }
+            priceBlock
+            buyMoment
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: height)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
-        .accessibilityHidden(true)
+        .padding(16)
     }
 
-    private func titleBlock(largeTitle: Bool) -> some View {
+    private var titleBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(storeAndCategoryText)
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
             Text(item.title)
-                .font(.system(largeTitle ? .largeTitle : .title2, design: .serif, weight: .semibold))
+                .font(.system(.title2, design: .serif, weight: .semibold))
                 .fixedSize(horizontal: false, vertical: true)
             if let subtitle = item.subtitle, !subtitle.isEmpty, item.summary == nil {
                 Text(subtitle)
@@ -283,7 +312,6 @@ struct ItemDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 4)
     }
 
     private var priceText: String {
@@ -306,6 +334,74 @@ struct ItemDetailView: View {
         return CatalogLanguage.isSpanish
             ? "\(format(atAdd - current)) menos que el precio inicial"
             : "\(format(atAdd - current)) below the initial price"
+    }
+
+    // MARK: Buy moment
+
+    private enum BuyVerdict {
+        case goalReached, atLow, nearLow, aboveInitial, unknown
+
+        var title: LocalizedStringKey {
+            switch self {
+            case .goalReached: "Objetivo alcanzado"
+            case .atLow: "En su mínimo observado"
+            case .nearLow: "Cerca del mínimo"
+            case .aboveInitial: "Por encima del precio inicial"
+            case .unknown: "Aún sin referencias para comparar"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .goalReached, .atLow: "checkmark.seal.fill"
+            case .nearLow: "hand.thumbsup"
+            case .aboveInitial: "arrow.up.right"
+            case .unknown: "questionmark.circle"
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .goalReached, .atLow: .green
+            case .nearLow: .orange
+            case .aboveInitial, .unknown: .secondary
+            }
+        }
+    }
+
+    /// Read-only comparison of the current price with data already stored.
+    /// It never claims that the store is running a promotion.
+    private var buyVerdict: BuyVerdict? {
+        guard let current = item.priceCurrentCents else { return nil }
+        if let target = item.targetPriceCents, current <= target { return .goalReached }
+        if let low = item.priceLowCents {
+            let highestReference = [item.priceAtAddCents, item.priceReferenceCents].compactMap { $0 }.max()
+            if current <= low, let highestReference, highestReference > current { return .atLow }
+            if low > 0, current > low, Double(current) <= Double(low) * 1.05 { return .nearLow }
+        }
+        if let atAdd = item.priceAtAddCents, current > atAdd { return .aboveInitial }
+        return .unknown
+    }
+
+    @ViewBuilder
+    private var buyMoment: some View {
+        if let verdict = buyVerdict {
+            Divider()
+            HStack(spacing: 12) {
+                Image(systemName: verdict.systemImage)
+                    .font(.title3)
+                    .foregroundStyle(verdict.tint)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("¿Buen momento para comprar?")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(verdict.title)
+                        .font(.subheadline.weight(.semibold))
+                }
+            }
+            .accessibilityElement(children: .combine)
+        }
     }
 
     // MARK: Summary (Apple Intelligence)
@@ -576,8 +672,7 @@ struct ItemDetailView: View {
                             Label("Actualizar", systemImage: "arrow.clockwise")
                         }
                     }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
+                    .buttonStyle(.glass)
                     .controlSize(.small)
                     .disabled(isRefreshing)
                 }
@@ -611,22 +706,33 @@ struct ItemDetailView: View {
         item.status == .archived ? "Reanudar" : "Pausar"
     }
 
-    // MARK: Primary action
+    // MARK: Danger zone
 
-    /// The one primary action. Edit/pause/delete live in the ··· menu only.
-    private var openInStoreBar: some View {
-        Button {
-            openInStore()
-        } label: {
-            Label("Abrir en \(item.store.displayName)", systemImage: "arrow.up.forward.app")
-                .font(.body.weight(.semibold))
-                .frame(maxWidth: .infinity)
+    /// Deleting is destructive and rare: its own labelled section at the
+    /// end of the page, confirmed before it runs.
+    private var dangerZone: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Zona de peligro", systemImage: "exclamationmark.triangle")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.red)
+            Text("Dejarás de seguir este artículo y se borrará de tu catálogo.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Button(role: .destructive) {
+                showingDeleteConfirmation = true
+            } label: {
+                Label("Eliminar artículo", systemImage: "trash")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.glass)
+            .tint(.red)
+            .controlSize(.large)
+            .accessibilityIdentifier("delete-item-button")
         }
-        .buttonStyle(.glassProminent)
-        .controlSize(.large)
-        .frame(maxWidth: 420)
-        .padding(.horizontal, 20)
-        .padding(.bottom, 8)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private func refresh() {
@@ -747,7 +853,7 @@ private struct PriceHistoryChart: View {
         .chartYScale(domain: priceRange)
         .chartYAxisLabel(currency)
         .environment(\.locale, Locale(identifier: "es_ES"))
-        .frame(height: 180)
+        .frame(height: 200)
         .accessibilityIdentifier("price-history-chart")
     }
 }
