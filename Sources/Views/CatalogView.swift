@@ -321,6 +321,7 @@ struct CatalogView: View {
             NavigationLink(value: item.id) {
                 card
             }
+            .navigationLinkIndicatorVisibility(.hidden)
             .buttonStyle(.plain)
             .accessibilityIdentifier("item-row")
             .contextMenu {
@@ -511,6 +512,7 @@ struct CatalogView: View {
             NavigationLink(value: item.id) {
                 card
             }
+            .navigationLinkIndicatorVisibility(.hidden)
             .buttonStyle(.plain)
             .accessibilityIdentifier("item-card")
             .contextMenu {
