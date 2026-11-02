@@ -262,3 +262,5 @@ Build y tests, ambos simuladores (iPhone 17 Pro, iPad Pro 11" M5, iOS 27.0, Xcod
 - Firma: otro agente confirmó Time Sensitive en el identificador; todavía no se ha actualizado/validado el perfil local ni repetido archive firmado. No confundir build Simulator sin firma con exportación de distribución.
 
 - Revisión estática posterior: nueve comprobaciones SQL sintéticas en memoria correctas (SQLite 3.50.4, 1.001 filas; evidencia `/tmp/pricetracker-history-sql-check.json`). No sustituyen suites Swift/CloudKit. Documento de esquema ampliado con contrato completo, pasos Development/Production y riesgos de migración/rollback; despliegue y ejecución siguen pendientes. No se inició build/simulador ni se modificó firma durante esta revisión.
+
+- 2026-11-02: la ficha de producto v2 está en main (PR #7); este cambio solo reactiva Xcode Cloud, que no se disparó en ese merge.
