@@ -65,23 +65,26 @@ import UIKit
 
 @MainActor
 struct CatalogSummaryLayoutTests {
-    @Test func longSummariesStopAtThreeLinesWithoutReservingSpaceForShortOnes() {
+    /// The description (subtitle) and the summary live in the item detail,
+    /// not in the list: the card must be the same height with or without them.
+    @Test func listCardIgnoresSummaryAndSubtitle() {
         for width: CGFloat in [180, 320, 600] {
             for typeSize: DynamicTypeSize in [.large, .accessibility3] {
                 for trailingImage in [false, true] {
-                    func height(_ summary: String) -> CGFloat {
+                    func height(subtitle: String?, summary: String?) -> CGFloat {
                         let item = Item(store: .appStore, storeItemID: "layout",
                                         canonicalURL: URL(string: "https://example.com/layout")!,
-                                        title: "Artículo", summary: summary)
+                                        title: "Artículo", subtitle: subtitle, summary: summary)
                         let card = CompactMuralCardView(item: item, imageOnTrailingSide: trailingImage)
                             .environment(\.dynamicTypeSize, typeSize)
                         let host = UIHostingController(rootView: card)
                         return host.sizeThatFits(in: CGSize(width: width, height: 10_000)).height
                     }
-                    let three = height("A\nB\nC")
-                    let long = height("A\nB\nC\nD\nE\nF\nG\nH")
-                    #expect(abs(three - long) < 1)
-                    #expect(height("A") < three)
+                    let bare = height(subtitle: nil, summary: nil)
+                    let withSummary = height(subtitle: nil, summary: "A\nB\nC\nD\nE\nF\nG\nH")
+                    let withSubtitle = height(subtitle: "Descripción larga\nde varias\nlíneas\nque no se ve", summary: nil)
+                    #expect(abs(bare - withSummary) < 1)
+                    #expect(abs(bare - withSubtitle) < 1)
                 }
             }
         }

@@ -120,8 +120,10 @@ struct CompactMuralCardView: View {
                     }
                 }
             }
-            summaryContent
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if isSummarizing {
+                summaryContent
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             footer
         }
         .padding(16)
@@ -138,29 +140,13 @@ struct CompactMuralCardView: View {
         .accessibilityIdentifier("item-card")
     }
 
+    /// Only the transient "summarizing" state; the description and summary
+    /// live in the item detail, not in the list.
     private var summaryContent: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if let subtitle = CatalogCardDetails.subtitle(for: item) {
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 5)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if isSummarizing {
-                Label("Resumiendo…", systemImage: "sparkles")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .symbolEffect(.pulse, isActive: !reduceMotion)
-            } else if let summary = item.summary?.trimmedNonEmpty {
-                Text(summary)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-                    .truncationMode(.tail)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
+        Label("Resumiendo…", systemImage: "sparkles")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .symbolEffect(.pulse, isActive: !reduceMotion)
     }
 
     private var footer: some View {
@@ -336,13 +322,6 @@ struct ItemCardView: View {
             Text(item.title)
                 .font(.system(.title2, design: .serif))
                 .lineLimit(isCompact && dynamicTypeSize.isAccessibilitySize ? nil : 4)
-            if let summary = item.summary {
-                Text(summary)
-                    .font(.system(.callout, design: .serif))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-                    .truncationMode(.tail)
-            }
             Text(priceText)
                 .font(.system(.title3, design: .rounded, weight: .bold))
                 .monospacedDigit()
@@ -375,13 +354,6 @@ struct ItemCardView: View {
                     .font(.caption)
                     .foregroundStyle(Color.accentColor)
                     .symbolEffect(.pulse, isActive: !reduceMotion)
-            } else if item.imageURL != nil, let summary = item.summary {
-                Text(summary)
-                    .font(.system(.footnote, design: .serif))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-                    .truncationMode(.tail)
-                    .padding(.top, 2)
             }
             if item.lastError != nil {
                 Label("No se pudo comprobar", systemImage: "exclamationmark.triangle.fill")

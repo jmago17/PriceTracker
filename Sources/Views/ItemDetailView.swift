@@ -138,6 +138,7 @@ struct ItemDetailView: View {
         VStack(alignment: .leading, spacing: 16) {
             headerCard(imageHeight: 220)
             historySection
+            descriptionSection
             summarySection
             pricesCard
             tagsAndNotesCard
@@ -154,6 +155,7 @@ struct ItemDetailView: View {
         HStack(alignment: .top, spacing: 24) {
             VStack(alignment: .leading, spacing: 16) {
                 headerCard(imageHeight: 320)
+                descriptionSection
                 summarySection
                 tagsAndNotesCard
             }
@@ -238,12 +240,6 @@ struct ItemDetailView: View {
             Text(item.title)
                 .font(.system(.title2, design: .serif, weight: .semibold))
                 .fixedSize(horizontal: false, vertical: true)
-            if let subtitle = item.subtitle, !subtitle.isEmpty, item.summary == nil {
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-            }
             variantChips
         }
     }
@@ -401,6 +397,20 @@ struct ItemDetailView: View {
                 }
             }
             .accessibilityElement(children: .combine)
+        }
+    }
+
+    // MARK: Description (imported)
+
+    @ViewBuilder
+    private var descriptionSection: some View {
+        if let description = CatalogCardDetails.subtitle(for: item) {
+            DetailCard(title: "Descripción", systemImage: "text.alignleft") {
+                Text(description)
+                    .font(.body)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 
